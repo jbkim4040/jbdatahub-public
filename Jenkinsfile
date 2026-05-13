@@ -12,14 +12,14 @@ pipeline {
 
         stage('Build & Deploy') {
             steps {
-                sh 'docker compose up -d --build jbDataHubUI jbDataHub'
+                sh 'docker-compose up -d --build jbDataHubUI jbDataHub'
                 echo "✅ 빌드 및 배포 완료"
             }
         }
 
         stage('Nginx 재시작') {
             steps {
-                sh 'docker compose up -d nginx'
+                sh 'docker-compose up -d nginx'
                 echo "✅ Nginx 시작 완료"
             }
         }

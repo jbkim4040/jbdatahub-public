@@ -1,0 +1,49 @@
+spring:
+  application:
+    name: jbDataHub
+  profiles:
+    active: prod
+  datasource:
+    url: 'jdbc:postgresql://aws-1-ap-southeast-1.pooler.supabase.com:5432/postgres'
+    username: 'postgres.gsnbkafidekgqeosring'
+    password: '@jbdhsupabase'
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    hibernate:
+      ddl-auto: update
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: false
+    show-sql: false
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
+
+server:
+  port: 8080
+  # Nginx가 전달하는 X-Forwarded-* 헤더를 신뢰
+  # HTTPS 환경에서 redirect URL이 http:// 로 잘못 생성되는 문제 방지
+  forward-headers-strategy: framework
+
+# 공공데이터포털 API 설정
+publicdata:
+  api:
+    base-url: https://api.odcloud.kr/api
+    path: /15077093/v1/open-data-list
+    service-key: I%2BWwYYgtGB1N7ktEVTgfITml8mGo2Eq4BGth11%2BySdV5LtiTht7THTeuK60dIqSgjRYzdeT2fLSGxwgnjbmXPw%3D%3D
+
+# Swagger / SpringDoc 설정
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui
+    tags-sorter: alpha
+    operations-sorter: alpha
+    display-request-duration: true
+    try-it-out-enabled: true
+
+logging:
+  level:
+    org.hibernate.SQL: DEBUG
+    org.hibernate.type.descriptor.sql.BasicBinder: TRACE
+    com.jb.datahub: INFO

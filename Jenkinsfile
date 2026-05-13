@@ -12,7 +12,7 @@ pipeline {
 
         stage('Build & Deploy') {
             steps {
-                sh 'docker-compose up -d --build jbDataHubUI jbDataHub'
+                sh 'docker-compose up -d --build jbdatahubui jbdatahub'
                 echo "✅ 빌드 및 배포 완료"
             }
         }

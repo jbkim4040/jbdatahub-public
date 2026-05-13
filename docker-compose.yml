@@ -9,26 +9,26 @@ services:
     volumes:
       - ./nginx/conf.d:/etc/nginx/conf.d:ro
     depends_on:
-      - jbDataHubUI
-      - jbDataHub
+      - jbdatahubui
+      - jbdatahub
     restart: unless-stopped
     networks:
       - app-network
 
-  jbDataHubUI:
+  jbdatahubui:
     build:
       context: ./jbDataHubUI
       dockerfile: Dockerfile
-    container_name: jbDataHubUI
+    container_name: jbdatahubui
     restart: unless-stopped
     networks:
       - app-network
 
-  jbDataHub:
+  jbdatahub:
     build:
       context: ./jbDataHub
       dockerfile: Dockerfile
-    container_name: jbDataHub
+    container_name: jbdatahub
     restart: unless-stopped
     environment:
       - SPRING_PROFILES_ACTIVE=prod

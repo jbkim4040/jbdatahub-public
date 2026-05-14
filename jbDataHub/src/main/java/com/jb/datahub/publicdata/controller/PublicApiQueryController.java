@@ -2,6 +2,7 @@ package com.jb.datahub.publicdata.controller;
 
 import com.jb.datahub.publicdata.dto.PageResponseDto;
 import com.jb.datahub.publicdata.dto.PublicApiListDto;
+import com.jb.datahub.publicdata.dto.PublicDataItemResponseDto;
 import com.jb.datahub.publicdata.dto.StatsDto;
 import com.jb.datahub.publicdata.service.PublicApiQueryService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -38,11 +39,29 @@ public class PublicApiQueryController {
     }
 
     @GetMapping("/stats")
-    @Operation(
-            summary = "통계 조회",
-            description = "전체 건수, API 유형별·분류별·제공기관별 건수를 반환합니다."
-    )
+    @Operation(summary = "통계 조회", description = "전체 건수, API 유형별·분류별·제공기관별 건수를 반환합니다.")
     public ResponseEntity<StatsDto> getStats() {
         return ResponseEntity.ok(queryService.getStats());
+    }
+
+    @GetMapping("/data-items")
+    @Operation(
+            summary = "수집 데이터 목록 조회",
+            description = "저장된 데이터셋/파일데이터/표준데이터를 페이징 조회합니다. sourceType으로 유형 필터, title로 검색 가능."
+    )
+    public ResponseEntity<PageResponseDto<PublicDataItemResponseDto>> getDataItems(
+            @Parameter(description = "데이터 유형: dataset | file-data | standard-data (미입력 시 전체)")
+            @RequestParam(required = false) String sourceType,
+
+            @Parameter(description = "제목 검색어")
+            @RequestParam(required = false) String title,
+
+            @Parameter(description = "페이지 번호 (0부터 시작)", example = "0")
+            @RequestParam(defaultValue = "0") int page,
+
+            @Parameter(description = "페이지 크기", example = "20")
+            @RequestParam(defaultValue = "20") int size
+    ) {
+        return ResponseEntity.ok(queryService.getDataItems(sourceType, page, size, title));
     }
 }

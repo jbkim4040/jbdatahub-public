@@ -28,6 +28,10 @@ export const getList = (page = 0, size = 20, title = '') =>
 /** 통계 조회 */
 export const getStats = () => http.get('/public-data/stats')
 
+/** 수집 데이터 목록 조회 (dataset / file-data / standard-data) */
+export const getDataItems = (sourceType = '', page = 0, size = 20, title = '') =>
+  http.get('/public-data/data-items', { params: { sourceType: sourceType || undefined, page, size, title: title || undefined } })
+
 /* ── 사용자 관리 (관리자 전용) ── */
 export const getUsers = () => http.get('/admin/users')
 export const createUser = (data) => http.post('/admin/users', data)

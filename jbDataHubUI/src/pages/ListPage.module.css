@@ -1,22 +1,15 @@
 .container { max-width: 1100px; }
-.title { font-size: 1.7rem; color: #1e3a5f; margin-bottom: 1.5rem; }
+.title { font-size: 1.7rem; color: #1e3a5f; margin-bottom: 1rem; }
 
-/* 섹션 */
-.typeSection { margin-bottom: 2rem; }
-.sectionTitle { font-size: 1rem; font-weight: 700; color: #1e3a5f; margin-bottom: 1rem; padding-bottom: .4rem; border-bottom: 2px solid #e0e6ef; }
-
-/* 데이터 유형 카드 */
-.typeGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: .9rem; margin-bottom: 1rem; }
-.typeCard {
-  background: #fff; border: 1px solid #e0e6ef; border-top: 4px solid #ccc;
-  border-radius: 10px; padding: 1.1rem 1rem; text-align: center;
+/* 탭 */
+.tabBar { display: flex; gap: 4px; border-bottom: 2px solid #e0e6ef; margin-bottom: 1.5rem; }
+.tabBtn {
+  padding: 9px 22px; background: none; border: none; border-bottom: 3px solid transparent;
+  margin-bottom: -2px; font-size: .95rem; color: #666; cursor: pointer; font-weight: 500;
+  transition: color .15s;
 }
-.typeCardTotal { border-top-color: #555 !important; background: #f8f9fb; }
-.typeNum { font-size: 1.7rem; font-weight: 700; margin-bottom: .25rem; }
-.typeLabel { font-size: .78rem; color: #777; }
-
-/* 유형 파이차트 */
-.typePieWrap { background: #fff; border: 1px solid #e0e6ef; border-radius: 10px; padding: .8rem 1rem; }
+.tabBtn:hover { color: #1e3a5f; }
+.tabActive { color: #1e3a5f !important; border-bottom-color: #1e3a5f !important; font-weight: 700; }
 
 /* 통계 카드 */
 .statsRow { display: flex; gap: 1rem; flex-wrap: wrap; margin-bottom: 1.5rem; }
@@ -76,3 +69,9 @@
 .pagination span { font-size: .88rem; color: #555; }
 
 .loading { text-align: center; padding: 3rem; color: #888; }
+
+.linkBtn {
+  display: inline-block; padding: 3px 10px; background: #e8f0fe; color: #1e3a5f;
+  border-radius: 4px; font-size: .8rem; text-decoration: none;
+}
+.linkBtn:hover { background: #c8d8f8; }

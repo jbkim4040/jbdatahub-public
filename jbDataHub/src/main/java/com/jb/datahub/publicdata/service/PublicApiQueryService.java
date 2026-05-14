@@ -2,6 +2,7 @@ package com.jb.datahub.publicdata.service;
 
 import com.jb.datahub.publicdata.dto.PageResponseDto;
 import com.jb.datahub.publicdata.dto.PublicApiListDto;
+import com.jb.datahub.publicdata.dto.PublicDataItemResponseDto;
 import com.jb.datahub.publicdata.dto.StatsDto;
 import com.jb.datahub.publicdata.repository.PublicApiListRepository;
 import com.jb.datahub.publicdata.repository.PublicDataItemRepository;
@@ -22,8 +23,8 @@ import java.util.stream.Collectors;
 @Transactional(readOnly = true)
 public class PublicApiQueryService {
 
-    private final PublicApiListRepository     repository;
-    private final PublicDataItemRepository    dataItemRepository;
+    private final PublicApiListRepository repository;
+    private final PublicDataItemRepository dataItemRepository;
 
     /**
      * 전체 목록 조회 (페이징)
@@ -74,21 +75,30 @@ public class PublicApiQueryService {
                 })
                 .collect(Collectors.toList());
 
-        // 데이터 유형별 건수 (dataset / file-data / standard-data)
-        Map<String, Long> byDataType = dataItemRepository.countBySourceType().stream()
-                .collect(Collectors.toMap(
-                        row -> row[0] != null ? (String) row[0] : "기타",
-                        row -> (Long) row[1],
-                        (a, b) -> a,
-                        LinkedHashMap::new
-                ));
-
         return StatsDto.builder()
                 .totalCount(total)
                 .countByApiType(byApiType)
                 .countByCategory(byCategory)
                 .countByOrg(byOrg)
-                .countByDataType(byDataType)
                 .build();
+    }
+
+    /** 데이터셋 / 파일데이터 / 표준데이터 목록 조회 (페이징 + 검색) */
+    public PageResponseDto<PublicDataItemResponseDto> getDataItems(
+            String sourceType, int page, int size, String title) {
+
+        Pageable pageable = PageRequest.of(page, size, Sort.by("updatedAt").descending());
+        boolean hasType  = sourceType != null && !sourceType.isBlank();
+        boolean hasTitle = title != null && !title.isBlank();
+
+        var result = (hasType && hasTitle)
+                ? dataItemRepository.findBySourceTypeAndTitleContainingIgnoreCase(sourceType, title, pageable)
+                : hasType
+                ? dataItemRepository.findBySourceType(sourceType, pageable)
+                : hasTitle
+                ? dataItemRepository.findByTitleContainingIgnoreCase(title, pageable)
+                : dataItemRepository.findAll(pageable);
+
+        return PageResponseDto.from(result.map(PublicDataItemResponseDto::new));
     }
 }

@@ -4,6 +4,7 @@ pipeline {
     environment {
         ENV_FILE   = "/var/jenkins_home/secrets/.env"
         STATE_FILE = "/var/jenkins_home/bg-state.txt"
+        NETWORK    = "jb-workspace_app-network"
     }
 
     stages {
@@ -17,14 +18,30 @@ pipeline {
 
         stage('.env 복사') {
             steps {
-                sh 'cp ${ENV_FILE} ${WORKSPACE}/.env'
+                sh 'cp $ENV_FILE $WORKSPACE/.env'
                 echo "✅ 시크릿 파일 복사 완료"
+            }
+        }
+
+        stage('네트워크 확인') {
+            steps {
+                sh 'docker network inspect $NETWORK >/dev/null 2>&1 || docker network create $NETWORK'
+                echo "✅ 네트워크 확인 완료"
             }
         }
 
         stage('UI 빌드') {
             steps {
-                sh 'cd ${WORKSPACE} && docker compose up -d --build jbdatahubui'
+                sh '''
+                    docker build -t jbdatahubui:latest $WORKSPACE/jbDataHubUI
+                    docker stop jbdatahubui 2>/dev/null || true
+                    docker rm   jbdatahubui 2>/dev/null || true
+                    docker run -d \
+                        --name jbdatahubui \
+                        --restart unless-stopped \
+                        --network $NETWORK \
+                        jbdatahubui:latest
+                '''
                 echo "✅ UI 빌드 완료"
             }
         }
@@ -33,7 +50,7 @@ pipeline {
             steps {
                 sh '''
                     # ── 1. 현재 active 색상 결정 ──────────────────────────
-                    ACTIVE=$(cat ${STATE_FILE} 2>/dev/null || echo "blue")
+                    ACTIVE=$(cat $STATE_FILE 2>/dev/null || echo "blue")
                     if [ "$ACTIVE" = "blue" ]; then
                         INACTIVE="green"
                     else
@@ -46,8 +63,16 @@ pipeline {
                     docker rm   jbdatahub 2>/dev/null || true
 
                     # ── 3. Inactive 컨테이너 빌드 & 시작 ─────────────────
-                    cd ${WORKSPACE}
-                    docker compose up -d --build jbdatahub-${INACTIVE}
+                    docker build -t jbdatahub-backend:latest $WORKSPACE/jbDataHub
+                    docker stop jbdatahub-${INACTIVE} 2>/dev/null || true
+                    docker rm   jbdatahub-${INACTIVE} 2>/dev/null || true
+                    docker run -d \
+                        --name jbdatahub-${INACTIVE} \
+                        --restart unless-stopped \
+                        --env-file $WORKSPACE/.env \
+                        -e SPRING_PROFILES_ACTIVE=prod \
+                        --network $NETWORK \
+                        jbdatahub-backend:latest
 
                     # ── 4. 헬스체크 (5초 간격 × 최대 36회 = 3분) ─────────
                     echo "헬스체크 시작 (jbdatahub-${INACTIVE})..."
@@ -73,7 +98,7 @@ pipeline {
 
                     # ── 5. nginx upstream 전환 ────────────────────────────
                     sed "s/ACTIVE_COLOR/jbdatahub-${INACTIVE}/" \
-                        ${WORKSPACE}/nginx/conf.d/default.conf.tmpl > /tmp/nginx-bg.conf
+                        $WORKSPACE/nginx/conf.d/default.conf.tmpl > /tmp/nginx-bg.conf
                     docker cp /tmp/nginx-bg.conf nginx:/etc/nginx/conf.d/default.conf
                     docker exec nginx nginx -t && docker exec nginx nginx -s reload
                     echo "✅ nginx → jbdatahub-${INACTIVE}"
@@ -83,7 +108,7 @@ pipeline {
                     echo "✅ jbdatahub-${ACTIVE} 중지"
 
                     # ── 7. 상태 저장 ──────────────────────────────────────
-                    echo "${INACTIVE}" > ${STATE_FILE}
+                    echo "${INACTIVE}" > $STATE_FILE
                     echo "✅ Blue/Green 배포 완료 — active: ${INACTIVE}"
                 '''
             }
@@ -91,8 +116,24 @@ pipeline {
 
         stage('Nginx 시작') {
             steps {
-                sh 'cd ${WORKSPACE} && docker compose up -d nginx'
-                echo "✅ Nginx 시작 완료"
+                sh '''
+                    if docker ps --format "{{.Names}}" | grep -q "^nginx$"; then
+                        echo "✅ nginx 이미 실행 중"
+                    else
+                        mkdir -p $WORKSPACE/certbot/conf $WORKSPACE/certbot/www
+                        docker run -d \
+                            --name nginx \
+                            --restart unless-stopped \
+                            -p 80:80 \
+                            -p 443:443 \
+                            -v $WORKSPACE/nginx/conf.d:/etc/nginx/conf.d \
+                            -v $WORKSPACE/certbot/conf:/etc/letsencrypt:ro \
+                            -v $WORKSPACE/certbot/www:/var/www/certbot:ro \
+                            --network $NETWORK \
+                            nginx:alpine
+                        echo "✅ nginx 시작 완료"
+                    fi
+                '''
             }
         }
     }

@@ -2,8 +2,7 @@ pipeline {
     agent any
 
     environment {
-        COMPOSE_FILE = "${WORKSPACE}/docker-compose.yml"
-        ENV_FILE     = "/var/jenkins_home/secrets/.env"   // Jenkins 컨테이너 내부 시크릿 경로
+        ENV_FILE = "/var/jenkins_home/secrets/.env"   // Jenkins 컨테이너 내부 시크릿 경로
     }
 
     stages {
@@ -27,7 +26,7 @@ pipeline {
             steps {
                 sh '''
                     cd ${WORKSPACE}
-                    docker compose -f ${COMPOSE_FILE} up -d --build jbdatahubui jbdatahub
+                    docker compose up -d --build jbdatahubui jbdatahub
                 '''
                 echo "✅ 빌드 및 배포 완료"
             }
@@ -37,7 +36,7 @@ pipeline {
             steps {
                 sh '''
                     cd ${WORKSPACE}
-                    docker compose -f ${COMPOSE_FILE} up -d nginx
+                    docker compose up -d nginx
                 '''
                 echo "✅ Nginx 시작 완료"
             }

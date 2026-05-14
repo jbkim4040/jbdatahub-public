@@ -11,6 +11,9 @@ publicdata:
     base-url: ${PUBLIC_API_BASE_URL}
     fallback-base-url: ${PUBLIC_API_FALLBACK_BASE_URL:}
     path: ${PUBLIC_API_PATH}
+    dataset-path: ${PUBLIC_API_DATASET_PATH:/15077093/v1/dataset}
+    file-data-path: ${PUBLIC_API_FILE_DATA_PATH:/15077093/v1/file-data-list}
+    standard-data-path: ${PUBLIC_API_STANDARD_DATA_PATH:/15077093/v1/standard-data-list}
     service-key: ${PUBLIC_API_SERVICE_KEY}
 
 admin:

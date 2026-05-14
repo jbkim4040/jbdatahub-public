@@ -39,4 +39,25 @@ public class PublicApiCollectController {
                 ? ResponseEntity.badRequest().body(result)
                 : ResponseEntity.ok(result);
     }
+
+    @PostMapping("/collect/dataset")
+    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "데이터셋 전체 수집", description = "공공데이터포털 전체 데이터셋 목록을 수집하여 DB에 저장합니다. (관리자 전용)")
+    public ResponseEntity<CollectResultDto> collectDataset() {
+        return ResponseEntity.ok(publicApiService.collectDataset());
+    }
+
+    @PostMapping("/collect/file-data")
+    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "파일데이터 전체 수집", description = "공공데이터포털 파일데이터 목록을 수집하여 DB에 저장합니다. (관리자 전용)")
+    public ResponseEntity<CollectResultDto> collectFileData() {
+        return ResponseEntity.ok(publicApiService.collectFileData());
+    }
+
+    @PostMapping("/collect/standard-data")
+    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "표준데이터 전체 수집", description = "공공데이터포털 표준데이터 목록을 수집하여 DB에 저장합니다. (관리자 전용)")
+    public ResponseEntity<CollectResultDto> collectStandardData() {
+        return ResponseEntity.ok(publicApiService.collectStandardData());
+    }
 }

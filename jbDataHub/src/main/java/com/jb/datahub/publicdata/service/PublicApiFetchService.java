@@ -1,6 +1,7 @@
 package com.jb.datahub.publicdata.service;
 
 import com.jb.datahub.publicdata.dto.PublicApiResponseDto;
+import com.jb.datahub.publicdata.dto.PublicDataResponseDto;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -80,6 +81,52 @@ public class PublicApiFetchService {
                 .uri(uri)
                 .retrieve()
                 .bodyToMono(PublicApiResponseDto.class)
+                .block();
+    }
+
+    /**
+     * dataset / file-data-list / standard-data-list 전용 페이지 조회
+     *
+     * @param page 1부터 시작
+     * @param path API 경로 (예: /15077093/v1/dataset)
+     */
+    public PublicDataResponseDto fetchDataPage(int page, String path) {
+        try {
+            PublicDataResponseDto result = fetchDataFromBaseUrl(baseUrl, page, path);
+            if (result != null) return result;
+        } catch (Exception e) {
+            log.warn("[FetchData] 주 서버 실패 - path={}, page={}, error={}", path, page, e.getMessage());
+        }
+
+        if (fallbackBaseUrl == null || fallbackBaseUrl.isBlank()) {
+            log.error("[FetchData] fallback URL 미설정 - path={}, page={}", path, page);
+            return null;
+        }
+
+        log.info("[FetchData] fallback 서버로 재시도 - path={}, page={}", path, page);
+        try {
+            return fetchDataFromBaseUrl(fallbackBaseUrl, page, path);
+        } catch (Exception e) {
+            log.error("[FetchData] fallback 서버도 실패 - path={}, page={}, error={}", path, page, e.getMessage());
+            return null;
+        }
+    }
+
+    private PublicDataResponseDto fetchDataFromBaseUrl(String base, int page, String path) {
+        URI uri = UriComponentsBuilder
+                .fromHttpUrl(base + path)
+                .queryParam("serviceKey", serviceKey)
+                .queryParam("page", page)
+                .queryParam("perPage", PAGE_SIZE)
+                .build(true)
+                .toUri();
+
+        log.debug("[FetchData] 요청 URI: {}", uri);
+
+        return webClient.get()
+                .uri(uri)
+                .retrieve()
+                .bodyToMono(PublicDataResponseDto.class)
                 .block();
     }
 

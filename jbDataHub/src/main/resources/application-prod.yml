@@ -5,15 +5,20 @@ spring:
     username: ${DB_USERNAME}
     password: ${DB_PASSWORD}
     driver-class-name: org.postgresql.Driver
+    hikari:
+      connection-timeout: 10000       # 10초 (기본 30초)
+      initialization-fail-timeout: 1  # 시작 시 1ms만 대기 후 앱 실행 (연결 실패해도 기동)
+      minimum-idle: 2
+      maximum-pool-size: 10
+      idle-timeout: 300000
+      max-lifetime: 600000
+  jpa:
+    open-in-view: false               # OSIV 끔 — 불필요한 세션 유지 제거
 
 publicdata:
   api:
     base-url: ${PUBLIC_API_BASE_URL}
-    fallback-base-url: ${PUBLIC_API_FALLBACK_BASE_URL:}
     path: ${PUBLIC_API_PATH}
-    dataset-path: ${PUBLIC_API_DATASET_PATH:/15077093/v1/dataset}
-    file-data-path: ${PUBLIC_API_FILE_DATA_PATH:/15077093/v1/file-data-list}
-    standard-data-path: ${PUBLIC_API_STANDARD_DATA_PATH:/15077093/v1/standard-data-list}
     service-key: ${PUBLIC_API_SERVICE_KEY}
 
 admin:

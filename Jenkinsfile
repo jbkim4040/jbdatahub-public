@@ -2,9 +2,10 @@ pipeline {
     agent any
 
     environment {
-        ENV_FILE   = "/var/jenkins_home/secrets/.env"
-        STATE_FILE = "/var/jenkins_home/bg-state.txt"
-        NETWORK    = "jb-workspace_app-network"
+        ENV_FILE         = "/var/jenkins_home/secrets/.env"
+        STATE_FILE       = "/var/jenkins_home/bg-state.txt"
+        NETWORK          = "jb-workspace_app-network"
+        DOCKER_BUILDKIT  = "1"
     }
 
     stages {

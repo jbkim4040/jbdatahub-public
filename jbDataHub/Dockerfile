@@ -1,3 +1,4 @@
+# syntax=docker/dockerfile:1
 FROM eclipse-temurin:21-jdk-alpine AS builder
 
 WORKDIR /app
@@ -7,10 +8,14 @@ COPY gradle gradle
 COPY build.gradle .
 COPY settings.gradle .
 RUN chmod +x gradlew
-RUN ./gradlew dependencies --no-daemon
+
+# Gradle 의존성만 먼저 캐싱 (소스 변경 시 재사용)
+RUN --mount=type=cache,target=/root/.gradle \
+    ./gradlew dependencies --no-daemon -q
 
 COPY src src
-RUN ./gradlew bootJar --no-daemon
+RUN --mount=type=cache,target=/root/.gradle \
+    ./gradlew bootJar --no-daemon -q
 
 FROM eclipse-temurin:21-jre-alpine
 
@@ -25,4 +30,5 @@ EXPOSE 8080
 ENTRYPOINT ["java", \
   "-XX:+UseContainerSupport", \
   "-XX:MaxRAMPercentage=75.0", \
+  "-Dspring.jpa.open-in-view=false", \
   "-jar", "app.jar"]

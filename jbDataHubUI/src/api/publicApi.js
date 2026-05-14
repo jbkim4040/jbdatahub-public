@@ -21,6 +21,10 @@ export const stopCollect = () => http.post('/admin/collect/stop')
 /** 관리자 — 수집 상태 조회 */
 export const getCollectStatus = () => http.get('/admin/collect/status')
 
+/** 관리자 — 수집 이력 조회 (DB 영속) */
+export const getCollectHistory = (limit = 20) =>
+  http.get('/admin/collect/history', { params: { limit } })
+
 /** 목록 조회 (페이징 + 검색) */
 export const getList = (page = 0, size = 20, title = '') =>
   http.get('/public-data/list', { params: { page, size, title } })

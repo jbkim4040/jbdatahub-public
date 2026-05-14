@@ -2,6 +2,8 @@ package com.jb.datahub.publicdata.controller;
 
 import com.jb.datahub.publicdata.dto.CollectResultDto;
 import com.jb.datahub.publicdata.dto.CollectStatusDto;
+import com.jb.datahub.publicdata.dto.CollectionLogDto;
+import com.jb.datahub.publicdata.service.CollectionLogService;
 import com.jb.datahub.publicdata.service.CollectionStateService;
 import com.jb.datahub.publicdata.service.PublicApiService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -13,6 +15,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
+
 @RestController
 @RequestMapping("/api/admin")
 @RequiredArgsConstructor
@@ -22,17 +26,28 @@ public class PublicApiCollectController {
 
     private final PublicApiService       publicApiService;
     private final CollectionStateService stateService;
+    private final CollectionLogService   logService;
 
     @GetMapping("/collect/status")
     @PreAuthorize("hasRole('ADMIN')")
-    @Operation(summary = "수집 상태 조회", description = "현재 수집 진행 상태 및 타입별 최근 수집 이력을 반환합니다.")
+    @Operation(summary = "수집 상태 조회")
     public ResponseEntity<CollectStatusDto> getStatus() {
         return ResponseEntity.ok(new CollectStatusDto(stateService.snapshot()));
     }
 
+    @GetMapping("/collect/history")
+    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "수집 이력 조회", description = "DB에 저장된 최근 수집 이력을 반환합니다.")
+    public ResponseEntity<List<CollectionLogDto>> getHistory(
+            @Parameter(description = "조회 건수 (최대 50)", example = "20")
+            @RequestParam(defaultValue = "20") int limit
+    ) {
+        return ResponseEntity.ok(logService.getRecent(Math.min(limit, 50)));
+    }
+
     @PostMapping("/collect")
     @PreAuthorize("hasRole('ADMIN')")
-    @Operation(summary = "OpenAPI 목록 전체 수집", description = "비동기로 수집을 시작합니다. 진행 상황은 /collect/status 로 조회하세요.")
+    @Operation(summary = "OpenAPI 목록 전체 수집")
     public ResponseEntity<Void> collectAll() {
         if (stateService.isRunning()) return ResponseEntity.status(409).build();
         publicApiService.collectAllAsync();
@@ -41,7 +56,7 @@ public class PublicApiCollectController {
 
     @PostMapping("/collect/page/{page}")
     @PreAuthorize("hasRole('ADMIN')")
-    @Operation(summary = "단일 페이지 수집", description = "지정한 페이지(100건)만 수집합니다. (관리자 전용)")
+    @Operation(summary = "단일 페이지 수집")
     public ResponseEntity<CollectResultDto> collectPage(
             @Parameter(description = "페이지 번호 (1부터 시작)", example = "1", required = true)
             @PathVariable int page
@@ -54,7 +69,7 @@ public class PublicApiCollectController {
 
     @PostMapping("/collect/dataset")
     @PreAuthorize("hasRole('ADMIN')")
-    @Operation(summary = "데이터셋 전체 수집", description = "비동기로 수집을 시작합니다.")
+    @Operation(summary = "데이터셋 전체 수집")
     public ResponseEntity<Void> collectDataset() {
         if (stateService.isRunning()) return ResponseEntity.status(409).build();
         publicApiService.collectDatasetAsync();
@@ -63,7 +78,7 @@ public class PublicApiCollectController {
 
     @PostMapping("/collect/file-data")
     @PreAuthorize("hasRole('ADMIN')")
-    @Operation(summary = "파일데이터 전체 수집", description = "비동기로 수집을 시작합니다.")
+    @Operation(summary = "파일데이터 전체 수집")
     public ResponseEntity<Void> collectFileData() {
         if (stateService.isRunning()) return ResponseEntity.status(409).build();
         publicApiService.collectFileDataAsync();
@@ -72,7 +87,7 @@ public class PublicApiCollectController {
 
     @PostMapping("/collect/standard-data")
     @PreAuthorize("hasRole('ADMIN')")
-    @Operation(summary = "표준데이터 전체 수집", description = "비동기로 수집을 시작합니다.")
+    @Operation(summary = "표준데이터 전체 수집")
     public ResponseEntity<Void> collectStandardData() {
         if (stateService.isRunning()) return ResponseEntity.status(409).build();
         publicApiService.collectStandardDataAsync();
@@ -81,7 +96,7 @@ public class PublicApiCollectController {
 
     @PostMapping("/collect/stop")
     @PreAuthorize("hasRole('ADMIN')")
-    @Operation(summary = "수집 중지", description = "현재 진행 중인 수집 작업을 중단합니다.")
+    @Operation(summary = "수집 중지")
     public ResponseEntity<Void> stopCollect() {
         publicApiService.stopCollect();
         return ResponseEntity.ok().build();

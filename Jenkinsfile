@@ -24,7 +24,7 @@ pipeline {
 
         stage('UI 빌드') {
             steps {
-                sh 'cd ${WORKSPACE} && docker-compose up -d --build jbdatahubui'
+                sh 'cd ${WORKSPACE} && docker compose up -d --build jbdatahubui'
                 echo "✅ UI 빌드 완료"
             }
         }
@@ -47,7 +47,7 @@ pipeline {
 
                     # ── 3. Inactive 컨테이너 빌드 & 시작 ─────────────────
                     cd ${WORKSPACE}
-                    docker-compose up -d --build jbdatahub-${INACTIVE}
+                    docker compose up -d --build jbdatahub-${INACTIVE}
 
                     # ── 4. 헬스체크 (5초 간격 × 최대 36회 = 3분) ─────────
                     echo "헬스체크 시작 (jbdatahub-${INACTIVE})..."
@@ -91,7 +91,7 @@ pipeline {
 
         stage('Nginx 시작') {
             steps {
-                sh 'cd ${WORKSPACE} && docker-compose up -d nginx'
+                sh 'cd ${WORKSPACE} && docker compose up -d nginx'
                 echo "✅ Nginx 시작 완료"
             }
         }

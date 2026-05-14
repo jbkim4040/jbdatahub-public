@@ -9,6 +9,8 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDateTime;
+
 /**
  * 조회 + 저장을 조율하는 서비스 (비동기 실행)
  */
@@ -21,6 +23,7 @@ public class PublicApiService {
     private final PublicApiSaveService    saveService;
     private final PublicDataSaveService   dataSaveService;
     private final CollectionStateService  stateService;
+    private final CollectionLogService    logService;
 
     @Value("${publicdata.api.dataset-path:/15077093/v1/dataset}")
     private String datasetPath;
@@ -37,12 +40,14 @@ public class PublicApiService {
     public void collectAllAsync() {
         final String TYPE = "openapi";
         stateService.startCollection(TYPE);
+        LocalDateTime startedAt = LocalDateTime.now();
         int page = 1, totalSaved = 0, totalCount = 0;
 
         while (true) {
             if (stateService.isStopRequested()) {
                 log.info("[Collect-{}] 중지 요청 - page={}, 누적={}", TYPE, page, totalSaved);
                 stateService.stopCollection(TYPE, totalSaved, totalCount);
+                logService.saveLog(TYPE, "STOPPED", totalSaved, totalCount, startedAt);
                 return;
             }
             PublicApiResponseDto response = fetchService.fetchPage(page);
@@ -59,6 +64,7 @@ public class PublicApiService {
             page++;
         }
         stateService.completeCollection(TYPE, totalSaved, totalCount);
+        logService.saveLog(TYPE, "DONE", totalSaved, totalCount, startedAt);
     }
 
     @Async
@@ -98,12 +104,14 @@ public class PublicApiService {
 
     private void collectDataTypeAsync(String path, String sourceType) {
         stateService.startCollection(sourceType);
+        LocalDateTime startedAt = LocalDateTime.now();
         int page = 1, totalSaved = 0, totalCount = 0;
 
         while (true) {
             if (stateService.isStopRequested()) {
                 log.info("[Collect-{}] 중지 요청 - page={}, 누적={}", sourceType, page, totalSaved);
                 stateService.stopCollection(sourceType, totalSaved, totalCount);
+                logService.saveLog(sourceType, "STOPPED", totalSaved, totalCount, startedAt);
                 return;
             }
             PublicDataResponseDto response = fetchService.fetchDataPage(page, path);
@@ -120,5 +128,6 @@ public class PublicApiService {
             page++;
         }
         stateService.completeCollection(sourceType, totalSaved, totalCount);
+        logService.saveLog(sourceType, "DONE", totalSaved, totalCount, startedAt);
     }
 }

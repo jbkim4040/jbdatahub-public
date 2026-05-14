@@ -37,8 +37,11 @@ pipeline {
                 sh '''
                     cd ${WORKSPACE}
                     docker-compose up -d nginx
+                    sleep 3
+                    docker cp ${WORKSPACE}/nginx/conf.d/default.conf nginx:/etc/nginx/conf.d/default.conf
+                    docker exec nginx nginx -t && docker exec nginx nginx -s reload
                 '''
-                echo "✅ Nginx 시작 완료"
+                echo "✅ Nginx 시작 및 설정 적용 완료"
             }
         }
     }

@@ -14,4 +14,5 @@ public class StatsDto {
     private Map<String, Long> countByApiType;
     private List<Map<String, Object>> countByCategory;
     private List<Map<String, Object>> countByOrg;
+    private Map<String, Long> countByDataType;  // dataset / file-data / standard-data
 }

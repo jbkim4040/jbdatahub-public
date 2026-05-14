@@ -1,12 +1,22 @@
 import { useEffect, useState, useCallback } from 'react'
 import { getList, getStats } from '../api/publicApi'
 import {
-  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, PieChart, Pie, Legend
+  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell,
+  PieChart, Pie, Legend,
 } from 'recharts'
 import styles from './ListPage.module.css'
 
 const COLORS = ['#1e3a5f', '#3b7dd8', '#e67e22', '#27ae60', '#8e44ad',
                  '#2980b9', '#e74c3c', '#16a085', '#f39c12', '#7f8c8d']
+
+const DATA_TYPE_META = {
+  'openapi':       { label: 'OpenAPI 목록', color: '#1e3a5f' },
+  'dataset':       { label: '데이터셋',      color: '#3b7dd8' },
+  'file-data':     { label: '파일데이터',    color: '#27ae60' },
+  'standard-data': { label: '표준데이터',    color: '#e67e22' },
+}
+
+const fmt = (n) => Number(n ?? 0).toLocaleString()
 
 export default function ListPage() {
   const [stats, setStats]     = useState(null)
@@ -16,12 +26,10 @@ export default function ListPage() {
   const [page, setPage]       = useState(0)
   const [loading, setLoading] = useState(false)
 
-  // 통계 로드 (최초 1회)
   useEffect(() => {
     getStats().then(r => setStats(r.data)).catch(console.error)
   }, [])
 
-  // 목록 로드
   const loadList = useCallback(async (p = 0, q = query) => {
     setLoading(true)
     try {
@@ -49,71 +57,131 @@ export default function ListPage() {
     loadList(0, '')
   }
 
-  // 통계용 데이터 변환
-  const categoryData  = stats?.countByCategory ?? []
-  const apiTypeData   = stats?.countByApiType
+  // ── 차트 데이터 변환 ──────────────────────────────────────
+  const categoryData = stats?.countByCategory ?? []
+  const apiTypeData  = stats?.countByApiType
     ? Object.entries(stats.countByApiType).map(([name, count]) => ({ name, count }))
     : []
 
+  // 전체 데이터 유형 통합 파이 (OpenAPI + dataset/file-data/standard-data)
+  const allTypeData = stats ? [
+    { name: 'OpenAPI 목록', count: Number(stats.totalCount), color: DATA_TYPE_META['openapi'].color },
+    ...Object.entries(stats.countByDataType ?? {}).map(([key, count]) => ({
+      name: DATA_TYPE_META[key]?.label ?? key,
+      count: Number(count),
+      color: DATA_TYPE_META[key]?.color ?? '#aaa',
+    })),
+  ] : []
+
+  const dataTypeTotal = allTypeData.reduce((s, d) => s + d.count, 0)
+
   return (
     <div className={styles.container}>
-      <h1 className={styles.title}>OpenAPI 목록 조회</h1>
+      <h1 className={styles.title}>목록 조회</h1>
 
-      {/* ── 통계 카드 ── */}
+      {/* ── 데이터 유형별 현황 ── */}
       {stats && (
-        <div className={styles.statsRow}>
-          <div className={styles.statCard}>
-            <div className={styles.statNum}>{stats.totalCount.toLocaleString()}</div>
-            <div className={styles.statLabel}>전체 서비스 수</div>
-          </div>
-          {apiTypeData.map(({ name, count }) => (
-            <div key={name} className={styles.statCard}>
-              <div className={styles.statNum}>{Number(count).toLocaleString()}</div>
-              <div className={styles.statLabel}>{name || '미분류'}</div>
+        <section className={styles.typeSection}>
+          <h2 className={styles.sectionTitle}>데이터 유형별 현황</h2>
+          <div className={styles.typeGrid}>
+            {/* OpenAPI */}
+            <div className={styles.typeCard} style={{ borderTopColor: DATA_TYPE_META['openapi'].color }}>
+              <div className={styles.typeNum} style={{ color: DATA_TYPE_META['openapi'].color }}>
+                {fmt(stats.totalCount)}
+              </div>
+              <div className={styles.typeLabel}>OpenAPI 목록</div>
             </div>
-          ))}
-        </div>
+            {/* dataset / file-data / standard-data */}
+            {Object.entries(stats.countByDataType ?? {}).map(([key, count]) => (
+              <div key={key} className={styles.typeCard}
+                style={{ borderTopColor: DATA_TYPE_META[key]?.color ?? '#aaa' }}>
+                <div className={styles.typeNum} style={{ color: DATA_TYPE_META[key]?.color ?? '#aaa' }}>
+                  {fmt(count)}
+                </div>
+                <div className={styles.typeLabel}>{DATA_TYPE_META[key]?.label ?? key}</div>
+              </div>
+            ))}
+            {/* 합계 */}
+            <div className={`${styles.typeCard} ${styles.typeCardTotal}`}>
+              <div className={styles.typeNum}>{fmt(dataTypeTotal)}</div>
+              <div className={styles.typeLabel}>전체 합계</div>
+            </div>
+          </div>
+
+          {/* 유형별 분포 파이차트 */}
+          {allTypeData.length > 0 && (
+            <div className={styles.typePieWrap}>
+              <ResponsiveContainer width="100%" height={220}>
+                <PieChart>
+                  <Pie data={allTypeData} dataKey="count" nameKey="name"
+                    cx="50%" cy="50%" outerRadius={80} innerRadius={45}
+                    label={({ name, percent }) => percent > 0.03 ? `${(percent * 100).toFixed(1)}%` : ''}>
+                    {allTypeData.map((d, i) => (
+                      <Cell key={i} fill={d.color ?? COLORS[i % COLORS.length]} />
+                    ))}
+                  </Pie>
+                  <Tooltip formatter={(v, name) => [fmt(v) + '건', name]} />
+                  <Legend iconType="circle" iconSize={10} />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+        </section>
       )}
 
-      {/* ── 차트 ── */}
+      {/* ── OpenAPI 상세 통계 ── */}
       {stats && (
-        <div className={styles.charts}>
-          {/* 카테고리 바차트 */}
-          <div className={styles.chartBox}>
-            <h3>분류별 건수 (상위 10개)</h3>
-            <ResponsiveContainer width="100%" height={260}>
-              <BarChart data={categoryData} margin={{ left: 0, right: 10 }}>
-                <XAxis dataKey="name" tick={{ fontSize: 11 }} interval={0}
-                  angle={-25} textAnchor="end" height={60} />
-                <YAxis tick={{ fontSize: 11 }} />
-                <Tooltip formatter={(v) => v.toLocaleString()} />
-                <Bar dataKey="count" radius={[4, 4, 0, 0]}>
-                  {categoryData.map((_, i) => (
-                    <Cell key={i} fill={COLORS[i % COLORS.length]} />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
+        <section className={styles.typeSection}>
+          <h2 className={styles.sectionTitle}>OpenAPI 상세 통계</h2>
+          <div className={styles.statsRow}>
+            <div className={styles.statCard}>
+              <div className={styles.statNum}>{fmt(stats.totalCount)}</div>
+              <div className={styles.statLabel}>전체 서비스 수</div>
+            </div>
+            {apiTypeData.map(({ name, count }) => (
+              <div key={name} className={styles.statCard}>
+                <div className={styles.statNum}>{fmt(count)}</div>
+                <div className={styles.statLabel}>{name || '미분류'}</div>
+              </div>
+            ))}
           </div>
 
-          {/* API 유형 파이차트 */}
-          <div className={styles.chartBox}>
-            <h3>API 유형 비율</h3>
-            <ResponsiveContainer width="100%" height={260}>
-              <PieChart>
-                <Pie data={apiTypeData} dataKey="count" nameKey="name"
-                  cx="50%" cy="50%" outerRadius={90} label={({ name, percent }) =>
-                    `${name} ${(percent * 100).toFixed(1)}%`}>
-                  {apiTypeData.map((_, i) => (
-                    <Cell key={i} fill={COLORS[i % COLORS.length]} />
-                  ))}
-                </Pie>
-                <Tooltip formatter={(v) => v.toLocaleString()} />
-                <Legend />
-              </PieChart>
-            </ResponsiveContainer>
+          <div className={styles.charts}>
+            <div className={styles.chartBox}>
+              <h3>분류별 건수 (상위 10개)</h3>
+              <ResponsiveContainer width="100%" height={260}>
+                <BarChart data={categoryData} margin={{ left: 0, right: 10 }}>
+                  <XAxis dataKey="name" tick={{ fontSize: 11 }} interval={0}
+                    angle={-25} textAnchor="end" height={60} />
+                  <YAxis tick={{ fontSize: 11 }} />
+                  <Tooltip formatter={(v) => fmt(v)} />
+                  <Bar dataKey="count" radius={[4, 4, 0, 0]}>
+                    {categoryData.map((_, i) => (
+                      <Cell key={i} fill={COLORS[i % COLORS.length]} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+
+            <div className={styles.chartBox}>
+              <h3>API 유형 비율</h3>
+              <ResponsiveContainer width="100%" height={260}>
+                <PieChart>
+                  <Pie data={apiTypeData} dataKey="count" nameKey="name"
+                    cx="50%" cy="50%" outerRadius={90}
+                    label={({ name, percent }) => `${name} ${(percent * 100).toFixed(1)}%`}>
+                    {apiTypeData.map((_, i) => (
+                      <Cell key={i} fill={COLORS[i % COLORS.length]} />
+                    ))}
+                  </Pie>
+                  <Tooltip formatter={(v) => fmt(v)} />
+                  <Legend />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
           </div>
-        </div>
+        </section>
       )}
 
       {/* ── 검색 ── */}
@@ -134,7 +202,7 @@ export default function ListPage() {
       ) : data && (
         <>
           <p className={styles.resultInfo}>
-            총 <strong>{data.totalElements.toLocaleString()}</strong>건
+            총 <strong>{fmt(data.totalElements)}</strong>건
             {query && <> · 검색어: <em>"{query}"</em></>}
           </p>
           <div className={styles.tableWrap}>
@@ -170,7 +238,6 @@ export default function ListPage() {
             </table>
           </div>
 
-          {/* 페이지네이션 */}
           <div className={styles.pagination}>
             <button onClick={() => loadList(0)} disabled={data.first}>«</button>
             <button onClick={() => loadList(page - 1)} disabled={data.first}>‹</button>

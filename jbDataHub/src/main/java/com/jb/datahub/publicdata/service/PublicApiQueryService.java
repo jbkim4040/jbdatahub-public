@@ -4,6 +4,7 @@ import com.jb.datahub.publicdata.dto.PageResponseDto;
 import com.jb.datahub.publicdata.dto.PublicApiListDto;
 import com.jb.datahub.publicdata.dto.StatsDto;
 import com.jb.datahub.publicdata.repository.PublicApiListRepository;
+import com.jb.datahub.publicdata.repository.PublicDataItemRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -21,7 +22,8 @@ import java.util.stream.Collectors;
 @Transactional(readOnly = true)
 public class PublicApiQueryService {
 
-    private final PublicApiListRepository repository;
+    private final PublicApiListRepository     repository;
+    private final PublicDataItemRepository    dataItemRepository;
 
     /**
      * 전체 목록 조회 (페이징)
@@ -72,11 +74,21 @@ public class PublicApiQueryService {
                 })
                 .collect(Collectors.toList());
 
+        // 데이터 유형별 건수 (dataset / file-data / standard-data)
+        Map<String, Long> byDataType = dataItemRepository.countBySourceType().stream()
+                .collect(Collectors.toMap(
+                        row -> row[0] != null ? (String) row[0] : "기타",
+                        row -> (Long) row[1],
+                        (a, b) -> a,
+                        LinkedHashMap::new
+                ));
+
         return StatsDto.builder()
                 .totalCount(total)
                 .countByApiType(byApiType)
                 .countByCategory(byCategory)
                 .countByOrg(byOrg)
+                .countByDataType(byDataType)
                 .build();
     }
 }

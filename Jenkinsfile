@@ -26,7 +26,7 @@ pipeline {
             steps {
                 sh '''
                     cd ${WORKSPACE}
-                    docker compose up -d --build jbdatahubui jbdatahub
+                    docker-compose up -d --build jbdatahubui jbdatahub
                 '''
                 echo "✅ 빌드 및 배포 완료"
             }
@@ -36,7 +36,7 @@ pipeline {
             steps {
                 sh '''
                     cd ${WORKSPACE}
-                    docker compose up -d nginx
+                    docker-compose up -d nginx
                 '''
                 echo "✅ Nginx 시작 완료"
             }

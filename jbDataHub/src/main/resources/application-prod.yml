@@ -9,6 +9,7 @@ spring:
 publicdata:
   api:
     base-url: ${PUBLIC_API_BASE_URL}
+    fallback-base-url: ${PUBLIC_API_FALLBACK_BASE_URL:}
     path: ${PUBLIC_API_PATH}
     service-key: ${PUBLIC_API_SERVICE_KEY}
 

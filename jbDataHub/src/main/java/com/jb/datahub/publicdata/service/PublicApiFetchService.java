@@ -25,6 +25,9 @@ public class PublicApiFetchService {
     @Value("${publicdata.api.base-url}")
     private String baseUrl;
 
+    @Value("${publicdata.api.fallback-base-url:}")
+    private String fallbackBaseUrl;
+
     @Value("${publicdata.api.path}")
     private String apiPath;
 
@@ -35,13 +38,36 @@ public class PublicApiFetchService {
 
     /**
      * 특정 페이지의 OpenAPI 목록을 외부 API에서 조회
+     * 주 서버 실패 시 fallback 서버로 재시도
      *
      * @param page 1부터 시작
      * @return API 응답 DTO (null 가능)
      */
     public PublicApiResponseDto fetchPage(int page) {
+        try {
+            PublicApiResponseDto result = fetchFromBaseUrl(baseUrl, page);
+            if (result != null) return result;
+        } catch (Exception e) {
+            log.warn("[Fetch] 주 서버 실패 - page={}, error={}", page, e.getMessage());
+        }
+
+        if (fallbackBaseUrl == null || fallbackBaseUrl.isBlank()) {
+            log.error("[Fetch] fallback URL 미설정 - page={}", page);
+            return null;
+        }
+
+        log.info("[Fetch] fallback 서버로 재시도 - page={}, url={}", page, fallbackBaseUrl);
+        try {
+            return fetchFromBaseUrl(fallbackBaseUrl, page);
+        } catch (Exception e) {
+            log.error("[Fetch] fallback 서버도 실패 - page={}, error={}", page, e.getMessage());
+            return null;
+        }
+    }
+
+    private PublicApiResponseDto fetchFromBaseUrl(String base, int page) {
         URI uri = UriComponentsBuilder
-                .fromHttpUrl(baseUrl + apiPath)
+                .fromHttpUrl(base + apiPath)
                 .queryParam("serviceKey", serviceKey)
                 .queryParam("page", page)
                 .queryParam("perPage", PAGE_SIZE)
@@ -54,7 +80,6 @@ public class PublicApiFetchService {
                 .uri(uri)
                 .retrieve()
                 .bodyToMono(PublicApiResponseDto.class)
-                .doOnError(e -> log.error("[Fetch] 실패 - page={}, error={}", page, e.getMessage()))
                 .block();
     }
 

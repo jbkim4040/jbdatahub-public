@@ -1,8 +1,3 @@
-#안텔리제이 기본 템플릿
-#FROM ubuntu:latest
-#LABEL authors="gimjeongbin"
-#
-#ENTRYPOINT ["top", "-b"]
 FROM eclipse-temurin:21-jdk-alpine AS builder
 
 WORKDIR /app
@@ -18,6 +13,8 @@ COPY src src
 RUN ./gradlew bootJar --no-daemon
 
 FROM eclipse-temurin:21-jre-alpine
+
+RUN apk add --no-cache curl
 
 WORKDIR /app
 

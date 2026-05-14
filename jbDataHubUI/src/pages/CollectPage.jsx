@@ -2,22 +2,11 @@ import { useState } from 'react'
 import { collectAll, collectPage } from '../api/publicApi'
 import styles from './CollectPage.module.css'
 
-function CollectPage() {
+export default function CollectPage() {
   const [pageInput, setPageInput] = useState('')
-  const [loading, setLoading] = useState(false)
-  const [result, setResult] = useState(null)
-  const [error, setError] = useState(null)
-
-  const handleCollectAll = async () => {
-    if (!confirm('전체 수집은 시간이 오래 걸릴 수 있습니다. 진행할까요?')) return
-    await execute(() => collectAll())
-  }
-
-  const handleCollectPage = async () => {
-    const page = parseInt(pageInput)
-    if (!page || page < 1) return alert('1 이상의 페이지 번호를 입력하세요.')
-    await execute(() => collectPage(page))
-  }
+  const [loading, setLoading]     = useState(false)
+  const [result, setResult]       = useState(null)
+  const [error, setError]         = useState(null)
 
   const execute = async (fn) => {
     setLoading(true)
@@ -27,7 +16,10 @@ function CollectPage() {
       const res = await fn()
       setResult(res.data)
     } catch (e) {
-      setError(e.response?.data?.message ?? e.message ?? '오류가 발생했습니다.')
+      const msg = e.response?.status === 403
+        ? '관리자 권한이 없습니다.'
+        : (e.response?.data?.message ?? e.message ?? '오류가 발생했습니다.')
+      setError(msg)
     } finally {
       setLoading(false)
     }
@@ -35,13 +27,16 @@ function CollectPage() {
 
   return (
     <div className={styles.container}>
-      <h1 className={styles.title}>데이터 수집</h1>
-      <p className={styles.desc}>공공데이터포털 OpenAPI 목록을 수집하여 DB에 저장합니다.</p>
+      <div className={styles.header}>
+        <h1 className={styles.title}>데이터 수집</h1>
+        <span className={styles.adminBadge}>🔒 관리자 전용</span>
+      </div>
+      <p className={styles.desc}>외부 API(공공데이터포털)에서 OpenAPI 목록을 수집하여 DB에 저장합니다.</p>
 
       <div className={styles.section}>
         <h2>전체 수집</h2>
-        <p>모든 페이지를 순회하며 전체 데이터를 수집합니다.</p>
-        <button className={styles.btnPrimary} onClick={handleCollectAll} disabled={loading}>
+        <p>모든 페이지를 순회하며 전체 데이터를 수집합니다. 시간이 오래 걸릴 수 있습니다.</p>
+        <button className={styles.btnPrimary} onClick={() => execute(collectAll)} disabled={loading}>
           {loading ? '수집 중...' : '전체 수집 시작'}
         </button>
       </div>
@@ -54,13 +49,20 @@ function CollectPage() {
         <div className={styles.row}>
           <input
             className={styles.input}
-            type="number"
-            min="1"
+            type="number" min="1"
             placeholder="페이지 번호 (예: 1)"
             value={pageInput}
             onChange={(e) => setPageInput(e.target.value)}
           />
-          <button className={styles.btnSecondary} onClick={handleCollectPage} disabled={loading}>
+          <button
+            className={styles.btnSecondary}
+            onClick={() => {
+              const p = parseInt(pageInput)
+              if (!p || p < 1) return alert('1 이상의 페이지 번호를 입력하세요.')
+              execute(() => collectPage(p))
+            }}
+            disabled={loading}
+          >
             {loading ? '수집 중...' : '수집'}
           </button>
         </div>
@@ -77,7 +79,7 @@ function CollectPage() {
           <h3>✅ 수집 완료</h3>
           <ul>
             <li>상태: <strong>{result.status}</strong></li>
-            {result.page > 0 && <li>페이지: <strong>{result.page}</strong></li>}
+            {result.page > 0 && <li>최종 페이지: <strong>{result.page}</strong></li>}
             {result.totalCount > 0 && <li>전체 건수: <strong>{result.totalCount.toLocaleString()}</strong></li>}
             <li>저장 건수: <strong>{result.savedCount?.toLocaleString()}</strong></li>
             {result.message && <li>메시지: {result.message}</li>}
@@ -85,13 +87,7 @@ function CollectPage() {
         </div>
       )}
 
-      {error && (
-        <div className={styles.errorBox}>
-          ❌ 오류: {error}
-        </div>
-      )}
+      {error && <div className={styles.errorBox}>❌ {error}</div>}
     </div>
   )
 }
-
-export default CollectPage

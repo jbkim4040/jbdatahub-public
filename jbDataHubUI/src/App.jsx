@@ -1,17 +1,30 @@
 import { Routes, Route } from 'react-router-dom'
-import Layout from './components/Layout.jsx'
-import HomePage from './pages/HomePage.jsx'
-import CollectPage from './pages/CollectPage.jsx'
+import { AuthProvider } from './context/AuthContext'
+import Layout from './components/Layout'
+import ProtectedRoute from './components/ProtectedRoute'
+import HomePage from './pages/HomePage'
+import LoginPage from './pages/LoginPage'
+import ListPage from './pages/ListPage'
+import CollectPage from './pages/CollectPage'
 
-function App() {
+export default function App() {
   return (
-    <Routes>
-      <Route path="/" element={<Layout />}>
-        <Route index element={<HomePage />} />
-        <Route path="collect" element={<CollectPage />} />
-      </Route>
-    </Routes>
+    <AuthProvider>
+      <Routes>
+        <Route path="/" element={<Layout />}>
+          <Route index element={<HomePage />} />
+          <Route path="login" element={<LoginPage />} />
+          <Route path="list" element={<ListPage />} />
+          <Route
+            path="collect"
+            element={
+              <ProtectedRoute adminOnly>
+                <CollectPage />
+              </ProtectedRoute>
+            }
+          />
+        </Route>
+      </Routes>
+    </AuthProvider>
   )
 }
-
-export default App

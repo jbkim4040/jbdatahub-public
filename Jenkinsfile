@@ -1,6 +1,10 @@
 pipeline {
     agent any
 
+    environment {
+        PROJECT_PATH = '/home/ubuntu/jb-workspace'
+    }
+
     stages {
 
         stage('Checkout') {
@@ -10,16 +14,23 @@ pipeline {
             }
         }
 
+        stage('Pull Latest') {
+            steps {
+                sh 'cd ${PROJECT_PATH} && git pull origin master'
+                echo "✅ 최신 코드 반영 완료"
+            }
+        }
+
         stage('Build & Deploy') {
             steps {
-                sh 'docker-compose up -d --build jbdatahubui jbdatahub'
+                sh 'cd ${PROJECT_PATH} && docker compose up -d --build jbdatahubui jbdatahub'
                 echo "✅ 빌드 및 배포 완료"
             }
         }
 
         stage('Nginx 재시작') {
             steps {
-                sh 'docker-compose up -d nginx'
+                sh 'cd ${PROJECT_PATH} && docker compose up -d nginx'
                 echo "✅ Nginx 시작 완료"
             }
         }

@@ -1,4 +1,9 @@
 node_modules
 dist
-.env
+
+# 시크릿 파일 (로컬 전용)
 .env.local
+.env.*.local
+
+# 운영 환경변수 (필요시 gitignore)
+# .env.production

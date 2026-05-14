@@ -1,55 +1,12 @@
-.container {
-  text-align: center;
-  padding: 3rem 1rem;
-}
+.container { text-align: center; padding: 3rem 1rem; }
+.title { font-size: 2.5rem; color: #1e3a5f; margin-bottom: 1rem; }
+.desc { font-size: 1.05rem; color: #555; margin-bottom: 3rem; }
 
-.title {
-  font-size: 2.5rem;
-  color: #1e3a5f;
-  margin-bottom: 1rem;
-}
-
-.desc {
-  font-size: 1.05rem;
-  color: #555;
-  margin-bottom: 3rem;
-}
-
-.cards {
-  display: flex;
-  justify-content: center;
-  gap: 1.5rem;
-  flex-wrap: wrap;
-}
-
-.card {
-  background: #fff;
-  border: 1px solid #e0e6ef;
-  border-radius: 12px;
-  padding: 2rem 2.5rem;
-  width: 220px;
-  cursor: pointer;
-  transition: transform 0.2s, box-shadow 0.2s;
-}
-
-.card:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
-}
-
-.icon {
-  font-size: 2.5rem;
-  margin-bottom: 0.8rem;
-}
-
-.card h2 {
-  font-size: 1.1rem;
-  color: #1e3a5f;
-  margin-bottom: 0.5rem;
-}
-
-.card p {
-  font-size: 0.85rem;
-  color: #777;
-  line-height: 1.5;
-}
+.cards { display: flex; justify-content: center; gap: 1.5rem; flex-wrap: wrap; }
+.card { background: #fff; border: 1px solid #e0e6ef; border-radius: 12px; padding: 2rem 2.5rem; width: 220px; cursor: pointer; transition: transform .2s, box-shadow .2s; }
+.card:hover { transform: translateY(-4px); box-shadow: 0 8px 20px rgba(0,0,0,.1); }
+.adminCard { border-color: #e67e22; }
+.icon { font-size: 2.5rem; margin-bottom: .8rem; }
+.card h2 { font-size: 1.1rem; color: #1e3a5f; margin-bottom: .4rem; }
+.badge { display: inline-block; background: #e67e22; color: #fff; font-size: .72rem; padding: .15rem .5rem; border-radius: 4px; font-weight: 600; margin-bottom: .4rem; }
+.card p { font-size: .85rem; color: #777; line-height: 1.5; }

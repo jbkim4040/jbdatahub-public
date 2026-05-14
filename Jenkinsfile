@@ -79,8 +79,8 @@ pipeline {
                     PASSED=0
                     for i in $(seq 1 36); do
                         STATUS=$(docker exec jbdatahub-${INACTIVE} \
-                            curl -sf -o /dev/null -w "%{http_code}" \
-                            http://localhost:8080/api/health 2>/dev/null || echo "000")
+                            curl -s -o /dev/null -w "%{http_code}" \
+                            http://localhost:8080/api/health 2>/dev/null)
                         echo "[${i}/36] health=${STATUS}"
                         if [ "$STATUS" = "200" ]; then
                             echo "✅ 헬스체크 통과"

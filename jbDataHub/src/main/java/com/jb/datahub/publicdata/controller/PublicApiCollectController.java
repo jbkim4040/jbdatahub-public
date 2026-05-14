@@ -60,4 +60,12 @@ public class PublicApiCollectController {
     public ResponseEntity<CollectResultDto> collectStandardData() {
         return ResponseEntity.ok(publicApiService.collectStandardData());
     }
+
+    @PostMapping("/collect/stop")
+    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "수집 중지", description = "현재 진행 중인 수집 작업을 중단합니다. (관리자 전용)")
+    public ResponseEntity<Void> stopCollect() {
+        publicApiService.stopCollect();
+        return ResponseEntity.ok().build();
+    }
 }

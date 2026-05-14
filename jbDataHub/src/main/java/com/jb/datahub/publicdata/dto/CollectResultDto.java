@@ -31,4 +31,14 @@ public class CollectResultDto {
                 .message(message)
                 .build();
     }
+
+    public static CollectResultDto stopped(int page, int totalCount, int savedCount) {
+        return CollectResultDto.builder()
+                .status("stopped")
+                .page(page)
+                .totalCount(totalCount)
+                .savedCount(savedCount)
+                .message("사용자 요청으로 수집이 중단되었습니다.")
+                .build();
+    }
 }

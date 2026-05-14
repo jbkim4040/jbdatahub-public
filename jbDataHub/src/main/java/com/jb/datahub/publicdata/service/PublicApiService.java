@@ -18,9 +18,10 @@ import org.springframework.stereotype.Service;
 @RequiredArgsConstructor
 public class PublicApiService {
 
-    private final PublicApiFetchService  fetchService;
-    private final PublicApiSaveService   saveService;
-    private final PublicDataSaveService  dataSaveService;
+    private final PublicApiFetchService   fetchService;
+    private final PublicApiSaveService    saveService;
+    private final PublicDataSaveService   dataSaveService;
+    private final CollectionStateService  stateService;
 
     @Value("${publicdata.api.dataset-path:/15077093/v1/dataset}")
     private String datasetPath;
@@ -35,11 +36,17 @@ public class PublicApiService {
      * 전체 페이지 수집 → 저장
      */
     public CollectResultDto collectAll() {
+        stateService.reset();
         int page = 1;
         int totalSaved = 0;
         int totalCount = 0;
 
         while (true) {
+            if (stateService.isStopRequested()) {
+                log.info("[Collect] 중지 요청으로 수집 종료 - page={}, 누적={}", page, totalSaved);
+                return CollectResultDto.stopped(page, totalCount, totalSaved);
+            }
+
             PublicApiResponseDto response = fetchService.fetchPage(page);
 
             if (response == null || response.getData() == null || response.getData().isEmpty()) {
@@ -89,12 +96,23 @@ public class PublicApiService {
         return collectDataType(standardDataPath, "standard-data");
     }
 
+    public void stopCollect() {
+        stateService.requestStop();
+        log.info("[Collect] 중지 요청 접수");
+    }
+
     private CollectResultDto collectDataType(String path, String sourceType) {
+        stateService.reset();
         int page = 1;
         int totalSaved = 0;
         int totalCount = 0;
 
         while (true) {
+            if (stateService.isStopRequested()) {
+                log.info("[Collect-{}] 중지 요청으로 수집 종료 - page={}, 누적={}", sourceType, page, totalSaved);
+                return CollectResultDto.stopped(page, totalCount, totalSaved);
+            }
+
             PublicDataResponseDto response = fetchService.fetchDataPage(page, path);
 
             if (response == null || response.getData() == null || response.getData().isEmpty()) {

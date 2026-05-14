@@ -2,19 +2,35 @@ upstream backend {
     server ACTIVE_COLOR:8080;
 }
 
+# HTTP: ACME challenge + HTTPS redirect
 server {
     listen 80;
     server_name _;
+
+    location /.well-known/acme-challenge/ {
+        root /var/www/certbot;
+    }
+
+    location / {
+        return 301 https://$host$request_uri;
+    }
+}
+
+# HTTPS
+server {
+    listen 443 ssl;
+    server_name _;
+
+    ssl_certificate     /etc/letsencrypt/live/158-180-65-135.nip.io/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/158-180-65-135.nip.io/privkey.pem;
+    ssl_protocols       TLSv1.2 TLSv1.3;
+    ssl_ciphers         HIGH:!aNULL:!MD5;
 
     add_header X-Frame-Options "SAMEORIGIN" always;
     add_header X-Content-Type-Options "nosniff" always;
     add_header X-XSS-Protection "1; mode=block" always;
     add_header Referrer-Policy "strict-origin-when-cross-origin" always;
-
-    # ACME challenge (Let's Encrypt)
-    location /.well-known/acme-challenge/ {
-        root /var/www/certbot;
-    }
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
 
     location / {
         proxy_pass         http://jbdatahubui:3000;

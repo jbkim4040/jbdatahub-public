@@ -25,16 +25,20 @@ export const getCollectStatus = () => http.get('/admin/collect/status')
 export const getCollectHistory = (limit = 20) =>
   http.get('/admin/collect/history', { params: { limit } })
 
-/** 목록 조회 (페이징 + 검색) */
-export const getList = (page = 0, size = 20, title = '') =>
-  http.get('/public-data/list', { params: { page, size, title } })
+/** 목록 조회 (페이징 + 검색 + 정렬) */
+export const getList = (page = 0, size = 20, title = '', sortBy = null, sortDir = null) =>
+  http.get('/public-data/list', { params: { page, size, title: title || undefined, sortBy: sortBy || undefined, sortDir: sortDir || undefined } })
 
-/** 통계 조회 */
+/** 통계 조회 (OpenAPI) */
 export const getStats = () => http.get('/public-data/stats')
 
+/** 통계 조회 (dataset / file-data / standard-data) */
+export const getDataItemStats = (sourceType) =>
+  http.get('/public-data/stats/data-items', { params: { sourceType } })
+
 /** 수집 데이터 목록 조회 (dataset / file-data / standard-data) */
-export const getDataItems = (sourceType = '', page = 0, size = 20, title = '') =>
-  http.get('/public-data/data-items', { params: { sourceType: sourceType || undefined, page, size, title: title || undefined } })
+export const getDataItems = (sourceType = '', page = 0, size = 20, title = '', sortBy = null, sortDir = null) =>
+  http.get('/public-data/data-items', { params: { sourceType: sourceType || undefined, page, size, title: title || undefined, sortBy: sortBy || undefined, sortDir: sortDir || undefined } })
 
 /* ── 사용자 관리 (관리자 전용) ── */
 export const getUsers = () => http.get('/admin/users')

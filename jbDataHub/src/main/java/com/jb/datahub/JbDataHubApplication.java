@@ -9,11 +9,13 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.core.env.Environment;
 import org.springframework.cache.annotation.EnableCaching;
 import org.springframework.scheduling.annotation.EnableAsync;
+import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
 @SpringBootApplication
 @EnableAsync
 @EnableCaching
+@EnableScheduling
 public class JbDataHubApplication {
 
     public static void main(String[] args) {

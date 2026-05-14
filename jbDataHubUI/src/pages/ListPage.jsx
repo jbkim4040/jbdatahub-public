@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react'
-import { getList, getStats, getDataItems } from '../api/publicApi'
+import { getList, getStats, getDataItems, getDataItemStats } from '../api/publicApi'
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, PieChart, Pie, Legend
 } from 'recharts'
@@ -21,6 +21,24 @@ const SOURCE_TYPE_MAP = {
   'standard-data':'standard-data',
 }
 
+/* ── 정렬 헬퍼 ── */
+const nextSort = (cur, field) => {
+  if (cur.field !== field) return { field, dir: 'asc' }
+  if (cur.dir === 'asc')   return { field, dir: 'desc' }
+  return { field: null, dir: null }
+}
+function SortIcon({ field, sort }) {
+  if (sort.field !== field) return <span className={styles.sortIdle}>↕</span>
+  return <span className={styles.sortActive}>{sort.dir === 'asc' ? '↑' : '↓'}</span>
+}
+function SortTh({ field, sort, onSort, children, className }) {
+  return (
+    <th className={`${className ?? ''} ${styles.sortable}`} onClick={() => onSort(nextSort(sort, field))}>
+      {children} <SortIcon field={field} sort={sort} />
+    </th>
+  )
+}
+
 /* ── OpenAPI 탭 ─────────────────────────────────────── */
 function OpenApiTab({ stats }) {
   const [data, setData]       = useState(null)
@@ -28,21 +46,24 @@ function OpenApiTab({ stats }) {
   const [query, setQuery]     = useState('')
   const [page, setPage]       = useState(0)
   const [loading, setLoading] = useState(false)
+  const [sort, setSort]       = useState({ field: null, dir: null })
 
-  const loadList = useCallback(async (p = 0, q = query) => {
+  const loadList = useCallback(async (p = 0, q = query, s = sort) => {
     setLoading(true)
     try {
-      const res = await getList(p, 20, q)
+      const res = await getList(p, 20, q, s.field, s.dir)
       setData(res.data)
       setPage(p)
     } catch (e) { console.error(e) }
     finally { setLoading(false) }
-  }, [query])
+  }, [query, sort])
 
   useEffect(() => { loadList(0, '') }, [])
+  useEffect(() => { loadList(0, query, sort) }, [sort])
 
-  const handleSearch = (e) => { e.preventDefault(); setQuery(search); loadList(0, search) }
-  const handleReset  = () => { setSearch(''); setQuery(''); loadList(0, '') }
+  const handleSearch = (e) => { e.preventDefault(); setQuery(search); loadList(0, search, sort) }
+  const handleReset  = () => { setSearch(''); setQuery(''); loadList(0, '', sort) }
+  const handleSort   = (newSort) => setSort(newSort)
 
   const categoryData = stats?.countByCategory ?? []
   const apiTypeData  = stats?.countByApiType
@@ -51,7 +72,6 @@ function OpenApiTab({ stats }) {
 
   return (
     <>
-      {/* 통계 카드 */}
       {stats && (
         <div className={styles.statsRow}>
           <div className={styles.statCard}>
@@ -67,7 +87,6 @@ function OpenApiTab({ stats }) {
         </div>
       )}
 
-      {/* 차트 */}
       {stats && (
         <div className={styles.charts}>
           <div className={styles.chartBox}>
@@ -101,7 +120,6 @@ function OpenApiTab({ stats }) {
         </div>
       )}
 
-      {/* 검색 */}
       <form className={styles.searchRow} onSubmit={handleSearch}>
         <input className={styles.searchInput} placeholder="목록명 검색..."
           value={search} onChange={(e) => setSearch(e.target.value)} />
@@ -109,7 +127,6 @@ function OpenApiTab({ stats }) {
         {query && <button className={styles.btnReset} type="button" onClick={handleReset}>초기화</button>}
       </form>
 
-      {/* 테이블 */}
       {loading ? <div className={styles.loading}>불러오는 중...</div> : data && (
         <>
           <p className={styles.resultInfo}>
@@ -118,10 +135,26 @@ function OpenApiTab({ stats }) {
           </p>
           <div className={styles.tableWrap}>
             <table className={styles.table}>
+              <colgroup>
+                <col style={{ width: '110px' }} />
+                <col />
+                <col style={{ width: '130px' }} />
+                <col style={{ width: '110px' }} />
+                <col style={{ width: '70px' }} />
+                <col style={{ width: '55px' }} />
+                <col style={{ width: '75px' }} />
+                <col style={{ width: '95px' }} />
+              </colgroup>
               <thead>
                 <tr>
-                  <th>목록ID</th><th>목록명</th><th>제공기관</th>
-                  <th>분류</th><th>API유형</th><th>비용</th><th>활용수</th><th>수정일</th>
+                  <th>목록ID</th>
+                  <SortTh field="listTitle" sort={sort} onSort={handleSort}>목록명</SortTh>
+                  <SortTh field="orgNm" sort={sort} onSort={handleSort}>제공기관</SortTh>
+                  <th>분류</th>
+                  <th>API유형</th>
+                  <SortTh field="isCharged" sort={sort} onSort={handleSort}>비용</SortTh>
+                  <SortTh field="requestCnt" sort={sort} onSort={handleSort} className={styles.num}>활용수</SortTh>
+                  <SortTh field="updatedAt" sort={sort} onSort={handleSort}>수정일</SortTh>
                 </tr>
               </thead>
               <tbody>
@@ -159,28 +192,67 @@ function OpenApiTab({ stats }) {
 /* ── 데이터 유형 탭 (dataset / file-data / standard-data) ── */
 function DataItemTab({ sourceType }) {
   const [data, setData]       = useState(null)
+  const [stats, setStats]     = useState(null)
   const [search, setSearch]   = useState('')
   const [query, setQuery]     = useState('')
   const [page, setPage]       = useState(0)
   const [loading, setLoading] = useState(false)
+  const [sort, setSort]       = useState({ field: null, dir: null })
 
-  const loadItems = useCallback(async (p = 0, q = query) => {
+  const loadItems = useCallback(async (p = 0, q = query, s = sort) => {
     setLoading(true)
     try {
-      const res = await getDataItems(sourceType, p, 20, q)
+      const res = await getDataItems(sourceType, p, 20, q, s.field, s.dir)
       setData(res.data)
       setPage(p)
     } catch (e) { console.error(e) }
     finally { setLoading(false) }
-  }, [sourceType, query])
+  }, [sourceType, query, sort])
 
-  useEffect(() => { setSearch(''); setQuery(''); loadItems(0, '') }, [sourceType])
+  useEffect(() => {
+    setSearch(''); setQuery(''); setSort({ field: null, dir: null })
+    loadItems(0, '')
+    getDataItemStats(sourceType).then(r => setStats(r.data)).catch(() => {})
+  }, [sourceType])
 
-  const handleSearch = (e) => { e.preventDefault(); setQuery(search); loadItems(0, search) }
-  const handleReset  = () => { setSearch(''); setQuery(''); loadItems(0, '') }
+  useEffect(() => { loadItems(0, query, sort) }, [sort])
+
+  const handleSearch = (e) => { e.preventDefault(); setQuery(search); loadItems(0, search, sort) }
+  const handleReset  = () => { setSearch(''); setQuery(''); loadItems(0, '', sort) }
+  const handleSort   = (newSort) => setSort(newSort)
 
   return (
     <>
+      {/* 통계 카드 */}
+      {stats && (
+        <div className={styles.statsRow}>
+          <div className={styles.statCard}>
+            <div className={styles.statNum}>{stats.totalCount.toLocaleString()}</div>
+            <div className={styles.statLabel}>전체 건수</div>
+          </div>
+        </div>
+      )}
+
+      {/* 분류별 차트 */}
+      {stats?.countByCategory?.length > 0 && (
+        <div className={styles.charts}>
+          <div className={styles.chartBox}>
+            <h3>분류별 건수 (상위 10개)</h3>
+            <ResponsiveContainer width="100%" height={240}>
+              <BarChart data={stats.countByCategory} margin={{ left: 0, right: 10 }}>
+                <XAxis dataKey="name" tick={{ fontSize: 11 }} interval={0}
+                  angle={-25} textAnchor="end" height={60} />
+                <YAxis tick={{ fontSize: 11 }} />
+                <Tooltip formatter={(v) => v.toLocaleString()} />
+                <Bar dataKey="count" radius={[4, 4, 0, 0]}>
+                  {stats.countByCategory.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      )}
+
       {/* 검색 */}
       <form className={styles.searchRow} onSubmit={handleSearch}>
         <input className={styles.searchInput} placeholder="제목 검색..."
@@ -197,10 +269,28 @@ function DataItemTab({ sourceType }) {
           </p>
           <div className={styles.tableWrap}>
             <table className={styles.table}>
+              <colgroup>
+                <col />
+                <col style={{ width: '130px' }} />
+                <col style={{ width: '110px' }} />
+                <col style={{ width: '60px' }} />
+                <col style={{ width: '80px' }} />
+                <col style={{ width: '75px' }} />
+                <col style={{ width: '75px' }} />
+                <col style={{ width: '95px' }} />
+                <col style={{ width: '70px' }} />
+              </colgroup>
               <thead>
                 <tr>
-                  <th>제목</th><th>제공기관</th><th>분류</th>
-                  <th>형식</th><th>갱신주기</th><th>조회수</th><th>다운로드</th><th>수정일</th><th>링크</th>
+                  <SortTh field="title" sort={sort} onSort={handleSort}>제목</SortTh>
+                  <SortTh field="orgNm" sort={sort} onSort={handleSort}>제공기관</SortTh>
+                  <th>분류</th>
+                  <th>형식</th>
+                  <th>갱신주기</th>
+                  <SortTh field="viewCnt" sort={sort} onSort={handleSort} className={styles.num}>조회수</SortTh>
+                  <SortTh field="downloadCnt" sort={sort} onSort={handleSort} className={styles.num}>다운로드</SortTh>
+                  <SortTh field="updatedAt" sort={sort} onSort={handleSort}>수정일</SortTh>
+                  <th>링크</th>
                 </tr>
               </thead>
               <tbody>
@@ -254,7 +344,6 @@ export default function ListPage() {
     <div className={styles.container}>
       <h1 className={styles.title}>목록 조회</h1>
 
-      {/* 탭 */}
       <div className={styles.tabBar}>
         {TABS.map(t => (
           <button
@@ -267,7 +356,6 @@ export default function ListPage() {
         ))}
       </div>
 
-      {/* 탭 컨텐츠 */}
       {activeTab === 'openapi'
         ? <OpenApiTab stats={stats} />
         : <DataItemTab sourceType={SOURCE_TYPE_MAP[activeTab]} key={activeTab} />

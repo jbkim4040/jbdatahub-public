@@ -42,17 +42,23 @@
 
 /* 테이블 */
 .tableWrap { overflow-x: auto; }
-.table { width: 100%; border-collapse: collapse; background: #fff; font-size: .85rem; }
+.table { width: 100%; border-collapse: collapse; background: #fff; font-size: .85rem; table-layout: fixed; }
 .table th {
   background: #1e3a5f; color: #fff; padding: .7rem .8rem;
   text-align: left; font-weight: 500; white-space: nowrap;
 }
-.table td { padding: .65rem .8rem; border-bottom: 1px solid #eef0f4; vertical-align: top; }
+.table td { padding: .65rem .8rem; border-bottom: 1px solid #eef0f4; vertical-align: top; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .table tr:hover td { background: #f7f9fc; }
-.titleCell { max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.titleCell { max-width: 100%; }
 .mono { font-family: monospace; font-size: .8rem; color: #666; }
 .num { text-align: right; }
 .empty { text-align: center; color: #999; padding: 2rem; }
+
+/* 정렬 */
+.sortable { cursor: pointer; user-select: none; }
+.sortable:hover { background: #2a4d7a; }
+.sortIdle { opacity: .45; font-size: .75rem; margin-left: 3px; }
+.sortActive { font-size: .75rem; margin-left: 3px; color: #93c5fd; }
 
 /* 배지 */
 .badge { padding: .2rem .5rem; border-radius: 4px; font-size: .78rem; font-weight: 600; }

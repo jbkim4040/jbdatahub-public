@@ -1,5 +1,6 @@
 package com.jb.datahub.publicdata.controller;
 
+import com.jb.datahub.publicdata.dto.DataItemStatsDto;
 import com.jb.datahub.publicdata.dto.PageResponseDto;
 import com.jb.datahub.publicdata.dto.PublicApiListDto;
 import com.jb.datahub.publicdata.dto.PublicDataItemResponseDto;
@@ -21,47 +22,46 @@ public class PublicApiQueryController {
     private final PublicApiQueryService queryService;
 
     @GetMapping("/list")
-    @Operation(
-            summary = "목록 조회",
-            description = "저장된 OpenAPI 목록을 페이징 조회합니다. title 파라미터로 list_title 검색 가능."
-    )
+    @Operation(summary = "목록 조회", description = "저장된 OpenAPI 목록을 페이징 조회합니다.")
     public ResponseEntity<PageResponseDto<PublicApiListDto>> getList(
-            @Parameter(description = "페이지 번호 (0부터 시작)", example = "0")
             @RequestParam(defaultValue = "0") int page,
-
-            @Parameter(description = "페이지 크기", example = "20")
             @RequestParam(defaultValue = "20") int size,
-
-            @Parameter(description = "목록명 검색어 (list_title 포함 검색)")
-            @RequestParam(required = false) String title
+            @RequestParam(required = false) String title,
+            @Parameter(description = "정렬 필드: listTitle | orgNm | requestCnt | updatedAt")
+            @RequestParam(required = false) String sortBy,
+            @Parameter(description = "정렬 방향: asc | desc")
+            @RequestParam(required = false) String sortDir
     ) {
-        return ResponseEntity.ok(queryService.getList(page, size, title));
+        return ResponseEntity.ok(queryService.getList(page, size, title, sortBy, sortDir));
     }
 
     @GetMapping("/stats")
-    @Operation(summary = "통계 조회", description = "전체 건수, API 유형별·분류별·제공기관별 건수를 반환합니다.")
+    @Operation(summary = "통계 조회 (OpenAPI)", description = "전체 건수, API 유형별·분류별·제공기관별 건수를 반환합니다.")
     public ResponseEntity<StatsDto> getStats() {
         return ResponseEntity.ok(queryService.getStats());
     }
 
-    @GetMapping("/data-items")
-    @Operation(
-            summary = "수집 데이터 목록 조회",
-            description = "저장된 데이터셋/파일데이터/표준데이터를 페이징 조회합니다. sourceType으로 유형 필터, title로 검색 가능."
-    )
-    public ResponseEntity<PageResponseDto<PublicDataItemResponseDto>> getDataItems(
-            @Parameter(description = "데이터 유형: dataset | file-data | standard-data (미입력 시 전체)")
-            @RequestParam(required = false) String sourceType,
-
-            @Parameter(description = "제목 검색어")
-            @RequestParam(required = false) String title,
-
-            @Parameter(description = "페이지 번호 (0부터 시작)", example = "0")
-            @RequestParam(defaultValue = "0") int page,
-
-            @Parameter(description = "페이지 크기", example = "20")
-            @RequestParam(defaultValue = "20") int size
+    @GetMapping("/stats/data-items")
+    @Operation(summary = "통계 조회 (데이터 유형)", description = "dataset | file-data | standard-data 유형별 통계를 반환합니다.")
+    public ResponseEntity<DataItemStatsDto> getDataItemStats(
+            @Parameter(description = "데이터 유형: dataset | file-data | standard-data", required = true)
+            @RequestParam String sourceType
     ) {
-        return ResponseEntity.ok(queryService.getDataItems(sourceType, page, size, title));
+        return ResponseEntity.ok(queryService.getDataItemStats(sourceType));
+    }
+
+    @GetMapping("/data-items")
+    @Operation(summary = "수집 데이터 목록 조회", description = "저장된 데이터셋/파일데이터/표준데이터를 페이징 조회합니다.")
+    public ResponseEntity<PageResponseDto<PublicDataItemResponseDto>> getDataItems(
+            @RequestParam(required = false) String sourceType,
+            @RequestParam(required = false) String title,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size,
+            @Parameter(description = "정렬 필드: title | orgNm | viewCnt | downloadCnt | updatedAt")
+            @RequestParam(required = false) String sortBy,
+            @Parameter(description = "정렬 방향: asc | desc")
+            @RequestParam(required = false) String sortDir
+    ) {
+        return ResponseEntity.ok(queryService.getDataItems(sourceType, page, size, title, sortBy, sortDir));
     }
 }

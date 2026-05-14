@@ -1,5 +1,6 @@
 package com.jb.datahub.publicdata.service;
 
+import com.jb.datahub.publicdata.dto.DataItemStatsDto;
 import com.jb.datahub.publicdata.dto.PageResponseDto;
 import com.jb.datahub.publicdata.dto.PublicApiListDto;
 import com.jb.datahub.publicdata.dto.PublicDataItemResponseDto;
@@ -17,6 +18,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @Service
@@ -27,26 +29,36 @@ public class PublicApiQueryService {
     private final PublicApiListRepository repository;
     private final PublicDataItemRepository dataItemRepository;
 
-    /**
-     * 전체 목록 조회 (페이징)
-     * title 파라미터가 있으면 list_title 포함 검색
-     */
-    public PageResponseDto<PublicApiListDto> getList(int page, int size, String title) {
-        Pageable pageable = PageRequest.of(page, size, Sort.by("updatedAt").descending());
+    // 허용된 정렬 필드 (SQL injection 방지)
+    private static final Set<String> LIST_SORT_FIELDS =
+            Set.of("listTitle", "orgNm", "requestCnt", "updatedAt", "isCharged");
+    private static final Set<String> ITEM_SORT_FIELDS =
+            Set.of("title", "orgNm", "viewCnt", "downloadCnt", "updatedAt");
 
+    private Sort buildSort(Set<String> allowed, String sortBy, String sortDir) {
+        String field = (sortBy != null && allowed.contains(sortBy)) ? sortBy : "updatedAt";
+        return "asc".equalsIgnoreCase(sortDir)
+                ? Sort.by(field).ascending()
+                : Sort.by(field).descending();
+    }
+
+    /**
+     * 전체 목록 조회 (페이징 + 검색 + 정렬)
+     */
+    public PageResponseDto<PublicApiListDto> getList(int page, int size, String title,
+                                                      String sortBy, String sortDir) {
+        Pageable pageable = PageRequest.of(page, size, buildSort(LIST_SORT_FIELDS, sortBy, sortDir));
         var result = (title != null && !title.isBlank())
                 ? repository.findByListTitleContainingIgnoreCase(title, pageable)
                 : repository.findAll(pageable);
-
         return PageResponseDto.from(result.map(PublicApiListDto::from));
     }
 
-    /** 통계 조회 (5분 캐시 — 수집 완료 시 자동 evict) */
+    /** 통계 조회 (수집 완료 시 자동 evict) */
     @Cacheable("stats")
     public StatsDto getStats() {
         long total = repository.count();
 
-        // api_type 별 건수
         Map<String, Long> byApiType = repository.countByApiType().stream()
                 .collect(Collectors.toMap(
                         row -> row[0] != null ? (String) row[0] : "미분류",
@@ -55,7 +67,6 @@ public class PublicApiQueryService {
                         LinkedHashMap::new
                 ));
 
-        // 카테고리 별 건수 (상위 10개)
         List<Map<String, Object>> byCategory = repository.countByCategory().stream()
                 .limit(10)
                 .map(row -> {
@@ -66,7 +77,6 @@ public class PublicApiQueryService {
                 })
                 .collect(Collectors.toList());
 
-        // 제공기관 별 건수 (상위 10개)
         Pageable top10 = PageRequest.of(0, 10);
         List<Map<String, Object>> byOrg = repository.countByOrg(top10).stream()
                 .map(row -> {
@@ -85,11 +95,31 @@ public class PublicApiQueryService {
                 .build();
     }
 
-    /** 데이터셋 / 파일데이터 / 표준데이터 목록 조회 (페이징 + 검색) */
-    public PageResponseDto<PublicDataItemResponseDto> getDataItems(
-            String sourceType, int page, int size, String title) {
+    /** 데이터 유형별 통계 (dataset / file-data / standard-data) */
+    public DataItemStatsDto getDataItemStats(String sourceType) {
+        long total = dataItemRepository.countBySourceType(sourceType);
+        Pageable top10 = PageRequest.of(0, 10);
+        List<Map<String, Object>> byCategory = dataItemRepository
+                .countByCategoryBySourceType(sourceType, top10).stream()
+                .map(row -> {
+                    Map<String, Object> m = new LinkedHashMap<>();
+                    m.put("name", row[0] != null ? row[0] : "미분류");
+                    m.put("count", row[1]);
+                    return m;
+                })
+                .collect(Collectors.toList());
+        return DataItemStatsDto.builder()
+                .totalCount(total)
+                .countByCategory(byCategory)
+                .build();
+    }
 
-        Pageable pageable = PageRequest.of(page, size, Sort.by("updatedAt").descending());
+    /** 데이터셋 / 파일데이터 / 표준데이터 목록 조회 (페이징 + 검색 + 정렬) */
+    public PageResponseDto<PublicDataItemResponseDto> getDataItems(
+            String sourceType, int page, int size, String title,
+            String sortBy, String sortDir) {
+
+        Pageable pageable = PageRequest.of(page, size, buildSort(ITEM_SORT_FIELDS, sortBy, sortDir));
         boolean hasType  = sourceType != null && !sourceType.isBlank();
         boolean hasTitle = title != null && !title.isBlank();
 

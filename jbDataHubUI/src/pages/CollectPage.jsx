@@ -23,7 +23,8 @@ const TYPE_LABELS = {
 const fmt = (n) => n?.toLocaleString() ?? '-'
 const fmtDate = (iso) => {
   if (!iso) return null
-  const d = new Date(iso)
+  // 서버는 UTC LocalDateTime → 'Z' 없이 전송됨. 'Z' 추가로 KST 자동 변환
+  const d = new Date(iso.endsWith('Z') ? iso : iso + 'Z')
   return `${d.getFullYear()}.${String(d.getMonth()+1).padStart(2,'0')}.${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`
 }
 const fmtDuration = (secs) => {

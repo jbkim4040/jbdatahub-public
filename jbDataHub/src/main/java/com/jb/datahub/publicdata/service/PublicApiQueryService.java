@@ -7,6 +7,7 @@ import com.jb.datahub.publicdata.dto.StatsDto;
 import com.jb.datahub.publicdata.repository.PublicApiListRepository;
 import com.jb.datahub.publicdata.repository.PublicDataItemRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
@@ -40,7 +41,8 @@ public class PublicApiQueryService {
         return PageResponseDto.from(result.map(PublicApiListDto::from));
     }
 
-    /** 통계 조회 */
+    /** 통계 조회 (5분 캐시 — 수집 완료 시 자동 evict) */
+    @Cacheable("stats")
     public StatsDto getStats() {
         long total = repository.count();
 

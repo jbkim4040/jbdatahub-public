@@ -4,6 +4,7 @@ import com.jb.datahub.publicdata.dto.CollectionLogDto;
 import com.jb.datahub.publicdata.entity.CollectionLog;
 import com.jb.datahub.publicdata.repository.CollectionLogRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -18,6 +19,7 @@ public class CollectionLogService {
     private final CollectionLogRepository repository;
 
     @Transactional
+    @CacheEvict(value = "stats", allEntries = true)
     public void saveLog(String sourceType, String status, int totalSaved, int totalCount,
                         LocalDateTime startedAt) {
         CollectionLog log = CollectionLog.builder()

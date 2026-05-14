@@ -40,7 +40,7 @@ public class AuthController {
     }
 
     @PostMapping("/refresh")
-    @Operation(summary = "액세스 토큰 갱신", description = "리프레시 토큰으로 새 액세스 토큰 발급")
+    @Operation(summary = "액세스 토큰 갱신", description = "리프레시 토큰으로 새 액세스 토큰 + 새 리프레시 토큰 발급 (rotation)")
     public ResponseEntity<?> refresh(@RequestBody RefreshRequestDto request) {
         return refreshTokenService.validate(request.getRefreshToken())
                 .map(rt -> {
@@ -49,8 +49,11 @@ public class AuthController {
                         refreshTokenService.revoke(request.getRefreshToken());
                         return ResponseEntity.status(401).<Object>body("사용자를 찾을 수 없습니다.");
                     }
+                    // Rotation: 기존 토큰 무효화 후 새 토큰 발급
+                    refreshTokenService.revoke(request.getRefreshToken());
+                    RefreshToken newRt = refreshTokenService.create(user.getUsername());
                     String newToken = jwtUtil.generateToken(user.getUsername(), user.getRole());
-                    return ResponseEntity.ok((Object) Map.of("token", newToken));
+                    return ResponseEntity.ok((Object) Map.of("token", newToken, "refreshToken", newRt.getToken()));
                 })
                 .orElse(ResponseEntity.status(401).body("유효하지 않은 리프레시 토큰입니다."));
     }

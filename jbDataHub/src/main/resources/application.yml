@@ -3,6 +3,8 @@ spring:
     name: jbDataHub
   profiles:
     active: local          # 로컬 기본값, 운영 시 SPRING_PROFILES_ACTIVE=prod 로 덮어씀
+  cache:
+    type: simple
   jpa:
     hibernate:
       ddl-auto: update

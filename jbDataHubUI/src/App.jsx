@@ -6,6 +6,7 @@ import HomePage from './pages/HomePage'
 import LoginPage from './pages/LoginPage'
 import ListPage from './pages/ListPage'
 import CollectPage from './pages/CollectPage'
+import UsersPage from './pages/UsersPage'
 
 export default function App() {
   return (
@@ -20,6 +21,14 @@ export default function App() {
             element={
               <ProtectedRoute adminOnly>
                 <CollectPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="admin/users"
+            element={
+              <ProtectedRoute adminOnly>
+                <UsersPage />
               </ProtectedRoute>
             }
           />

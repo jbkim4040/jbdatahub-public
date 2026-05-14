@@ -27,3 +27,11 @@ export const getList = (page = 0, size = 20, title = '') =>
 
 /** 통계 조회 */
 export const getStats = () => http.get('/public-data/stats')
+
+/* ── 사용자 관리 (관리자 전용) ── */
+export const getUsers = () => http.get('/admin/users')
+export const createUser = (data) => http.post('/admin/users', data)
+export const updateUser = (id, data) => http.put(`/admin/users/${id}`, data)
+export const changeUserPassword = (id, newPassword) =>
+  http.put(`/admin/users/${id}/password`, { newPassword })
+export const deleteUser = (id) => http.delete(`/admin/users/${id}`)

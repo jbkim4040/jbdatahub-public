@@ -23,6 +23,11 @@ export default function Layout() {
               데이터 수집
             </NavLink>
           )}
+          {isAdmin && (
+            <NavLink to="/admin/users" className={({ isActive }) => isActive ? styles.active : ''}>
+              사용자 관리
+            </NavLink>
+          )}
         </nav>
         <div className={styles.authArea}>
           {auth ? (

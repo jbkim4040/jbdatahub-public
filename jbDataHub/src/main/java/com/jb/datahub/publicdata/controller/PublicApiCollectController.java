@@ -1,6 +1,8 @@
 package com.jb.datahub.publicdata.controller;
 
 import com.jb.datahub.publicdata.dto.CollectResultDto;
+import com.jb.datahub.publicdata.dto.CollectStatusDto;
+import com.jb.datahub.publicdata.service.CollectionStateService;
 import com.jb.datahub.publicdata.service.PublicApiService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -18,13 +20,23 @@ import org.springframework.web.bind.annotation.*;
 @SecurityRequirement(name = "bearerAuth")
 public class PublicApiCollectController {
 
-    private final PublicApiService publicApiService;
+    private final PublicApiService       publicApiService;
+    private final CollectionStateService stateService;
+
+    @GetMapping("/collect/status")
+    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "수집 상태 조회", description = "현재 수집 진행 상태 및 타입별 최근 수집 이력을 반환합니다.")
+    public ResponseEntity<CollectStatusDto> getStatus() {
+        return ResponseEntity.ok(new CollectStatusDto(stateService.snapshot()));
+    }
 
     @PostMapping("/collect")
     @PreAuthorize("hasRole('ADMIN')")
-    @Operation(summary = "전체 수집", description = "외부 API 전체 페이지를 수집하여 DB에 저장합니다. (관리자 전용)")
-    public ResponseEntity<CollectResultDto> collectAll() {
-        return ResponseEntity.ok(publicApiService.collectAll());
+    @Operation(summary = "OpenAPI 목록 전체 수집", description = "비동기로 수집을 시작합니다. 진행 상황은 /collect/status 로 조회하세요.")
+    public ResponseEntity<Void> collectAll() {
+        if (stateService.isRunning()) return ResponseEntity.status(409).build();
+        publicApiService.collectAllAsync();
+        return ResponseEntity.accepted().build();
     }
 
     @PostMapping("/collect/page/{page}")
@@ -42,28 +54,34 @@ public class PublicApiCollectController {
 
     @PostMapping("/collect/dataset")
     @PreAuthorize("hasRole('ADMIN')")
-    @Operation(summary = "데이터셋 전체 수집", description = "공공데이터포털 전체 데이터셋 목록을 수집하여 DB에 저장합니다. (관리자 전용)")
-    public ResponseEntity<CollectResultDto> collectDataset() {
-        return ResponseEntity.ok(publicApiService.collectDataset());
+    @Operation(summary = "데이터셋 전체 수집", description = "비동기로 수집을 시작합니다.")
+    public ResponseEntity<Void> collectDataset() {
+        if (stateService.isRunning()) return ResponseEntity.status(409).build();
+        publicApiService.collectDatasetAsync();
+        return ResponseEntity.accepted().build();
     }
 
     @PostMapping("/collect/file-data")
     @PreAuthorize("hasRole('ADMIN')")
-    @Operation(summary = "파일데이터 전체 수집", description = "공공데이터포털 파일데이터 목록을 수집하여 DB에 저장합니다. (관리자 전용)")
-    public ResponseEntity<CollectResultDto> collectFileData() {
-        return ResponseEntity.ok(publicApiService.collectFileData());
+    @Operation(summary = "파일데이터 전체 수집", description = "비동기로 수집을 시작합니다.")
+    public ResponseEntity<Void> collectFileData() {
+        if (stateService.isRunning()) return ResponseEntity.status(409).build();
+        publicApiService.collectFileDataAsync();
+        return ResponseEntity.accepted().build();
     }
 
     @PostMapping("/collect/standard-data")
     @PreAuthorize("hasRole('ADMIN')")
-    @Operation(summary = "표준데이터 전체 수집", description = "공공데이터포털 표준데이터 목록을 수집하여 DB에 저장합니다. (관리자 전용)")
-    public ResponseEntity<CollectResultDto> collectStandardData() {
-        return ResponseEntity.ok(publicApiService.collectStandardData());
+    @Operation(summary = "표준데이터 전체 수집", description = "비동기로 수집을 시작합니다.")
+    public ResponseEntity<Void> collectStandardData() {
+        if (stateService.isRunning()) return ResponseEntity.status(409).build();
+        publicApiService.collectStandardDataAsync();
+        return ResponseEntity.accepted().build();
     }
 
     @PostMapping("/collect/stop")
     @PreAuthorize("hasRole('ADMIN')")
-    @Operation(summary = "수집 중지", description = "현재 진행 중인 수집 작업을 중단합니다. (관리자 전용)")
+    @Operation(summary = "수집 중지", description = "현재 진행 중인 수집 작업을 중단합니다.")
     public ResponseEntity<Void> stopCollect() {
         publicApiService.stopCollect();
         return ResponseEntity.ok().build();

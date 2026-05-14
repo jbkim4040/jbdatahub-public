@@ -1,79 +1,96 @@
-import { useState } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import {
   collectAll, collectPage,
   collectDataset, collectFileData, collectStandardData,
-  stopCollect,
+  stopCollect, getCollectStatus,
 } from '../api/publicApi'
 import styles from './CollectPage.module.css'
 
-const COLLECT_TYPES = [
-  {
-    key: 'openapi',
-    label: 'OpenAPI 목록',
-    desc: '공공데이터포털 오픈API 서비스 목록 전체를 수집합니다.',
-    fn: collectAll,
-  },
-  {
-    key: 'dataset',
-    label: '데이터셋',
-    desc: '공공데이터포털 데이터셋 목록 전체를 수집합니다.',
-    fn: collectDataset,
-  },
-  {
-    key: 'file-data',
-    label: '파일데이터',
-    desc: '공공데이터포털 파일데이터 목록 전체를 수집합니다.',
-    fn: collectFileData,
-  },
-  {
-    key: 'standard-data',
-    label: '표준데이터',
-    desc: '공공데이터포털 표준데이터 목록 전체를 수집합니다.',
-    fn: collectStandardData,
-  },
+const TYPES = [
+  { key: 'openapi',        label: 'OpenAPI 목록',  fn: collectAll },
+  { key: 'dataset',        label: '데이터셋',       fn: collectDataset },
+  { key: 'file-data',      label: '파일데이터',     fn: collectFileData },
+  { key: 'standard-data',  label: '표준데이터',     fn: collectStandardData },
 ]
 
+const fmt = (n) => n?.toLocaleString() ?? '-'
+const fmtDate = (iso) => {
+  if (!iso) return null
+  const d = new Date(iso)
+  return `${d.getFullYear()}.${String(d.getMonth()+1).padStart(2,'0')}.${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`
+}
+
 export default function CollectPage() {
-  const [pageInput, setPageInput]   = useState('')
-  const [activeKey, setActiveKey]   = useState(null)  // 현재 수집 중인 타입 키
-  const [result, setResult]         = useState(null)
-  const [error, setError]           = useState(null)
-  const [stopping, setStopping]     = useState(false)
+  const [status, setStatus]       = useState(null)   // CollectStatusDto
+  const [pageInput, setPageInput] = useState('')
+  const [pageResult, setPageResult] = useState(null)
+  const [pageError, setPageError]   = useState(null)
+  const [pageLoading, setPageLoading] = useState(false)
+  const [stopping, setStopping]   = useState(false)
+  const [startError, setStartError] = useState(null)
+  const pollRef = useRef(null)
 
-  const loading = activeKey !== null
+  const fetchStatus = useCallback(async () => {
+    try {
+      const res = await getCollectStatus()
+      setStatus(res.data)
+      return res.data
+    } catch { return null }
+  }, [])
 
-  const execute = async (key, fn) => {
-    setActiveKey(key)
-    setResult(null)
-    setError(null)
+  // 폴링 시작/중지
+  const startPolling = useCallback(() => {
+    if (pollRef.current) return
+    pollRef.current = setInterval(async () => {
+      const s = await fetchStatus()
+      if (s && s.status !== 'RUNNING') stopPolling()
+    }, 2000)
+  }, [fetchStatus])
+
+  const stopPolling = () => {
+    if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null }
+  }
+
+  useEffect(() => {
+    fetchStatus().then((s) => { if (s?.status === 'RUNNING') startPolling() })
+    return () => stopPolling()
+  }, [fetchStatus, startPolling])
+
+  const handleCollect = async (fn) => {
+    setStartError(null)
     setStopping(false)
     try {
-      const res = await fn()
-      setResult({ ...res.data, key })
+      await fn()
+      await fetchStatus()
+      startPolling()
     } catch (e) {
-      const msg = e.response?.status === 403
-        ? '관리자 권한이 없습니다.'
-        : (e.response?.data?.message ?? e.message ?? '오류가 발생했습니다.')
-      setError(msg)
-    } finally {
-      setActiveKey(null)
-      setStopping(false)
+      const code = e.response?.status
+      if (code === 409) setStartError('이미 수집이 진행 중입니다.')
+      else if (code === 403) setStartError('관리자 권한이 없습니다.')
+      else setStartError(e.response?.data?.message ?? '수집 시작 실패')
     }
   }
 
   const handleStop = async () => {
     setStopping(true)
-    try {
-      await stopCollect()
-    } catch {
-      // 중지 요청 자체가 실패해도 UI는 그대로 유지
-    }
+    try { await stopCollect() } catch { /* ignore */ }
   }
 
-  const statusLabel = (key) => {
-    if (activeKey === key) return stopping ? '중지 요청 중...' : '수집 중...'
-    return '전체 수집 시작'
+  const handlePageCollect = async () => {
+    const p = parseInt(pageInput)
+    if (!p || p < 1) return alert('1 이상의 페이지 번호를 입력하세요.')
+    setPageLoading(true); setPageResult(null); setPageError(null)
+    try {
+      const res = await collectPage(p)
+      setPageResult(res.data)
+    } catch (e) {
+      setPageError(e.response?.data?.message ?? '오류가 발생했습니다.')
+    } finally { setPageLoading(false) }
   }
+
+  const isRunning  = status?.status === 'RUNNING'
+  const pct        = status?.progressPct ?? 0
+  const history    = status?.history ?? {}
 
   return (
     <div className={styles.container}>
@@ -81,30 +98,105 @@ export default function CollectPage() {
         <h1 className={styles.title}>데이터 수집</h1>
         <span className={styles.adminBadge}>🔒 관리자 전용</span>
       </div>
-      <p className={styles.desc}>
-        공공데이터포털 외부 API에서 데이터를 수집하여 DB에 저장합니다.
-      </p>
+      <p className={styles.desc}>공공데이터포털 외부 API에서 데이터를 수집하여 DB에 저장합니다.</p>
 
-      {/* 수집 타입 카드 */}
+      {/* ── 수집 타입 카드 ── */}
       <div className={styles.grid}>
-        {COLLECT_TYPES.map(({ key, label, desc, fn }) => (
-          <div key={key} className={styles.card}>
-            <div className={styles.cardLabel}>{label}</div>
-            <p className={styles.cardDesc}>{desc}</p>
+        {TYPES.map(({ key, label, fn }) => {
+          const h = history[key]
+          const active = isRunning && status?.sourceType === key
+          return (
+            <div key={key} className={`${styles.card} ${active ? styles.cardActive : ''}`}>
+              <div className={styles.cardTop}>
+                <span className={styles.cardLabel}>{label}</span>
+                {active && <span className={styles.badge}>수집 중</span>}
+              </div>
+              {h ? (
+                <div className={styles.lastInfo}>
+                  <span className={styles.lastDate}>🕐 {fmtDate(h.lastCompletedAt)}</span>
+                  <span className={styles.lastCount}>{fmt(h.lastSavedCount)}건 저장</span>
+                </div>
+              ) : (
+                <div className={styles.noHistory}>수집 이력 없음</div>
+              )}
+              <button
+                className={styles.btnStart}
+                onClick={() => handleCollect(fn)}
+                disabled={isRunning}
+              >
+                {active ? '수집 중...' : '수집 시작'}
+              </button>
+            </div>
+          )
+        })}
+      </div>
+
+      {startError && <div className={styles.errorBox}>❌ {startError}</div>}
+
+      {/* ── 진행 상황 패널 ── */}
+      {isRunning && (
+        <div className={styles.progressPanel}>
+          <div className={styles.progressHeader}>
+            <span className={styles.spinner} />
+            <span className={styles.progressTitle}>
+              {TYPES.find(t => t.key === status.sourceType)?.label ?? status.sourceType} 수집 중
+            </span>
             <button
-              className={styles.btnPrimary}
-              onClick={() => execute(key, fn)}
-              disabled={loading}
+              className={styles.btnStop}
+              onClick={handleStop}
+              disabled={stopping}
             >
-              {statusLabel(key)}
+              {stopping ? '중지 요청 중...' : '⏹ 수집 중지'}
             </button>
           </div>
-        ))}
-      </div>
+
+          <div className={styles.progressStats}>
+            <div className={styles.stat}>
+              <span className={styles.statLabel}>현재 페이지</span>
+              <span className={styles.statValue}>{fmt(status.currentPage)}</span>
+            </div>
+            <div className={styles.stat}>
+              <span className={styles.statLabel}>저장 완료</span>
+              <span className={styles.statValue}>{fmt(status.savedCount)}</span>
+            </div>
+            <div className={styles.stat}>
+              <span className={styles.statLabel}>전체 건수</span>
+              <span className={styles.statValue}>{status.totalCount > 0 ? fmt(status.totalCount) : '-'}</span>
+            </div>
+            <div className={styles.stat}>
+              <span className={styles.statLabel}>진행률</span>
+              <span className={styles.statValue}>{status.totalCount > 0 ? `${pct}%` : '집계 중'}</span>
+            </div>
+          </div>
+
+          {status.totalCount > 0 && (
+            <div className={styles.barWrap}>
+              <div className={styles.bar} style={{ width: `${pct}%` }} />
+              <span className={styles.barLabel}>{fmt(status.savedCount)} / {fmt(status.totalCount)}건</span>
+            </div>
+          )}
+
+          {status.startedAt && (
+            <div className={styles.startedAt}>시작 시각: {fmtDate(status.startedAt)}</div>
+          )}
+        </div>
+      )}
+
+      {/* ── 완료/중단 결과 ── */}
+      {(status?.status === 'DONE' || status?.status === 'STOPPED') && (
+        <div className={status.status === 'STOPPED' ? styles.stoppedBox : styles.resultBox}>
+          <h3>{status.status === 'STOPPED' ? '⏹ 수집 중단됨' : '✅ 수집 완료'}</h3>
+          <ul>
+            <li>저장 건수: <strong>{fmt(status.savedCount)}</strong></li>
+            {status.totalCount > 0 && <li>전체 건수: <strong>{fmt(status.totalCount)}</strong></li>}
+            {status.currentPage > 0 && <li>마지막 페이지: <strong>{status.currentPage}</strong></li>}
+          </ul>
+        </div>
+      )}
 
       <div className={styles.divider} />
 
-      {/* 단일 페이지 수집 */}
+      {/* ── 단일 페이지 수집 ── */}
       <div className={styles.section}>
         <h2>OpenAPI 단일 페이지 수집</h2>
         <p>특정 페이지(100건)만 수집합니다. 테스트 용도로 사용하세요.</p>
@@ -118,49 +210,19 @@ export default function CollectPage() {
           />
           <button
             className={styles.btnSecondary}
-            onClick={() => {
-              const p = parseInt(pageInput)
-              if (!p || p < 1) return alert('1 이상의 페이지 번호를 입력하세요.')
-              execute('page', () => collectPage(p))
-            }}
-            disabled={loading}
+            onClick={handlePageCollect}
+            disabled={pageLoading}
           >
-            {activeKey === 'page' ? '수집 중...' : '수집'}
+            {pageLoading ? '수집 중...' : '수집'}
           </button>
         </div>
+        {pageResult && (
+          <div className={`${styles.resultBox} ${styles.inlineResult}`}>
+            <strong>완료</strong> — {fmt(pageResult.savedCount)}건 저장 (전체 {fmt(pageResult.totalCount)}건)
+          </div>
+        )}
+        {pageError && <div className={styles.errorBox}>{pageError}</div>}
       </div>
-
-      {/* 수집 중 상태 */}
-      {loading && (
-        <div className={styles.status}>
-          <span className={styles.spinner} />
-          <span>수집 중입니다. 잠시 기다려주세요...</span>
-          <button
-            className={styles.btnStop}
-            onClick={handleStop}
-            disabled={stopping}
-          >
-            {stopping ? '중지 요청 중...' : '⏹ 수집 중지'}
-          </button>
-        </div>
-      )}
-
-      {/* 결과 */}
-      {result && (
-        <div className={result.status === 'stopped' ? styles.stoppedBox : styles.resultBox}>
-          <h3>
-            {result.status === 'stopped' ? '⏹ 수집 중단됨' : '✅ 수집 완료'}
-          </h3>
-          <ul>
-            {result.page > 0 && <li>마지막 페이지: <strong>{result.page}</strong></li>}
-            {result.totalCount > 0 && <li>전체 건수: <strong>{result.totalCount.toLocaleString()}</strong></li>}
-            <li>저장 건수: <strong>{result.savedCount?.toLocaleString()}</strong></li>
-            {result.message && <li>메시지: {result.message}</li>}
-          </ul>
-        </div>
-      )}
-
-      {error && <div className={styles.errorBox}>❌ {error}</div>}
     </div>
   )
 }

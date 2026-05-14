@@ -1,0 +1,26 @@
+# 운영 환경 — 실제 값은 .env 또는 서버 환경변수로 주입
+spring:
+  datasource:
+    url: ${DB_URL}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+    driver-class-name: org.postgresql.Driver
+
+publicdata:
+  api:
+    base-url: ${PUBLIC_API_BASE_URL}
+    path: ${PUBLIC_API_PATH}
+    service-key: ${PUBLIC_API_SERVICE_KEY}
+
+admin:
+  username: ${ADMIN_USERNAME}
+  password: ${ADMIN_PASSWORD}
+
+jwt:
+  secret: ${JWT_SECRET}
+  expiration: 86400000
+
+logging:
+  level:
+    org.hibernate.SQL: WARN
+    com.jb.datahub: INFO

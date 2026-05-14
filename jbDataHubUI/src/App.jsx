@@ -7,6 +7,7 @@ import LoginPage from './pages/LoginPage'
 import ListPage from './pages/ListPage'
 import CollectPage from './pages/CollectPage'
 import UsersPage from './pages/UsersPage'
+import SchedulerPage from './pages/SchedulerPage'
 
 export default function App() {
   return (
@@ -29,6 +30,14 @@ export default function App() {
             element={
               <ProtectedRoute adminOnly>
                 <UsersPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="admin/scheduler"
+            element={
+              <ProtectedRoute adminOnly>
+                <SchedulerPage />
               </ProtectedRoute>
             }
           />

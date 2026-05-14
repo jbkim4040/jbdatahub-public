@@ -24,6 +24,11 @@ export default function Layout() {
             </NavLink>
           )}
           {isAdmin && (
+            <NavLink to="/admin/scheduler" className={({ isActive }) => isActive ? styles.active : ''}>
+              수집 스케줄
+            </NavLink>
+          )}
+          {isAdmin && (
             <NavLink to="/admin/users" className={({ isActive }) => isActive ? styles.active : ''}>
               사용자 관리
             </NavLink>

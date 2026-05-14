@@ -17,7 +17,7 @@ export default function LoginPage() {
     setLoading(true)
     try {
       const res = await login(form.username, form.password)
-      setAuth(res.data.token, res.data.username, res.data.role)
+      setAuth(res.data.token, res.data.refreshToken, res.data.username, res.data.role)
       navigate('/')
     } catch {
       setError('아이디 또는 비밀번호가 올바르지 않습니다.')

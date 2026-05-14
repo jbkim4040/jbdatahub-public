@@ -1,9 +1,82 @@
-.container { max-width: 700px; }
+/* ── 기본 ── */
+.container { max-width: 800px; }
 .header { display: flex; align-items: center; gap: 1rem; margin-bottom: .4rem; }
 .title { font-size: 1.7rem; color: #1e3a5f; }
 .adminBadge { background: #e67e22; color: #fff; font-size: .78rem; padding: .25rem .65rem; border-radius: 12px; font-weight: 600; }
 .desc { color: #666; margin-bottom: 2rem; font-size: .95rem; }
 
+/* ── 수집 타입 카드 그리드 ── */
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 1rem; margin-bottom: 1.5rem; }
+.card {
+  background: #fff; border: 1.5px solid #e0e6ef; border-radius: 10px;
+  padding: 1.1rem; display: flex; flex-direction: column; gap: .7rem;
+  transition: box-shadow .15s, border-color .15s;
+}
+.card:hover { box-shadow: 0 2px 8px rgba(30,58,95,.08); }
+.cardActive { border-color: #3b7dd8 !important; background: #f0f6ff; }
+
+.cardTop { display: flex; align-items: center; justify-content: space-between; gap: .4rem; }
+.cardLabel { font-weight: 600; font-size: .92rem; color: #1e3a5f; }
+.badge { background: #3b7dd8; color: #fff; font-size: .72rem; padding: .2rem .55rem; border-radius: 10px; font-weight: 600; white-space: nowrap; }
+
+.lastInfo { display: flex; flex-direction: column; gap: .2rem; }
+.lastDate { font-size: .78rem; color: #777; }
+.lastCount { font-size: .82rem; color: #3b7dd8; font-weight: 600; }
+.noHistory { font-size: .8rem; color: #bbb; flex: 1; }
+
+.btnStart {
+  padding: .45rem .9rem; background: #1e3a5f; color: #fff;
+  border: none; border-radius: 6px; font-size: .85rem; cursor: pointer;
+  transition: background .15s; margin-top: auto;
+}
+.btnStart:hover:not(:disabled) { background: #2a4f7e; }
+.btnStart:disabled { opacity: .5; cursor: not-allowed; }
+
+/* ── 진행 상황 패널 ── */
+.progressPanel {
+  background: #eef4ff; border: 1.5px solid #93c5fd; border-radius: 10px;
+  padding: 1.4rem 1.6rem; margin-bottom: 1.5rem;
+}
+.progressHeader { display: flex; align-items: center; gap: .8rem; margin-bottom: 1rem; flex-wrap: wrap; }
+.spinner {
+  display: inline-block; width: 16px; height: 16px;
+  border: 2px solid #2c5fb3; border-top-color: transparent;
+  border-radius: 50%; animation: spin .7s linear infinite; flex-shrink: 0;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.progressTitle { font-weight: 600; color: #1e3a5f; flex: 1; }
+.btnStop {
+  padding: .4rem 1rem; background: #e74c3c; color: #fff;
+  border: none; border-radius: 6px; font-size: .85rem; cursor: pointer;
+  transition: background .15s;
+}
+.btnStop:hover:not(:disabled) { background: #c0392b; }
+.btnStop:disabled { opacity: .6; cursor: not-allowed; }
+
+.progressStats { display: flex; gap: 1.5rem; flex-wrap: wrap; margin-bottom: .8rem; }
+.stat { display: flex; flex-direction: column; gap: .15rem; }
+.statLabel { font-size: .75rem; color: #6b8fb5; }
+.statValue { font-size: 1.05rem; font-weight: 700; color: #1e3a5f; }
+
+.barWrap { position: relative; background: #dbeafe; border-radius: 20px; height: 10px; overflow: hidden; margin-bottom: .4rem; }
+.bar { height: 100%; background: linear-gradient(90deg, #3b7dd8, #60a5fa); border-radius: 20px; transition: width .4s ease; }
+.barLabel { font-size: .78rem; color: #5a7aaa; text-align: right; }
+.startedAt { font-size: .78rem; color: #888; margin-top: .4rem; }
+
+/* ── 결과 박스 ── */
+.resultBox { margin-top: 1.5rem; background: #f0faf4; border: 1px solid #a8d5b5; border-radius: 8px; padding: 1.2rem 1.5rem; }
+.resultBox h3 { margin-bottom: .8rem; color: #276749; font-size: 1rem; }
+.resultBox ul { list-style: none; display: flex; flex-direction: column; gap: .3rem; font-size: .9rem; }
+
+.stoppedBox { margin-top: 1.5rem; background: #fff8f0; border: 1px solid #f5c5a0; border-radius: 8px; padding: 1.2rem 1.5rem; }
+.stoppedBox h3 { margin-bottom: .8rem; color: #c0392b; font-size: 1rem; }
+.stoppedBox ul { list-style: none; display: flex; flex-direction: column; gap: .3rem; font-size: .9rem; }
+
+.errorBox { margin-top: 1rem; background: #fff5f5; border: 1px solid #f5a0a0; border-radius: 8px; padding: 1rem 1.5rem; color: #c0392b; font-size: .9rem; }
+
+.inlineResult { margin-top: 1rem; }
+
+/* ── 섹션 ── */
 .section { background: #fff; border: 1px solid #e0e6ef; border-radius: 10px; padding: 1.5rem; margin-bottom: 1.5rem; }
 .section h2 { font-size: 1.05rem; color: #1e3a5f; margin-bottom: .4rem; }
 .section p { font-size: .88rem; color: #666; margin-bottom: 1rem; }
@@ -14,36 +87,18 @@
 .input { padding: .55rem .9rem; border: 1px solid #ccd4e0; border-radius: 6px; font-size: .9rem; width: 200px; }
 .input:focus { outline: none; border-color: #1e3a5f; }
 
-.btnPrimary, .btnSecondary { padding: .55rem 1.4rem; border: none; border-radius: 6px; font-size: .9rem; cursor: pointer; }
-.btnPrimary { background: #1e3a5f; color: #fff; }
-.btnSecondary { background: #3b7dd8; color: #fff; }
-.btnPrimary:disabled, .btnSecondary:disabled { opacity: .5; cursor: not-allowed; }
-
-.status { display: flex; align-items: center; gap: .6rem; padding: 1rem 1.2rem; background: #eef4ff; border-radius: 8px; color: #2c5fb3; font-size: .9rem; margin-top: 1rem; }
-.spinner { display: inline-block; width: 16px; height: 16px; border: 2px solid #2c5fb3; border-top-color: transparent; border-radius: 50%; animation: spin .7s linear infinite; }
-@keyframes spin { to { transform: rotate(360deg); } }
-
-.resultBox { margin-top: 1.5rem; background: #f0faf4; border: 1px solid #a8d5b5; border-radius: 8px; padding: 1.2rem 1.5rem; }
-.resultBox h3 { margin-bottom: .8rem; color: #276749; font-size: 1rem; }
-.resultBox ul { list-style: none; display: flex; flex-direction: column; gap: .3rem; font-size: .9rem; }
-
-.errorBox { margin-top: 1.5rem; background: #fff5f5; border: 1px solid #f5a0a0; border-radius: 8px; padding: 1rem 1.5rem; color: #c0392b; font-size: .9rem; }
+.btnSecondary { padding: .55rem 1.4rem; border: none; border-radius: 6px; font-size: .9rem; cursor: pointer; background: #3b7dd8; color: #fff; }
+.btnSecondary:disabled { opacity: .5; cursor: not-allowed; }
 
 /* ── 수집 이력 ── */
 .historyHeader { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem; }
 .historyHeader h2 { margin: 0; }
-.btnRefresh {
-  padding: 5px 14px; background: #f1f5f9; border: 1px solid #cbd5e1;
-  border-radius: 6px; font-size: .85rem; cursor: pointer;
-}
+.btnRefresh { padding: 5px 14px; background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 6px; font-size: .85rem; cursor: pointer; }
 .btnRefresh:hover { background: #e2e8f0; }
 .noHistoryMsg { color: #888; font-size: .9rem; }
 .tableWrap { overflow-x: auto; }
 .historyTable { width: 100%; border-collapse: collapse; font-size: .88rem; }
-.historyTable th {
-  background: #f1f5f9; text-align: left; padding: 9px 12px;
-  font-weight: 600; border-bottom: 2px solid #e2e8f0; white-space: nowrap;
-}
+.historyTable th { background: #f1f5f9; text-align: left; padding: 9px 12px; font-weight: 600; border-bottom: 2px solid #e2e8f0; white-space: nowrap; }
 .historyTable td { padding: 9px 12px; border-bottom: 1px solid #e2e8f0; vertical-align: middle; }
 .num { text-align: right; font-variant-numeric: tabular-nums; }
 .statusTag { padding: 2px 9px; border-radius: 20px; font-size: .8rem; font-weight: 600; }

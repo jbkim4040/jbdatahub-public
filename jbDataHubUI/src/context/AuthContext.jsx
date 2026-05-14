@@ -1,12 +1,7 @@
 import { createContext, useContext, useState, useCallback } from 'react'
+import { logout as logoutApi } from '../api/authApi'
 
-const defaultValue = {
-  auth: null,
-  isAdmin: false,
-  login: () => {},
-  logout: () => {},
-}
-
+const defaultValue = { auth: null, isAdmin: false, login: () => {}, logout: () => {} }
 const AuthContext = createContext(defaultValue)
 
 export function AuthProvider({ children }) {
@@ -17,18 +12,22 @@ export function AuthProvider({ children }) {
     return token ? { token, username, role } : null
   })
 
-  const login = useCallback((token, username, role) => {
+  const login = useCallback((token, refreshToken, username, role) => {
     localStorage.setItem('token', token)
+    localStorage.setItem('refreshToken', refreshToken)
     localStorage.setItem('username', username)
     localStorage.setItem('role', role)
     setAuth({ token, username, role })
   }, [])
 
   const logout = useCallback(() => {
+    const rt = localStorage.getItem('refreshToken')
     localStorage.removeItem('token')
+    localStorage.removeItem('refreshToken')
     localStorage.removeItem('username')
     localStorage.removeItem('role')
     setAuth(null)
+    if (rt) logoutApi(rt).catch(() => {})
   }, [])
 
   const isAdmin = auth?.role === 'ADMIN'

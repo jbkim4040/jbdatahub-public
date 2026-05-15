@@ -10,6 +10,7 @@ import org.springframework.stereotype.Component;
 
 import javax.crypto.SecretKey;
 import java.nio.charset.StandardCharsets;
+import java.time.Instant;
 import java.util.Date;
 
 @Slf4j
@@ -29,7 +30,6 @@ public class JwtUtil {
         this.key = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
     }
 
-    /** 토큰 생성 */
     public String generateToken(String username, String role) {
         return Jwts.builder()
                 .subject(username)
@@ -40,7 +40,6 @@ public class JwtUtil {
                 .compact();
     }
 
-    /** 토큰에서 클레임 추출 */
     public Claims getClaims(String token) {
         return Jwts.parser()
                 .verifyWith(key)
@@ -49,7 +48,6 @@ public class JwtUtil {
                 .getPayload();
     }
 
-    /** 유효성 검사 */
     public boolean isValid(String token) {
         try {
             getClaims(token);
@@ -66,5 +64,10 @@ public class JwtUtil {
 
     public String getRole(String token) {
         return getClaims(token).get("role", String.class);
+    }
+
+    public Instant getIssuedAt(String token) {
+        Date iat = getClaims(token).getIssuedAt();
+        return iat != null ? iat.toInstant() : Instant.EPOCH;
     }
 }

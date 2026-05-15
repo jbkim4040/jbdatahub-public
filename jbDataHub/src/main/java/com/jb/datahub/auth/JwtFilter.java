@@ -13,6 +13,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.util.List;
 
 @Component
@@ -20,6 +21,7 @@ import java.util.List;
 public class JwtFilter extends OncePerRequestFilter {
     private final JwtUtil jwtUtil;
     private final TokenBlacklist tokenBlacklist;
+    private final UserTokenRevocationStore userTokenRevocationStore;
     private final UserRepository userRepository;
 
     @Override
@@ -31,10 +33,13 @@ public class JwtFilter extends OncePerRequestFilter {
             String token = header.substring(7);
             if (jwtUtil.isValid(token) && !tokenBlacklist.isBlacklisted(token)) {
                 String username = jwtUtil.getUsername(token);
-                String role = jwtUtil.getRole(token);
+                String role     = jwtUtil.getRole(token);
+                Instant issuedAt = jwtUtil.getIssuedAt(token);
+
                 boolean userActive = userRepository.findByUsername(username)
                         .map(u -> u.isActive()).orElse(false);
-                if (userActive) {
+
+                if (userActive && !userTokenRevocationStore.isRevoked(username, issuedAt)) {
                     var auth = new UsernamePasswordAuthenticationToken(
                             username, null,
                             List.of(new SimpleGrantedAuthority("ROLE_" + role))

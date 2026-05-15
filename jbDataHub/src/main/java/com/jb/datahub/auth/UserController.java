@@ -51,6 +51,13 @@ public class UserController {
         return ResponseEntity.ok().build();
     }
 
+    @PostMapping("/{id}/revoke-tokens")
+    @Operation(summary = "토큰 강제 무효화 (즉시 로그아웃)")
+    public ResponseEntity<Void> revokeTokens(@PathVariable Long id, Authentication auth) {
+        userService.revokeTokens(id, auth.getName(), getRole(auth));
+        return ResponseEntity.ok().build();
+    }
+
     @DeleteMapping("/{id}")
     @Operation(summary = "사용자 삭제")
     public ResponseEntity<Void> delete(@PathVariable Long id, Authentication auth) {

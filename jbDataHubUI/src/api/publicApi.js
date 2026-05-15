@@ -47,6 +47,7 @@ export const updateUser = (id, data) => http.put(`/admin/users/${id}`, data)
 export const changeUserPassword = (id, newPassword) =>
   http.put(`/admin/users/${id}/password`, { newPassword })
 export const deleteUser = (id) => http.delete(`/admin/users/${id}`)
+export const revokeUserTokens = (id) => http.post(`/admin/users/${id}/revoke-tokens`)
 
 /* ── 스케줄러 (관리자 전용) ── */
 export const getScheduler = () => http.get('/admin/scheduler')

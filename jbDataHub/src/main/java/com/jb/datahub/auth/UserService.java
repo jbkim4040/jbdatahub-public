@@ -14,9 +14,10 @@ import java.util.List;
 @RequiredArgsConstructor
 public class UserService {
 
-    private final UserRepository       userRepository;
-    private final PasswordEncoder      passwordEncoder;
-    private final RefreshTokenService  refreshTokenService;
+    private final UserRepository             userRepository;
+    private final PasswordEncoder            passwordEncoder;
+    private final RefreshTokenService        refreshTokenService;
+    private final UserTokenRevocationStore   userTokenRevocationStore;
 
     public List<UserResponseDto> findAll() {
         return userRepository.findAll().stream()
@@ -29,7 +30,6 @@ public class UserService {
         if (userRepository.existsByUsername(dto.getUsername())) {
             throw new IllegalArgumentException("이미 존재하는 사용자명입니다: " + dto.getUsername());
         }
-        // ADMIN은 USER 계정만 생성 가능; SUPER_ADMIN은 모두 생성 가능
         String role = resolveRole(dto.getRole(), requestingRole);
         User user = User.builder()
                 .username(dto.getUsername())
@@ -50,8 +50,9 @@ public class UserService {
         if (dto.getActive() != null) {
             user.setActive(dto.getActive());
             if (!dto.getActive()) {
-                // 비활성화 시 즉시 로그아웃
+                // 비활성화 시 리프레시 토큰 폐기 + 액세스 토큰 즉시 무효화
                 refreshTokenService.revokeByUsername(user.getUsername());
+                userTokenRevocationStore.revoke(user.getUsername());
             }
         }
         return new UserResponseDto(user);
@@ -62,6 +63,9 @@ public class UserService {
         User user = getUser(id);
         checkCanManage(user.getRole(), requestingRole);
         user.setPassword(passwordEncoder.encode(dto.getNewPassword()));
+        // 비밀번호 변경 시 기존 토큰 모두 무효화
+        refreshTokenService.revokeByUsername(user.getUsername());
+        userTokenRevocationStore.revoke(user.getUsername());
     }
 
     @Transactional
@@ -72,21 +76,29 @@ public class UserService {
         }
         checkCanManage(user.getRole(), requestingRole);
 
-        // 삭제 전 세션 즉시 무효화
+        // 삭제 전 토큰 즉시 무효화
         refreshTokenService.revokeByUsername(user.getUsername());
+        userTokenRevocationStore.revoke(user.getUsername());
         userRepository.delete(user);
     }
 
-    // ─── 내부 헬퍼 ───────────────────────────────────────────
+    /** 강제 로그아웃: 리프레시 토큰 폐기 + 액세스 토큰 즉시 무효화 */
+    @Transactional
+    public void revokeTokens(Long id, String requestingUsername, String requestingRole) {
+        User user = getUser(id);
+        if (user.getUsername().equals(requestingUsername)) {
+            throw new IllegalArgumentException("자기 자신에게 강제 로그아웃을 적용할 수 없습니다.");
+        }
+        checkCanManage(user.getRole(), requestingRole);
+        refreshTokenService.revokeByUsername(user.getUsername());
+        userTokenRevocationStore.revoke(user.getUsername());
+    }
 
     private User getUser(Long id) {
         return userRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("사용자를 찾을 수 없습니다: " + id));
     }
 
-    /**
-     * SUPER_ADMIN이 아닌 ADMIN은 ADMIN/SUPER_ADMIN을 관리할 수 없음
-     */
     private void checkCanManage(String targetRole, String requestingRole) {
         if (!"SUPER_ADMIN".equals(requestingRole) &&
                 ("ADMIN".equals(targetRole) || "SUPER_ADMIN".equals(targetRole))) {
@@ -94,10 +106,6 @@ public class UserService {
         }
     }
 
-    /**
-     * 요청자 권한에 따라 실제 부여 가능한 역할 결정
-     * ADMIN은 USER만, SUPER_ADMIN은 USER·ADMIN 부여 가능
-     */
     private String resolveRole(String requestedRole, String requestingRole) {
         if ("SUPER_ADMIN".equals(requestingRole)) {
             if ("SUPER_ADMIN".equals(requestedRole) || "ADMIN".equals(requestedRole) || "USER".equals(requestedRole)) {

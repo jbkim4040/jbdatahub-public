@@ -1,7 +1,7 @@
 import { useAuth } from "../context/AuthContext"
 import { useState, useEffect, useCallback } from 'react'
 import {
-  getUsers, createUser, updateUser, changeUserPassword, deleteUser
+  getUsers, createUser, updateUser, changeUserPassword, deleteUser, revokeUserTokens
 } from '../api/publicApi'
 import styles from './UsersPage.module.css'
 
@@ -68,6 +68,16 @@ export default function UsersPage() {
       fetchUsers()
     } catch {
       alert('역할 변경 실패')
+    }
+  }
+
+  const handleRevokeTokens = async (user) => {
+    if (!window.confirm(`"${user.username}" 의 토큰을 즉시 무효화하시겠습니까? (강제 로그아웃)`)) return
+    try {
+      await revokeUserTokens(user.id)
+      alert(`${user.username} 강제 로그아웃 완료`)
+    } catch (err) {
+      alert(err.response?.data || '강제 로그아웃 실패')
     }
   }
 
@@ -176,6 +186,13 @@ export default function UsersPage() {
                       onClick={() => { setPwModal(u); setNewPw(''); setPwError('') }}
                     >
                       비밀번호 변경
+                    </button>
+                    <button
+                      className={styles.revokeBtn}
+                      onClick={() => handleRevokeTokens(u)}
+                      title="현재 발급된 토큰을 즉시 무효화합니다"
+                    >
+                      강제 로그아웃
                     </button>
                     <button
                       className={styles.delBtn}

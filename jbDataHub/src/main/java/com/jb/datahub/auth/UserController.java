@@ -39,7 +39,7 @@ public class UserController {
     public ResponseEntity<UserResponseDto> update(@PathVariable Long id,
                                                    @RequestBody UserUpdateDto dto,
                                                    Authentication auth) {
-        return ResponseEntity.ok(userService.update(id, dto, getRole(auth)));
+        return ResponseEntity.ok(userService.update(id, dto, getRole(auth), auth.getName()));
     }
 
     @PutMapping("/{id}/password")

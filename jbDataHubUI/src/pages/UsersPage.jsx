@@ -8,7 +8,7 @@ import styles from './UsersPage.module.css'
 const ROLE_LABELS = { ADMIN: '관리자', USER: '일반 사용자' }
 
 export default function UsersPage() {
-  const { isSuperAdmin } = useAuth()
+  const { isSuperAdmin, auth } = useAuth()
   const [users, setUsers] = useState([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -165,7 +165,8 @@ export default function UsersPage() {
                     <button
                       className={`${styles.tagBtn} ${u.role === 'ADMIN' ? styles.adminTag : styles.userTag}`}
                       onClick={() => handleToggleRole(u)}
-                      title="클릭하여 역할 변경"
+                      disabled={u.username === auth?.username}
+                      title={u.username === auth?.username ? '자신의 권한은 변경할 수 없습니다' : '클릭하여 역할 변경'}
                     >
                       {ROLE_LABELS[u.role] ?? u.role}
                     </button>

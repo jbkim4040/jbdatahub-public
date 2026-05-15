@@ -40,10 +40,13 @@ public class UserService {
     }
 
     @Transactional
-    public UserResponseDto update(Long id, UserUpdateDto dto, String requestingRole) {
+    public UserResponseDto update(Long id, UserUpdateDto dto, String requestingRole, String requestingUsername) {
         User user = getUser(id);
         checkCanManage(user.getRole(), requestingRole);
 
+        if (dto.getRole() != null && user.getUsername().equals(requestingUsername)) {
+            throw new IllegalArgumentException("자기 자신의 권한은 변경할 수 없습니다.");
+        }
         if (dto.getRole() != null) {
             user.setRole(resolveRole(dto.getRole(), requestingRole));
         }

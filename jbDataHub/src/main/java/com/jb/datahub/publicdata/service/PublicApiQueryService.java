@@ -147,7 +147,7 @@ public class PublicApiQueryService {
 
     public PublicApiDetailDto getDetail(String listId) {
         var apiList = repository.findById(listId)
-                .orElseThrow(() -> new IllegalArgumentException(API를 찾을 수 없습니다:  + listId));
+                .orElseThrow(() -> new IllegalArgumentException("API를 찾을 수 없습니다: " + listId));
         var operations = operationRepository.findByPublicApiList_ListId(listId).stream()
                 .map(PublicApiOperationDto::new)
                 .toList();

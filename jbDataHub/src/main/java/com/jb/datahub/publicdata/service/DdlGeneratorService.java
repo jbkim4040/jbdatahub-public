@@ -103,7 +103,7 @@ public class DdlGeneratorService {
 
     private List<String> parseKorean(String raw) {
         return Arrays.stream(raw.split(","))
-                .map(s -> s.trim().replaceAll("^\\"|\\"$", "").trim())
+                .map(s -> s.trim().replaceAll("^\"|\"$", "").trim())
                 .filter(s -> !s.isBlank())
                 .filter(s -> !SKIP_KR.contains(s))
                 .map(this::koreanToIdentifier)

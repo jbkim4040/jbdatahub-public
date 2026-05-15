@@ -14,8 +14,9 @@ import java.util.List;
 @RequiredArgsConstructor
 public class UserService {
 
-    private final UserRepository userRepository;
-    private final PasswordEncoder passwordEncoder;
+    private final UserRepository       userRepository;
+    private final PasswordEncoder      passwordEncoder;
+    private final RefreshTokenService  refreshTokenService;
 
     public List<UserResponseDto> findAll() {
         return userRepository.findAll().stream()
@@ -24,11 +25,12 @@ public class UserService {
     }
 
     @Transactional
-    public UserResponseDto create(UserCreateDto dto) {
+    public UserResponseDto create(UserCreateDto dto, String requestingRole) {
         if (userRepository.existsByUsername(dto.getUsername())) {
             throw new IllegalArgumentException("이미 존재하는 사용자명입니다: " + dto.getUsername());
         }
-        String role = ("ADMIN".equalsIgnoreCase(dto.getRole())) ? "ADMIN" : "USER";
+        // ADMIN은 USER 계정만 생성 가능; SUPER_ADMIN은 모두 생성 가능
+        String role = resolveRole(dto.getRole(), requestingRole);
         User user = User.builder()
                 .username(dto.getUsername())
                 .password(passwordEncoder.encode(dto.getPassword()))
@@ -38,28 +40,73 @@ public class UserService {
     }
 
     @Transactional
-    public UserResponseDto update(Long id, UserUpdateDto dto) {
-        User user = userRepository.findById(id)
-                .orElseThrow(() -> new IllegalArgumentException("사용자를 찾을 수 없습니다: " + id));
-        if (dto.getRole() != null) user.setRole(dto.getRole());
-        if (dto.getActive() != null) user.setActive(dto.getActive());
+    public UserResponseDto update(Long id, UserUpdateDto dto, String requestingRole) {
+        User user = getUser(id);
+        checkCanManage(user.getRole(), requestingRole);
+
+        if (dto.getRole() != null) {
+            user.setRole(resolveRole(dto.getRole(), requestingRole));
+        }
+        if (dto.getActive() != null) {
+            user.setActive(dto.getActive());
+            if (!dto.getActive()) {
+                // 비활성화 시 즉시 로그아웃
+                refreshTokenService.revokeByUsername(user.getUsername());
+            }
+        }
         return new UserResponseDto(user);
     }
 
     @Transactional
-    public void changePassword(Long id, ChangePasswordDto dto) {
-        User user = userRepository.findById(id)
-                .orElseThrow(() -> new IllegalArgumentException("사용자를 찾을 수 없습니다: " + id));
+    public void changePassword(Long id, ChangePasswordDto dto, String requestingRole) {
+        User user = getUser(id);
+        checkCanManage(user.getRole(), requestingRole);
         user.setPassword(passwordEncoder.encode(dto.getNewPassword()));
     }
 
     @Transactional
-    public void delete(Long id, String requestingUsername) {
-        User user = userRepository.findById(id)
-                .orElseThrow(() -> new IllegalArgumentException("사용자를 찾을 수 없습니다: " + id));
+    public void delete(Long id, String requestingUsername, String requestingRole) {
+        User user = getUser(id);
         if (user.getUsername().equals(requestingUsername)) {
             throw new IllegalArgumentException("자기 자신은 삭제할 수 없습니다.");
         }
+        checkCanManage(user.getRole(), requestingRole);
+
+        // 삭제 전 세션 즉시 무효화
+        refreshTokenService.revokeByUsername(user.getUsername());
         userRepository.delete(user);
+    }
+
+    // ─── 내부 헬퍼 ───────────────────────────────────────────
+
+    private User getUser(Long id) {
+        return userRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("사용자를 찾을 수 없습니다: " + id));
+    }
+
+    /**
+     * SUPER_ADMIN이 아닌 ADMIN은 ADMIN/SUPER_ADMIN을 관리할 수 없음
+     */
+    private void checkCanManage(String targetRole, String requestingRole) {
+        if (!"SUPER_ADMIN".equals(requestingRole) &&
+                ("ADMIN".equals(targetRole) || "SUPER_ADMIN".equals(targetRole))) {
+            throw new IllegalArgumentException("해당 계정을 관리할 권한이 없습니다.");
+        }
+    }
+
+    /**
+     * 요청자 권한에 따라 실제 부여 가능한 역할 결정
+     * ADMIN은 USER만, SUPER_ADMIN은 USER·ADMIN 부여 가능
+     */
+    private String resolveRole(String requestedRole, String requestingRole) {
+        if ("SUPER_ADMIN".equals(requestingRole)) {
+            if ("SUPER_ADMIN".equals(requestedRole) || "ADMIN".equals(requestedRole) || "USER".equals(requestedRole)) {
+                return requestedRole;
+            }
+        }
+        if ("ADMIN".equals(requestedRole)) {
+            throw new IllegalArgumentException("ADMIN 계정을 생성/변경할 권한이 없습니다.");
+        }
+        return "USER";
     }
 }

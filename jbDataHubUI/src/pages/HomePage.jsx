@@ -1,10 +1,17 @@
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
+import { getStats } from '../api/publicApi'
 import styles from './HomePage.module.css'
 
 export default function HomePage() {
   const navigate = useNavigate()
   const { isAdmin } = useAuth()
+  const [stats, setStats] = useState(null)
+
+  useEffect(() => {
+    getStats().then(r => setStats(r.data)).catch(() => {})
+  }, [])
 
   const cards = [
     { icon: '📋', label: '목록 조회', desc: 'DB에 저장된 OpenAPI 목록을 검색·조회합니다.', path: '/list', show: true },
@@ -15,6 +22,22 @@ export default function HomePage() {
     <div className={styles.container}>
       <h1 className={styles.title}>jbDataHub</h1>
       <p className={styles.desc}>공공데이터포털(data.go.kr) OpenAPI 목록을 수집하고 관리하는 허브입니다.</p>
+
+      {stats && (
+        <div className={styles.statsRow}>
+          <div className={styles.statCard}>
+            <div className={styles.statNum}>{stats.totalCount?.toLocaleString() ?? '-'}</div>
+            <div className={styles.statLabel}>OpenAPI 서비스</div>
+          </div>
+          {stats.countByApiType && Object.entries(stats.countByApiType).map(([type, count]) => (
+            <div key={type} className={styles.statCard}>
+              <div className={styles.statNum}>{Number(count).toLocaleString()}</div>
+              <div className={styles.statLabel}>{type || '미분류'}</div>
+            </div>
+          ))}
+        </div>
+      )}
+
       <div className={styles.cards}>
         {cards.filter(c => c.show).map(card => (
           <div key={card.path} className={`${styles.card} ${card.admin ? styles.adminCard : ''}`} onClick={() => navigate(card.path)}>

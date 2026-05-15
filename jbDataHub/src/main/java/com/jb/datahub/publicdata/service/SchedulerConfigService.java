@@ -22,19 +22,23 @@ public class SchedulerConfigService {
 
     @Transactional
     public CollectScheduleConfig update(CollectScheduleConfigDto dto) {
-        CollectScheduleConfig config = getOrDefault();
-        config.setEnabled(dto.isEnabled());
-        config.setHour(Math.max(0, Math.min(23, dto.getHour())));
-        config.setMinute(Math.max(0, Math.min(59, dto.getMinute())));
-        config.setSourceType(dto.getSourceType());
-        config.setUpdatedAt(LocalDateTime.now());
-        return repository.save(config);
+        CollectScheduleConfig c = getOrDefault();
+        c.setEnabled(dto.isEnabled());
+        c.setScheduleType(dto.getScheduleType() != null ? dto.getScheduleType() : "DAILY");
+        c.setHour(Math.max(0, Math.min(23, dto.getHour())));
+        c.setMinute(Math.max(0, Math.min(59, dto.getMinute())));
+        c.setIntervalHours(Math.max(1, Math.min(24, dto.getIntervalHours())));
+        c.setDayOfWeek(Math.max(1, Math.min(7, dto.getDayOfWeek())));
+        c.setDayOfMonth(Math.max(1, Math.min(31, dto.getDayOfMonth())));
+        c.setSourceType(dto.getSourceType());
+        c.setUpdatedAt(LocalDateTime.now());
+        return repository.save(c);
     }
 
     @Transactional
     public void updateLastRunAt(LocalDateTime time) {
-        CollectScheduleConfig config = getOrDefault();
-        config.setLastRunAt(time);
-        repository.save(config);
+        CollectScheduleConfig c = getOrDefault();
+        c.setLastRunAt(time);
+        repository.save(c);
     }
 }

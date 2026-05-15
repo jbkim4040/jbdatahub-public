@@ -9,19 +9,27 @@ import java.time.LocalDateTime;
 
 @Getter @Setter @NoArgsConstructor
 public class CollectScheduleConfigDto {
-    private boolean enabled;
-    private int hour;
-    private int minute;
-    private String sourceType;
+    private boolean     enabled;
+    private String      scheduleType; // DAILY | HOURLY | WEEKLY | MONTHLY
+    private int         hour;
+    private int         minute;
+    private int         intervalHours;
+    private int         dayOfWeek;
+    private int         dayOfMonth;
+    private String      sourceType;
     private LocalDateTime lastRunAt;
     private LocalDateTime updatedAt;
 
-    public CollectScheduleConfigDto(CollectScheduleConfig config) {
-        this.enabled    = config.isEnabled();
-        this.hour       = config.getHour();
-        this.minute     = config.getMinute();
-        this.sourceType = config.getSourceType();
-        this.lastRunAt  = config.getLastRunAt();
-        this.updatedAt  = config.getUpdatedAt();
+    public CollectScheduleConfigDto(CollectScheduleConfig c) {
+        this.enabled       = c.isEnabled();
+        this.scheduleType  = c.getScheduleType() != null ? c.getScheduleType() : "DAILY";
+        this.hour          = c.getHour();
+        this.minute        = c.getMinute();
+        this.intervalHours = c.getIntervalHours() > 0 ? c.getIntervalHours() : 1;
+        this.dayOfWeek     = c.getDayOfWeek() > 0 ? c.getDayOfWeek() : 1;
+        this.dayOfMonth    = c.getDayOfMonth() > 0 ? c.getDayOfMonth() : 1;
+        this.sourceType    = c.getSourceType();
+        this.lastRunAt     = c.getLastRunAt();
+        this.updatedAt     = c.getUpdatedAt();
     }
 }

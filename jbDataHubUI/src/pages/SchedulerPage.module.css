@@ -60,3 +60,21 @@
 }
 .btnSave:hover:not(:disabled) { background: #2a4f7e; }
 .btnSave:disabled { opacity: .5; cursor: not-allowed; }
+
+/* 요일 선택 버튼 */
+.dowRow { display: flex; gap: 6px; flex-wrap: wrap; }
+.dowBtn {
+  width: 36px; height: 36px;
+  border: 1px solid #ccd4e0;
+  border-radius: 50%;
+  background: #f8fafc;
+  font-size: .85rem;
+  cursor: pointer;
+  transition: all .15s;
+}
+.dowBtn:disabled { opacity: .4; cursor: default; }
+.dowActive {
+  background: #1e3a5f;
+  color: #fff;
+  border-color: #1e3a5f;
+}

@@ -1,6 +1,32 @@
 .container { text-align: center; padding: 3rem 1rem; }
 .title { font-size: 2.5rem; color: #1e3a5f; margin-bottom: 1rem; }
-.desc { font-size: 1.05rem; color: #555; margin-bottom: 3rem; }
+.desc { font-size: 1.05rem; color: #555; margin-bottom: 2rem; }
+
+/* 통계 카드 행 */
+.statsRow {
+  display: flex;
+  justify-content: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-bottom: 2.5rem;
+}
+.statCard {
+  background: #f0f5ff;
+  border: 1px solid #c7d8f7;
+  border-radius: 10px;
+  padding: 1rem 1.6rem;
+  min-width: 130px;
+}
+.statNum {
+  font-size: 1.7rem;
+  font-weight: 700;
+  color: #1e3a5f;
+}
+.statLabel {
+  font-size: 0.8rem;
+  color: #667;
+  margin-top: 0.2rem;
+}
 
 .cards { display: flex; justify-content: center; gap: 1.5rem; flex-wrap: wrap; }
 .card { background: #fff; border: 1px solid #e0e6ef; border-radius: 12px; padding: 2rem 2.5rem; width: 220px; cursor: pointer; transition: transform .2s, box-shadow .2s; }

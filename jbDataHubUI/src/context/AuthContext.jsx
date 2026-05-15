@@ -30,10 +30,11 @@ export function AuthProvider({ children }) {
     if (rt) logoutApi(rt).catch(() => {})
   }, [])
 
-  const isAdmin = auth?.role === 'ADMIN'
+  const isAdmin = auth?.role === 'ADMIN' || auth?.role === 'SUPER_ADMIN'
+  const isSuperAdmin = auth?.role === 'SUPER_ADMIN'
 
   return (
-    <AuthContext.Provider value={{ auth, isAdmin, login, logout }}>
+    <AuthContext.Provider value={{ auth, isAdmin, isSuperAdmin, login, logout }}>
       {children}
     </AuthContext.Provider>
   )

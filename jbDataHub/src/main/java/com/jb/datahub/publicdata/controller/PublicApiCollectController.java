@@ -29,15 +29,15 @@ public class PublicApiCollectController {
     private final CollectionLogService   logService;
 
     @GetMapping("/collect/status")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN','SUPER_ADMIN')")
     @Operation(summary = "수집 상태 조회")
     public ResponseEntity<CollectStatusDto> getStatus() {
         return ResponseEntity.ok(new CollectStatusDto(stateService.snapshot()));
     }
 
     @GetMapping("/collect/history")
-    @PreAuthorize("hasRole('ADMIN')")
-    @Operation(summary = "수집 이력 조회", description = "DB에 저장된 최근 수집 이력을 반환합니다.")
+    @PreAuthorize("hasAnyRole('ADMIN','SUPER_ADMIN')")
+    @Operation(summary = "수집 이력 조회")
     public ResponseEntity<List<CollectionLogDto>> getHistory(
             @Parameter(description = "조회 건수 (최대 50)", example = "20")
             @RequestParam(defaultValue = "20") int limit
@@ -46,7 +46,7 @@ public class PublicApiCollectController {
     }
 
     @PostMapping("/collect")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN','SUPER_ADMIN')")
     @Operation(summary = "OpenAPI 목록 전체 수집")
     public ResponseEntity<Void> collectAll() {
         if (stateService.isRunning()) return ResponseEntity.status(409).build();
@@ -55,7 +55,7 @@ public class PublicApiCollectController {
     }
 
     @PostMapping("/collect/page/{page}")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN','SUPER_ADMIN')")
     @Operation(summary = "단일 페이지 수집")
     public ResponseEntity<CollectResultDto> collectPage(
             @Parameter(description = "페이지 번호 (1부터 시작)", example = "1", required = true)
@@ -68,7 +68,7 @@ public class PublicApiCollectController {
     }
 
     @PostMapping("/collect/dataset")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN','SUPER_ADMIN')")
     @Operation(summary = "데이터셋 전체 수집")
     public ResponseEntity<Void> collectDataset() {
         if (stateService.isRunning()) return ResponseEntity.status(409).build();
@@ -77,7 +77,7 @@ public class PublicApiCollectController {
     }
 
     @PostMapping("/collect/file-data")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN','SUPER_ADMIN')")
     @Operation(summary = "파일데이터 전체 수집")
     public ResponseEntity<Void> collectFileData() {
         if (stateService.isRunning()) return ResponseEntity.status(409).build();
@@ -86,7 +86,7 @@ public class PublicApiCollectController {
     }
 
     @PostMapping("/collect/standard-data")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN','SUPER_ADMIN')")
     @Operation(summary = "표준데이터 전체 수집")
     public ResponseEntity<Void> collectStandardData() {
         if (stateService.isRunning()) return ResponseEntity.status(409).build();
@@ -94,8 +94,17 @@ public class PublicApiCollectController {
         return ResponseEntity.accepted().build();
     }
 
+    @PostMapping("/collect/resume")
+    @PreAuthorize("hasAnyRole('ADMIN','SUPER_ADMIN')")
+    @Operation(summary = "수집 재개 (중단 지점부터 이어서)")
+    public ResponseEntity<Void> resumeCollect() {
+        if (stateService.isRunning()) return ResponseEntity.status(409).build();
+        publicApiService.resumeAsync();
+        return ResponseEntity.accepted().build();
+    }
+
     @PostMapping("/collect/stop")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN','SUPER_ADMIN')")
     @Operation(summary = "수집 중지")
     public ResponseEntity<Void> stopCollect() {
         publicApiService.stopCollect();

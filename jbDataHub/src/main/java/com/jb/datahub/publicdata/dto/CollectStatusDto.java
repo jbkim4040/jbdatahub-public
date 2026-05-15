@@ -9,30 +9,31 @@ import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.Map;
 
-/**
- * 수집 진행 상태 응답 DTO
- */
 @Getter
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class CollectStatusDto {
 
-    private final String status;           // IDLE | RUNNING | STOPPED | DONE
-    private final String sourceType;       // 수집 중인 타입
-    private final int currentPage;
-    private final int totalCount;
-    private final int savedCount;
-    private final Integer progressPct;     // 0~100, RUNNING일 때만
+    private final String        status;
+    private final String        sourceType;
+    private final int           currentPage;
+    private final int           totalCount;
+    private final int           savedCount;
+    private final Integer       progressPct;
+    private final Long          elapsedSeconds;
+    private final Long          etaSeconds;
     private final LocalDateTime startedAt;
     private final Map<String, TypeHistoryDto> history;
 
     public CollectStatusDto(StatusSnapshot snap) {
-        this.status      = snap.status();
-        this.sourceType  = snap.sourceType();
-        this.currentPage = snap.currentPage();
-        this.totalCount  = snap.totalCount();
-        this.savedCount  = snap.savedCount();
-        this.startedAt   = snap.startedAt();
-        this.progressPct = ("RUNNING".equals(snap.status()) && snap.totalCount() > 0)
+        this.status         = snap.status();
+        this.sourceType     = snap.sourceType();
+        this.currentPage    = snap.currentPage();
+        this.totalCount     = snap.totalCount();
+        this.savedCount     = snap.savedCount();
+        this.startedAt      = snap.startedAt();
+        this.elapsedSeconds = snap.elapsedSeconds() > 0 ? snap.elapsedSeconds() : null;
+        this.etaSeconds     = snap.etaSeconds();
+        this.progressPct    = ("RUNNING".equals(snap.status()) && snap.totalCount() > 0)
                 ? (int) ((long) snap.savedCount() * 100 / snap.totalCount())
                 : null;
 

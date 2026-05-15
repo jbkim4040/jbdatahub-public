@@ -11,19 +11,16 @@ import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
 
-/**
- * 조회 + 저장을 조율하는 서비스 (비동기 실행)
- */
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class PublicApiService {
 
-    private final PublicApiFetchService   fetchService;
-    private final PublicApiSaveService    saveService;
-    private final PublicDataSaveService   dataSaveService;
-    private final CollectionStateService  stateService;
-    private final CollectionLogService    logService;
+    private final PublicApiFetchService  fetchService;
+    private final PublicApiSaveService   saveService;
+    private final PublicDataSaveService  dataSaveService;
+    private final CollectionStateService stateService;
+    private final CollectionLogService   logService;
 
     @Value("${publicdata.api.dataset-path:/15077093/v1/dataset}")
     private String datasetPath;
@@ -34,55 +31,41 @@ public class PublicApiService {
     @Value("${publicdata.api.standard-data-path:/15077093/v1/standard-data-list}")
     private String standardDataPath;
 
-    // ─── 비동기 수집 메서드 ────────────────────────────────────
+    // ─── 비동기 전체 수집 ──────────────────────────────────────
 
     @Async
-    public void collectAllAsync() {
-        final String TYPE = "openapi";
-        stateService.startCollection(TYPE);
-        LocalDateTime startedAt = LocalDateTime.now();
-        int page = 1, totalSaved = 0, totalCount = 0;
+    public void collectAllAsync() { collectOpenApiFrom(1); }
 
-        while (true) {
-            if (stateService.isStopRequested()) {
-                log.info("[Collect-{}] 중지 요청 - page={}, 누적={}", TYPE, page, totalSaved);
-                stateService.stopCollection(TYPE, totalSaved, totalCount);
-                logService.saveLog(TYPE, "STOPPED", totalSaved, totalCount, startedAt);
-                return;
-            }
-            PublicApiResponseDto response = fetchService.fetchPage(page);
-            if (response == null || response.getData() == null || response.getData().isEmpty()) {
-                log.warn("[Collect-{}] page={} 응답 없음 - 종료", TYPE, page);
-                break;
-            }
-            totalCount = response.getTotalCount();
-            int saved  = saveService.saveAll(response.getData());
-            totalSaved += saved;
-            stateService.updateProgress(page, totalCount, totalSaved);
-            log.info("[Collect-{}] page={} saved={} 누적={}/{}", TYPE, page, saved, totalSaved, totalCount);
-            if ((long) page * fetchService.getPageSize() >= totalCount) break;
-            page++;
+    @Async
+    public void collectDatasetAsync()      { collectDataTypeAsync(datasetPath,       "dataset"); }
+
+    @Async
+    public void collectFileDataAsync()     { collectDataTypeAsync(fileDataPath,      "file-data"); }
+
+    @Async
+    public void collectStandardDataAsync() { collectDataTypeAsync(standardDataPath,  "standard-data"); }
+
+    // ─── Resume: 마지막 중단 페이지 다음부터 수집 ────────────
+
+    @Async
+    public void resumeAsync() {
+        String sourceType = stateService.getCurrentSourceType();
+        int    fromPage   = stateService.getCurrentPage() + 1;
+        if (sourceType == null || fromPage <= 1) {
+            collectAllAsync();
+            return;
         }
-        stateService.completeCollection(TYPE, totalSaved, totalCount);
-        logService.saveLog(TYPE, "DONE", totalSaved, totalCount, startedAt);
+        log.info("[Resume] sourceType={} fromPage={}", sourceType, fromPage);
+        switch (sourceType) {
+            case "openapi"       -> collectOpenApiFrom(fromPage);
+            case "dataset"       -> collectDataTypeFrom(datasetPath,      "dataset",       fromPage);
+            case "file-data"     -> collectDataTypeFrom(fileDataPath,     "file-data",     fromPage);
+            case "standard-data" -> collectDataTypeFrom(standardDataPath, "standard-data", fromPage);
+            default              -> collectAllAsync();
+        }
     }
 
-    @Async
-    public void collectDatasetAsync() {
-        collectDataTypeAsync(datasetPath, "dataset");
-    }
-
-    @Async
-    public void collectFileDataAsync() {
-        collectDataTypeAsync(fileDataPath, "file-data");
-    }
-
-    @Async
-    public void collectStandardDataAsync() {
-        collectDataTypeAsync(standardDataPath, "standard-data");
-    }
-
-    // ─── 단일 페이지 (동기, 테스트용) ─────────────────────────
+    // ─── 단일 페이지 (테스트용) ───────────────────────────────
 
     public CollectResultDto collectPage(int page) {
         PublicApiResponseDto response = fetchService.fetchPage(page);
@@ -102,25 +85,53 @@ public class PublicApiService {
 
     // ─── 내부 공통 로직 ───────────────────────────────────────
 
-    private void collectDataTypeAsync(String path, String sourceType) {
-        stateService.startCollection(sourceType);
+    private void collectOpenApiFrom(int startPage) {
+        final String TYPE = "openapi";
+        stateService.startCollection(TYPE);
         LocalDateTime startedAt = LocalDateTime.now();
-        int page = 1, totalSaved = 0, totalCount = 0;
+        int page = startPage, totalSaved = 0, totalCount = 0;
 
         while (true) {
             if (stateService.isStopRequested()) {
-                log.info("[Collect-{}] 중지 요청 - page={}, 누적={}", sourceType, page, totalSaved);
+                stateService.stopCollection(TYPE, totalSaved, totalCount);
+                logService.saveLog(TYPE, "STOPPED", totalSaved, totalCount, startedAt);
+                return;
+            }
+            PublicApiResponseDto response = fetchService.fetchPage(page);
+            if (response == null || response.getData() == null || response.getData().isEmpty()) break;
+
+            totalCount  = response.getTotalCount();
+            int saved   = saveService.saveAll(response.getData());
+            totalSaved += saved;
+            stateService.updateProgress(page, totalCount, totalSaved);
+            log.info("[Collect-{}] page={} saved={} 누적={}/{}", TYPE, page, saved, totalSaved, totalCount);
+            if ((long) page * fetchService.getPageSize() >= totalCount) break;
+            page++;
+        }
+        stateService.completeCollection(TYPE, totalSaved, totalCount);
+        logService.saveLog(TYPE, "DONE", totalSaved, totalCount, startedAt);
+    }
+
+    private void collectDataTypeAsync(String path, String sourceType) {
+        collectDataTypeFrom(path, sourceType, 1);
+    }
+
+    private void collectDataTypeFrom(String path, String sourceType, int startPage) {
+        stateService.startCollection(sourceType);
+        LocalDateTime startedAt = LocalDateTime.now();
+        int page = startPage, totalSaved = 0, totalCount = 0;
+
+        while (true) {
+            if (stateService.isStopRequested()) {
                 stateService.stopCollection(sourceType, totalSaved, totalCount);
                 logService.saveLog(sourceType, "STOPPED", totalSaved, totalCount, startedAt);
                 return;
             }
             PublicDataResponseDto response = fetchService.fetchDataPage(page, path);
-            if (response == null || response.getData() == null || response.getData().isEmpty()) {
-                log.warn("[Collect-{}] page={} 응답 없음 - 종료", sourceType, page);
-                break;
-            }
-            totalCount = response.getTotalCount();
-            int saved  = dataSaveService.saveAll(response.getData(), sourceType);
+            if (response == null || response.getData() == null || response.getData().isEmpty()) break;
+
+            totalCount  = response.getTotalCount();
+            int saved   = dataSaveService.saveAll(response.getData(), sourceType);
             totalSaved += saved;
             stateService.updateProgress(page, totalCount, totalSaved);
             log.info("[Collect-{}] page={} saved={} 누적={}/{}", sourceType, page, saved, totalSaved, totalCount);

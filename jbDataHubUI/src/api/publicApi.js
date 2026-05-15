@@ -51,3 +51,6 @@ export const deleteUser = (id) => http.delete(`/admin/users/${id}`)
 /* ── 스케줄러 (관리자 전용) ── */
 export const getScheduler = () => http.get('/admin/scheduler')
 export const updateScheduler = (data) => http.put('/admin/scheduler', data)
+
+/** 관리자 — 수집 재개 (중단 지점부터) */
+export const resumeCollect = () => http.post("/admin/collect/resume")

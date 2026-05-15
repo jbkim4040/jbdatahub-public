@@ -135,16 +135,6 @@ function OpenApiTab({ stats }) {
           </p>
           <div className={styles.tableWrap}>
             <table className={styles.table}>
-              <colgroup>
-                <col style={{ width: '110px' }} />
-                <col />
-                <col style={{ width: '130px' }} />
-                <col style={{ width: '110px' }} />
-                <col style={{ width: '70px' }} />
-                <col style={{ width: '55px' }} />
-                <col style={{ width: '75px' }} />
-                <col style={{ width: '95px' }} />
-              </colgroup>
               <thead>
                 <tr>
                   <th>목록ID</th>
@@ -269,17 +259,6 @@ function DataItemTab({ sourceType }) {
           </p>
           <div className={styles.tableWrap}>
             <table className={styles.table}>
-              <colgroup>
-                <col />
-                <col style={{ width: '130px' }} />
-                <col style={{ width: '110px' }} />
-                <col style={{ width: '60px' }} />
-                <col style={{ width: '80px' }} />
-                <col style={{ width: '75px' }} />
-                <col style={{ width: '75px' }} />
-                <col style={{ width: '95px' }} />
-                <col style={{ width: '70px' }} />
-              </colgroup>
               <thead>
                 <tr>
                   <SortTh field="title" sort={sort} onSort={handleSort}>제목</SortTh>

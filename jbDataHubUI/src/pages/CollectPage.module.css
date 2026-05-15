@@ -104,3 +104,17 @@
 .statusTag { padding: 2px 9px; border-radius: 20px; font-size: .8rem; font-weight: 600; }
 .tagDone    { background: #dcfce7; color: #166534; }
 .tagStopped { background: #fee2e2; color: #991b1b; }
+
+/* Resume 버튼 */
+.btnResume {
+  margin-top: 1rem;
+  padding: .55rem 1.4rem;
+  border: none;
+  border-radius: 6px;
+  font-size: .9rem;
+  cursor: pointer;
+  background: #e67e22;
+  color: #fff;
+  transition: opacity .2s;
+}
+.btnResume:hover { opacity: .85; }

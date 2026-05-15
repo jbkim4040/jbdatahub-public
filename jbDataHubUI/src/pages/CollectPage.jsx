@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import {
   collectAll, collectPage,
   collectDataset, collectFileData, collectStandardData,
-  stopCollect, getCollectStatus, getCollectHistory,
+  stopCollect, resumeCollect, getCollectStatus, getCollectHistory,
 } from '../api/publicApi'
 import styles from './CollectPage.module.css'
 
@@ -28,6 +28,7 @@ const fmtDate = (iso) => {
   return `${d.getFullYear()}.${String(d.getMonth()+1).padStart(2,'0')}.${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`
 }
 const fmtDuration = (secs) => {
+const fmtEta = (secs) => { if (!secs) return null; if (secs < 60) return `약 ${secs}초 남음`; const m = Math.floor(secs/60), s = secs%60; return s > 0 ? `약 ${m}분 ${s}초 남음` : `약 ${m}분 남음` }
   if (!secs) return '-'
   if (secs < 60) return `${secs}초`
   const m = Math.floor(secs / 60), s = secs % 60
@@ -86,6 +87,7 @@ export default function CollectPage() {
   }
 
   const handleStop = async () => { setStopping(true); try { await stopCollect() } catch { /* ignore */ } }
+const handleResume = async () => { setStartError(null); try { await resumeCollect(); await fetchStatus(); startPolling() } catch(e) { setStartError(e.response?.data?.message ?? "재개 실패") } }
 
   const handlePageCollect = async () => {
     const p = parseInt(pageInput)
@@ -162,6 +164,12 @@ export default function CollectPage() {
             </div>
           )}
           {status.startedAt && <div className={styles.startedAt}>시작 시각: {fmtDate(status.startedAt)}</div>}
+          {status.elapsedSeconds && (
+            <div className={styles.startedAt}>
+              경과: {fmtDuration(status.elapsedSeconds)}
+              {status.etaSeconds && <> · {fmtEta(status.etaSeconds)}</>}
+            </div>
+          )}
         </div>
       )}
 
@@ -173,6 +181,9 @@ export default function CollectPage() {
             <li>저장 건수: <strong>{fmt(status.savedCount)}</strong></li>
             {status.totalCount > 0 && <li>전체 건수: <strong>{fmt(status.totalCount)}</strong></li>}
             {status.currentPage > 0 && <li>마지막 페이지: <strong>{status.currentPage}</strong></li>}
+          </ul>
+          <button className={styles.btnResume} onClick={handleResume}>↩ 이어서 수집</button>
+          <ul>
           </ul>
         </div>
       )}

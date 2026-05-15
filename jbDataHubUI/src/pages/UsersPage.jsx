@@ -1,3 +1,4 @@
+import { useAuth } from "../context/AuthContext"
 import { useState, useEffect, useCallback } from 'react'
 import {
   getUsers, createUser, updateUser, changeUserPassword, deleteUser
@@ -121,7 +122,7 @@ export default function UsersPage() {
             onChange={e => setCreateForm(f => ({ ...f, role: e.target.value }))}
           >
             <option value="USER">일반 사용자</option>
-            <option value="ADMIN">관리자</option>
+            {isSuperAdmin && <option value="ADMIN">관리자</option>}
           </select>
           <button className={styles.createBtn} type="submit">추가</button>
         </form>

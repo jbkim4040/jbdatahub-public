@@ -1,5 +1,8 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
-import { getList, getStats, getDataItems, getDataItemStats, getApiDetail } from '../api/publicApi'
+import {
+  getList, getStats, getDataItems, getDataItemStats, getApiDetail,
+  semanticSearch, getSimilar, getTopics, getTopicList
+} from '../api/publicApi'
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, PieChart, Pie, Legend
 } from 'recharts'
@@ -41,43 +44,87 @@ function SortTh({ field, sort, onSort, children, className }) {
 
 /* ── OpenAPI 탭 ─────────────────────────────────────── */
 function OpenApiTab({ stats }) {
-  const [data, setData]       = useState(null)
-  const [search, setSearch]   = useState('')
-  const [query, setQuery]     = useState('')
-  const [page, setPage]       = useState(0)
-  const [loading, setLoading] = useState(false)
-  const [sort, setSort]       = useState({ field: null, dir: null })
-  const [selectedApi, setSelectedApi] = useState(null)
+  const [data, setData]           = useState(null)
+  const [search, setSearch]       = useState('')
+  const [query, setQuery]         = useState('')
+  const [page, setPage]           = useState(0)
+  const [loading, setLoading]     = useState(false)
+  const [sort, setSort]           = useState({ field: null, dir: null })
+  const [selectedApi, setSelectedApi]     = useState(null)
   const [detailLoading, setDetailLoading] = useState(false)
-  const [openedOps, setOpenedOps] = useState(new Set())
+  const [openedOps, setOpenedOps]         = useState(new Set())
+  const [similar, setSimilar]             = useState([])
+  const [similarLoading, setSimilarLoading] = useState(false)
+
+  // 의미 검색
+  const [semanticMode, setSemanticMode] = useState(false)
+
+  // 토픽 필터
+  const [topics, setTopics]           = useState([])
+  const [selectedTopic, setSelectedTopic] = useState(null)
 
   const scrollRef = useRef(0)
-  const loadList = useCallback(async (p = 0, q = query, s = sort) => {
+
+  // 토픽 목록 로드
+  useEffect(() => {
+    getTopics().then(r => setTopics(r.data)).catch(() => {})
+  }, [])
+
+  const loadList = useCallback(async (p = 0, q = query, s = sort, topicId = selectedTopic, semantic = semanticMode) => {
     scrollRef.current = window.scrollY
     setLoading(true)
     try {
-      const res = await getList(p, 20, q, s.field, s.dir)
+      let res
+      if (topicId !== null) {
+        res = await getTopicList(topicId, p, 20)
+      } else if (semantic && q) {
+        res = await semanticSearch(q, p, 20)
+      } else {
+        res = await getList(p, 20, q, s.field, s.dir)
+      }
       setData(res.data)
       setPage(p)
       requestAnimationFrame(() => window.scrollTo(0, scrollRef.current))
     } catch (e) { console.error(e) }
     finally { setLoading(false) }
-  }, [query, sort])
+  }, [query, sort, selectedTopic, semanticMode])
 
   useEffect(() => { loadList(0, '') }, [])
   useEffect(() => { loadList(0, query, sort) }, [sort])
 
-  const handleSearch = (e) => { e.preventDefault(); setQuery(search); loadList(0, search, sort) }
-  const handleReset  = () => { setSearch(''); setQuery(''); loadList(0, '', sort) }
-  const handleSort   = (newSort) => setSort(newSort)
+  const handleSearch = (e) => {
+    e.preventDefault()
+    setSelectedTopic(null)
+    setQuery(search)
+    loadList(0, search, sort, null, semanticMode)
+  }
+  const handleReset = () => {
+    setSearch(''); setQuery(''); setSelectedTopic(null); setSemanticMode(false)
+    loadList(0, '', sort, null, false)
+  }
+  const handleSort   = (newSort) => { setSelectedTopic(null); setSort(newSort) }
+
+  const handleTopicSelect = (topicId) => {
+    const next = selectedTopic === topicId ? null : topicId
+    setSelectedTopic(next)
+    setSearch(''); setQuery('')
+    loadList(0, '', sort, next, false)
+  }
 
   const handleRowClick = async (row) => {
     setDetailLoading(true)
     setSelectedApi(null)
+    setSimilar([])
     setOpenedOps(new Set())
     try {
       const res = await getApiDetail(row.listId)
       setSelectedApi(res.data)
+      // 유사 API 로드
+      setSimilarLoading(true)
+      getSimilar(row.listId)
+        .then(r => setSimilar(r.data))
+        .catch(() => {})
+        .finally(() => setSimilarLoading(false))
     } catch (e) { console.error(e) }
     finally { setDetailLoading(false) }
   }
@@ -96,6 +143,8 @@ function OpenApiTab({ stats }) {
   const apiTypeData  = stats?.countByApiType
     ? Object.entries(stats.countByApiType).map(([name, count]) => ({ name, count }))
     : []
+
+  const searchLabel = semanticMode ? '의미검색 중...' : (selectedTopic !== null ? `토픽 ${selectedTopic + 1}` : (query ? `"${query}"` : '전체'))
 
   return (
     <>
@@ -147,11 +196,45 @@ function OpenApiTab({ stats }) {
         </div>
       )}
 
+      {/* 토픽 필터 */}
+      {topics.length > 0 && (
+        <div className={styles.topicRow}>
+          <span className={styles.topicLabel}>토픽 필터</span>
+          <div className={styles.topicChips}>
+            {topics.slice(0, 12).map(t => (
+              <button
+                key={t.topicId}
+                className={`${styles.topicChip} ${selectedTopic === t.topicId ? styles.topicChipActive : ''}`}
+                onClick={() => handleTopicSelect(t.topicId)}
+                title={t.topicKeywords}
+              >
+                {t.topicKeywords.split(', ').slice(0, 3).join(' · ')}
+                <span className={styles.topicCount}>{t.itemCount}</span>
+              </button>
+            ))}
+            {selectedTopic !== null && (
+              <button className={styles.btnReset} onClick={handleReset}>전체 보기</button>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* 검색 */}
       <form className={styles.searchRow} onSubmit={handleSearch}>
         <input className={styles.searchInput} placeholder="목록명 검색..."
           value={search} onChange={(e) => setSearch(e.target.value)} />
         <button className={styles.btnSearch} type="submit">검색</button>
-        {query && <button className={styles.btnReset} type="button" onClick={handleReset}>초기화</button>}
+        <button
+          type="button"
+          className={`${styles.btnSemantic} ${semanticMode ? styles.btnSemanticActive : ''}`}
+          onClick={() => setSemanticMode(v => !v)}
+          title="의미 기반 검색: 키워드가 없어도 의미적으로 유사한 결과를 찾습니다"
+        >
+          {semanticMode ? '의미검색 ON' : '의미검색'}
+        </button>
+        {(query || selectedTopic !== null) && (
+          <button className={styles.btnReset} type="button" onClick={handleReset}>초기화</button>
+        )}
       </form>
 
       {!data && loading && <div className={styles.loading}>불러오는 중...</div>}
@@ -159,7 +242,10 @@ function OpenApiTab({ stats }) {
         <div style={{ opacity: loading ? 0.5 : 1, pointerEvents: loading ? 'none' : 'auto', transition: 'opacity .15s' }}>
           <p className={styles.resultInfo}>
             총 <strong>{data.totalElements.toLocaleString()}</strong>건
-            {query && <> · 검색어: <em>"{query}"</em></>}
+            {selectedTopic !== null && topics.length > 0 && (
+              <> · 토픽: <em>{topics.find(t => t.topicId === selectedTopic)?.topicKeywords?.split(', ').slice(0, 3).join(', ')}</em></>
+            )}
+            {query && selectedTopic === null && <> · {semanticMode ? '의미검색' : '검색어'}: <em>"{query}"</em></>}
           </p>
           <div className={styles.tableWrap}>
             <table className={styles.table}>
@@ -226,6 +312,27 @@ function OpenApiTab({ stats }) {
                 {selectedApi.description && (
                   <p className={styles.detailDesc}>{selectedApi.description}</p>
                 )}
+
+                {/* ── 유사 API ── */}
+                <h3 className={styles.sectionTitle}>유사 API</h3>
+                {similarLoading && <p className={styles.noDdl}>불러오는 중...</p>}
+                {!similarLoading && similar.length === 0 && (
+                  <p className={styles.noDdl}>유사 API 데이터가 없습니다. 임베딩 스크립트를 먼저 실행해 주세요.</p>
+                )}
+                {similar.length > 0 && (
+                  <div className={styles.similarList}>
+                    {similar.map(s => (
+                      <div key={s.listId} className={styles.similarItem}
+                        onClick={() => handleRowClick({ listId: s.listId })}
+                        title="클릭하여 상세 보기">
+                        <span className={styles.similarTitle}>{s.listTitle}</span>
+                        <span className={styles.similarMeta}>{s.orgNm} · {s.categoryNm}</span>
+                        <span className={styles.similarScore}>{(s.score * 100).toFixed(1)}%</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
                 <h3 className={styles.sectionTitle}>
                   오퍼레이션 ({selectedApi.operations?.length ?? 0}개)
                 </h3>
@@ -270,9 +377,6 @@ function DataItemTab({ sourceType }) {
   const [page, setPage]       = useState(0)
   const [loading, setLoading] = useState(false)
   const [sort, setSort]       = useState({ field: null, dir: null })
-  const [selectedApi, setSelectedApi] = useState(null)
-  const [detailLoading, setDetailLoading] = useState(false)
-  const [openedOps, setOpenedOps] = useState(new Set())
 
   const scrollRef = useRef(0)
   const loadItems = useCallback(async (p = 0, q = query, s = sort) => {

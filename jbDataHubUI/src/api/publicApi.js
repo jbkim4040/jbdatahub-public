@@ -56,9 +56,21 @@ export const updateScheduler = (data) => http.put('/admin/scheduler', data)
 /** 관리자 — 수집 재개 (중단 지점부터) */
 export const resumeCollect = () => http.post("/admin/collect/resume")
 
-
 /** API 상세 조회 (operations + DDL 포함) */
 export const getApiDetail = (listId) => http.get(`/public-data/detail/${listId}`)
 
 /** 관리자 — 전체 DDL 생성 (비동기, 202 반환) */
 export const generateAllDdl = () => http.post('/admin/ddl/generate-all')
+
+/* ── 의미 검색 / 유사 API / 토픽 ── */
+export const semanticSearch = (q, page = 0, size = 20) =>
+  http.get('/public-data/semantic', { params: { q, page, size } })
+
+export const getSimilar = (listId) =>
+  http.get(`/public-data/${listId}/similar`)
+
+export const getTopics = () =>
+  http.get('/public-data/topics')
+
+export const getTopicList = (topicId, page = 0, size = 20) =>
+  http.get(`/public-data/topics/${topicId}/list`, { params: { page, size } })

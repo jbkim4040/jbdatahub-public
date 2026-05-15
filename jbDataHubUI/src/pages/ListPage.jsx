@@ -85,7 +85,7 @@ function OpenApiTab({ stats }) {
   const toggleOp = (seq) => {
     setOpenedOps(prev => {
       const next = new Set(prev)
-      if (next.has(seq)) next.delete(seq) else next.add(seq)
+      if (next.has(seq)) { next.delete(seq) } else { next.add(seq) }
       return next
     })
   }

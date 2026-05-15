@@ -8,6 +8,7 @@ import styles from './UsersPage.module.css'
 const ROLE_LABELS = { ADMIN: '관리자', USER: '일반 사용자' }
 
 export default function UsersPage() {
+  const { isSuperAdmin } = useAuth()
   const [users, setUsers] = useState([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')

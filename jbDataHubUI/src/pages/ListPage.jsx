@@ -127,8 +127,9 @@ function OpenApiTab({ stats }) {
         {query && <button className={styles.btnReset} type="button" onClick={handleReset}>초기화</button>}
       </form>
 
-      {loading ? <div className={styles.loading}>불러오는 중...</div> : data && (
-        <>
+      {!data && loading && <div className={styles.loading}>불러오는 중...</div>}
+      {data && (
+        <div style={{ opacity: loading ? 0.5 : 1, pointerEvents: loading ? 'none' : 'auto', transition: 'opacity .15s' }}>
           <p className={styles.resultInfo}>
             총 <strong>{data.totalElements.toLocaleString()}</strong>건
             {query && <> · 검색어: <em>"{query}"</em></>}
@@ -173,7 +174,7 @@ function OpenApiTab({ stats }) {
             <button onClick={() => loadList(page + 1)} disabled={data.last}>›</button>
             <button onClick={() => loadList(data.totalPages - 1)} disabled={data.last}>»</button>
           </div>
-        </>
+        </div>
       )}
     </>
   )
@@ -251,8 +252,9 @@ function DataItemTab({ sourceType }) {
         {query && <button className={styles.btnReset} type="button" onClick={handleReset}>초기화</button>}
       </form>
 
-      {loading ? <div className={styles.loading}>불러오는 중...</div> : data && (
-        <>
+      {!data && loading && <div className={styles.loading}>불러오는 중...</div>}
+      {data && (
+        <div style={{ opacity: loading ? 0.5 : 1, pointerEvents: loading ? 'none' : 'auto', transition: 'opacity .15s' }}>
           <p className={styles.resultInfo}>
             총 <strong>{data.totalElements.toLocaleString()}</strong>건
             {query && <> · 검색어: <em>"{query}"</em></>}
@@ -304,7 +306,7 @@ function DataItemTab({ sourceType }) {
             <button onClick={() => loadItems(page + 1)} disabled={data.last}>›</button>
             <button onClick={() => loadItems(data.totalPages - 1)} disabled={data.last}>»</button>
           </div>
-        </>
+        </div>
       )}
     </>
   )

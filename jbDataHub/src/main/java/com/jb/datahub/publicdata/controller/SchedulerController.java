@@ -21,14 +21,14 @@ public class SchedulerController {
     private final SchedulerConfigService schedulerConfigService;
 
     @GetMapping("/scheduler")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN','SUPER_ADMIN')")
     @Operation(summary = "자동 수집 스케줄 조회")
     public ResponseEntity<CollectScheduleConfigDto> getScheduler() {
         return ResponseEntity.ok(new CollectScheduleConfigDto(schedulerConfigService.getOrDefault()));
     }
 
     @PutMapping("/scheduler")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN','SUPER_ADMIN')")
     @Operation(summary = "자동 수집 스케줄 설정")
     public ResponseEntity<CollectScheduleConfigDto> updateScheduler(@RequestBody CollectScheduleConfigDto dto) {
         CollectScheduleConfig config = schedulerConfigService.update(dto);

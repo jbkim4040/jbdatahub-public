@@ -2,9 +2,11 @@ spring:
   application:
     name: jbDataHub
   profiles:
-    active: local          # 로컬 기본값, 운영 시 SPRING_PROFILES_ACTIVE=prod 로 덮어씀
+    active: local
   cache:
-    type: simple
+    type: caffeine
+    caffeine:
+      spec: maximumSize=200,expireAfterWrite=10m
   datasource:
     hikari:
       maximum-pool-size: 10

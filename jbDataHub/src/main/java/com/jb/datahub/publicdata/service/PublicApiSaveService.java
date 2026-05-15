@@ -1,20 +1,17 @@
 package com.jb.datahub.publicdata.service;
 
 import com.jb.datahub.publicdata.dto.PublicApiItemDto;
-import com.jb.datahub.publicdata.entity.PublicApiList;
-import com.jb.datahub.publicdata.entity.PublicApiOperation;
-import com.jb.datahub.publicdata.repository.PublicApiListRepository;
-import com.jb.datahub.publicdata.repository.PublicApiOperationRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.sql.Date;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.*;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -22,142 +19,157 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class PublicApiSaveService {
 
-    private final PublicApiListRepository publicApiListRepository;
-    private final PublicApiOperationRepository publicApiOperationRepository;
+    private final JdbcTemplate jdbcTemplate;
+
+    private static final String UPSERT_LIST = """
+        INSERT INTO public_api_list (
+            list_id, list_title, list_type, api_id, api_type, data_format,
+            title, title_en, org_cd, org_nm, dept_nm, category_nm,
+            new_category_cd, new_category_nm, upper_category_cd,
+            share_scope_cd, share_scope_nm,
+            guide_url, end_point_url, soap_url, link_url, meta_url,
+            description, is_charged, is_copyrighted, is_core_data, core_data_nm,
+            is_std_data, is_list_deleted, is_deleted,
+            is_confirmed_for_dev, is_confirmed_for_dev_nm,
+            is_confirmed_for_prod, is_confirmed_for_prod_nm,
+            ownership_grounds, is_third_party_copyrighted, use_prmisn_ennc,
+            keywords, request_cnt, use_scope_resn, created_at, updated_at
+        ) VALUES (
+            ?,?,?,?,?,?, ?,?,?,?,?,?, ?,?,?, ?,?, ?,?,?,?,?, ?,?,?,?,?, ?,?,?, ?,?, ?,?, ?,?,?, ?,?,?,?,?
+        )
+        ON CONFLICT (list_id) DO UPDATE SET
+            list_title = EXCLUDED.list_title, list_type = EXCLUDED.list_type,
+            api_id = EXCLUDED.api_id, api_type = EXCLUDED.api_type,
+            data_format = EXCLUDED.data_format, title = EXCLUDED.title,
+            title_en = EXCLUDED.title_en, org_cd = EXCLUDED.org_cd,
+            org_nm = EXCLUDED.org_nm, dept_nm = EXCLUDED.dept_nm,
+            category_nm = EXCLUDED.category_nm, new_category_cd = EXCLUDED.new_category_cd,
+            new_category_nm = EXCLUDED.new_category_nm, upper_category_cd = EXCLUDED.upper_category_cd,
+            share_scope_cd = EXCLUDED.share_scope_cd, share_scope_nm = EXCLUDED.share_scope_nm,
+            guide_url = EXCLUDED.guide_url, end_point_url = EXCLUDED.end_point_url,
+            soap_url = EXCLUDED.soap_url, link_url = EXCLUDED.link_url,
+            meta_url = EXCLUDED.meta_url, description = EXCLUDED.description,
+            is_charged = EXCLUDED.is_charged, is_copyrighted = EXCLUDED.is_copyrighted,
+            is_core_data = EXCLUDED.is_core_data, core_data_nm = EXCLUDED.core_data_nm,
+            is_std_data = EXCLUDED.is_std_data, is_list_deleted = EXCLUDED.is_list_deleted,
+            is_deleted = EXCLUDED.is_deleted,
+            is_confirmed_for_dev = EXCLUDED.is_confirmed_for_dev,
+            is_confirmed_for_dev_nm = EXCLUDED.is_confirmed_for_dev_nm,
+            is_confirmed_for_prod = EXCLUDED.is_confirmed_for_prod,
+            is_confirmed_for_prod_nm = EXCLUDED.is_confirmed_for_prod_nm,
+            ownership_grounds = EXCLUDED.ownership_grounds,
+            is_third_party_copyrighted = EXCLUDED.is_third_party_copyrighted,
+            use_prmisn_ennc = EXCLUDED.use_prmisn_ennc,
+            keywords = EXCLUDED.keywords, request_cnt = EXCLUDED.request_cnt,
+            use_scope_resn = EXCLUDED.use_scope_resn,
+            created_at = EXCLUDED.created_at, updated_at = EXCLUDED.updated_at
+        """;
+
+    private static final String UPSERT_OP = """
+        INSERT INTO public_api_operation (
+            operation_seq, list_id, operation_nm, operation_url, register_status,
+            request_param_nm, request_param_nm_en, response_param_nm, response_param_nm_en
+        ) VALUES (?,?,?,?,?,?,?,?,?)
+        ON CONFLICT (operation_seq) DO UPDATE SET
+            list_id = EXCLUDED.list_id,
+            operation_nm = EXCLUDED.operation_nm,
+            operation_url = EXCLUDED.operation_url,
+            register_status = EXCLUDED.register_status,
+            request_param_nm = EXCLUDED.request_param_nm,
+            request_param_nm_en = EXCLUDED.request_param_nm_en,
+            response_param_nm = EXCLUDED.response_param_nm,
+            response_param_nm_en = EXCLUDED.response_param_nm_en
+        """;
 
     @Transactional
     public int saveAll(List<PublicApiItemDto> items) {
         if (items == null || items.isEmpty()) return 0;
         long start = System.currentTimeMillis();
 
-        // 1. 이 페이지의 모든 listId를 한 번에 조회
-        List<String> listIds = items.stream()
-                .map(PublicApiItemDto::getListId)
-                .filter(Objects::nonNull)
-                .distinct()
-                .collect(Collectors.toList());
-
-        Map<String, PublicApiList> existingLists = publicApiListRepository
-                .findAllById(listIds).stream()
-                .collect(Collectors.toMap(PublicApiList::getListId, Function.identity()));
-
-        // 2. List 엔티티 생성/업데이트 후 일괄 저장 (flush로 FK 보장)
-        // LinkedHashMap: 동일 listId가 여러 번 나와도 마지막 값으로 덮어씀 (dedup)
-        Map<String, PublicApiList> listsToSaveMap = new LinkedHashMap<>();
+        // 동일 listId 중복 제거 (LinkedHashMap: 마지막 값 우선)
+        Map<String, PublicApiItemDto> listMap = new LinkedHashMap<>();
         for (PublicApiItemDto dto : items) {
-            if (dto.getListId() == null) continue;
-            PublicApiList apiList = existingLists.getOrDefault(dto.getListId(),
-                    PublicApiList.builder().listId(dto.getListId()).build());
-            applyListFields(dto, apiList);
-            listsToSaveMap.put(dto.getListId(), apiList);
+            if (dto.getListId() != null) listMap.put(dto.getListId(), dto);
         }
-        List<PublicApiList> listsToSave = new ArrayList<>(listsToSaveMap.values());
-        publicApiListRepository.saveAll(listsToSave);
-        publicApiListRepository.flush();
 
-        // 3. 이 페이지의 모든 operationSeq를 한 번에 조회
-        Map<String, PublicApiList> savedListMap = listsToSaveMap;
+        // List UPSERT 배치
+        List<PublicApiItemDto> uniqueLists = new ArrayList<>(listMap.values());
+        jdbcTemplate.batchUpdate(UPSERT_LIST, uniqueLists, uniqueLists.size(), (ps, dto) -> {
+            ps.setString(1,  dto.getListId());
+            ps.setString(2,  truncate(dto.getListTitle(), 300));
+            ps.setString(3,  dto.getListType());
+            ps.setString(4,  dto.getId());
+            ps.setString(5,  dto.getApiType());
+            ps.setString(6,  dto.getDataFormat());
+            ps.setString(7,  truncate(dto.getTitle(), 300));
+            ps.setString(8,  truncate(dto.getTitleEn(), 300));
+            ps.setString(9,  dto.getOrgCd());
+            ps.setString(10, truncate(dto.getOrgNm(), 200));
+            ps.setString(11, truncate(dto.getDeptNm(), 200));
+            ps.setString(12, truncate(dto.getCategoryNm(), 200));
+            ps.setString(13, dto.getNewCategoryCd());
+            ps.setString(14, truncate(dto.getNewCategoryNm(), 100));
+            ps.setString(15, truncate(dto.getUpperCategoryCd(), 100));
+            ps.setString(16, dto.getShareScopeCd());
+            ps.setString(17, truncate(dto.getShareScopeNm(), 100));
+            ps.setString(18, truncate(dto.getGuideUrl(), 500));
+            ps.setString(19, truncate(dto.getEndPointUrl(), 500));
+            ps.setString(20, truncate(dto.getSoapUrl(), 500));
+            ps.setString(21, truncate(dto.getLinkUrl(), 500));
+            ps.setString(22, truncate(dto.getMetaUrl(), 500));
+            ps.setString(23, dto.getDesc());
+            ps.setString(24, dto.getIsCharged());
+            ps.setString(25, dto.getIsCopyrighted());
+            ps.setString(26, dto.getIsCoreData());
+            ps.setString(27, truncate(dto.getCoreDataNm(), 500));
+            ps.setString(28, dto.getIsStdData());
+            ps.setString(29, dto.getIsListDeleted());
+            ps.setString(30, dto.getIsDeleted());
+            ps.setString(31, dto.getIsConfirmedForDev());
+            ps.setString(32, dto.getIsConfirmedForDevNm());
+            ps.setString(33, dto.getIsConfirmedForProd());
+            ps.setString(34, dto.getIsConfirmedForProdNm());
+            ps.setString(35, dto.getOwnershipGrounds());
+            ps.setString(36, truncate(dto.getIsThirdPartyCopyrighted(), 50));
+            ps.setString(37, truncate(dto.getUsePrmisnEnnc(), 50));
+            ps.setString(38, truncate(dto.getKeywords(), 500));
+            ps.setObject(39, dto.getRequestCnt());
+            ps.setString(40, dto.getUseScopeResn());
+            ps.setObject(41, toSqlDate(dto.getCreatedAt()));
+            ps.setObject(42, toSqlDate(dto.getUpdatedAt()));
+        });
 
-        List<Long> opSeqs = items.stream()
+        // Operation UPSERT 배치
+        List<PublicApiItemDto> ops = items.stream()
                 .filter(dto -> dto.getOperationSeq() != null && !dto.getOperationSeq().isBlank())
-                .map(dto -> {
-                    try { return Long.parseLong(dto.getOperationSeq()); }
-                    catch (NumberFormatException e) { return null; }
-                })
-                .filter(Objects::nonNull)
                 .collect(Collectors.toList());
 
-        Map<Long, PublicApiOperation> existingOps = opSeqs.isEmpty()
-                ? Collections.emptyMap()
-                : publicApiOperationRepository.findAllById(opSeqs).stream()
-                        .collect(Collectors.toMap(PublicApiOperation::getOperationSeq, Function.identity()));
-
-        // 4. Operation 엔티티 생성/업데이트 후 일괄 저장
-        List<PublicApiOperation> opsToSave = new ArrayList<>();
-        for (PublicApiItemDto dto : items) {
-            if (dto.getOperationSeq() == null || dto.getOperationSeq().isBlank()) continue;
-            try {
-                Long seq = Long.parseLong(dto.getOperationSeq());
-                PublicApiList apiList = savedListMap.get(dto.getListId());
-                if (apiList == null) continue;
-                PublicApiOperation op = existingOps.getOrDefault(seq,
-                        PublicApiOperation.builder().operationSeq(seq).build());
-                applyOperationFields(dto, op, apiList);
-                opsToSave.add(op);
-            } catch (Exception e) {
-                log.warn("[Save] Operation 저장 실패 - operationSeq={}, error={}", dto.getOperationSeq(), e.getMessage());
-            }
-        }
-        if (!opsToSave.isEmpty()) {
-            publicApiOperationRepository.saveAll(opsToSave);
+        if (!ops.isEmpty()) {
+            jdbcTemplate.batchUpdate(UPSERT_OP, ops, ops.size(), (ps, dto) -> {
+                ps.setLong(1,   Long.parseLong(dto.getOperationSeq()));
+                ps.setString(2, dto.getListId());
+                ps.setString(3, truncate(dto.getOperationNm(), 300));
+                ps.setString(4, truncate(dto.getOperationUrl(), 500));
+                ps.setString(5, truncate(dto.getRegisterStatus(), 50));
+                ps.setString(6, dto.getRequestParamNm());
+                ps.setString(7, dto.getRequestParamNmEn());
+                ps.setString(8, dto.getResponseParamNm());
+                ps.setString(9, dto.getResponseParamNmEn());
+            });
         }
 
         long elapsed = System.currentTimeMillis() - start;
-        log.info("[SavePerf] {} items → list {} (dedup) + op {} saved in {}ms",
-                items.size(), listsToSave.size(), opsToSave.size(), elapsed);
+        log.info("[SavePerf] {} items → list {} (upsert) + op {} (upsert) in {}ms",
+                items.size(), uniqueLists.size(), ops.size(), elapsed);
 
-        return listsToSave.size();
+        return uniqueLists.size();
     }
 
-    private void applyListFields(PublicApiItemDto dto, PublicApiList entity) {
-        entity.setListTitle(dto.getListTitle());
-        entity.setListType(dto.getListType());
-        entity.setApiId(dto.getId());
-        entity.setApiType(dto.getApiType());
-        entity.setDataFormat(dto.getDataFormat());
-        entity.setTitle(dto.getTitle());
-        entity.setTitleEn(dto.getTitleEn());
-        entity.setOrgCd(dto.getOrgCd());
-        entity.setOrgNm(dto.getOrgNm());
-        entity.setDeptNm(dto.getDeptNm());
-        entity.setCategoryNm(dto.getCategoryNm());
-        entity.setNewCategoryCd(dto.getNewCategoryCd());
-        entity.setNewCategoryNm(dto.getNewCategoryNm());
-        entity.setUpperCategoryCd(dto.getUpperCategoryCd());
-        entity.setShareScopeCd(dto.getShareScopeCd());
-        entity.setShareScopeNm(dto.getShareScopeNm());
-        entity.setGuideUrl(truncate(dto.getGuideUrl(), 500));
-        entity.setEndPointUrl(truncate(dto.getEndPointUrl(), 500));
-        entity.setSoapUrl(truncate(dto.getSoapUrl(), 500));
-        entity.setLinkUrl(truncate(dto.getLinkUrl(), 500));
-        entity.setMetaUrl(truncate(dto.getMetaUrl(), 500));
-        entity.setDescription(dto.getDesc());
-        entity.setIsCharged(dto.getIsCharged());
-        entity.setIsCopyrighted(dto.getIsCopyrighted());
-        entity.setIsCoreData(dto.getIsCoreData());
-        entity.setCoreDataNm(dto.getCoreDataNm());
-        entity.setIsStdData(dto.getIsStdData());
-        entity.setIsListDeleted(dto.getIsListDeleted());
-        entity.setIsDeleted(dto.getIsDeleted());
-        entity.setIsConfirmedForDev(dto.getIsConfirmedForDev());
-        entity.setIsConfirmedForDevNm(dto.getIsConfirmedForDevNm());
-        entity.setIsConfirmedForProd(dto.getIsConfirmedForProd());
-        entity.setIsConfirmedForProdNm(dto.getIsConfirmedForProdNm());
-        entity.setOwnershipGrounds(dto.getOwnershipGrounds());
-        entity.setIsThirdPartyCopyrighted(dto.getIsThirdPartyCopyrighted());
-        entity.setUsePrmisnEnnc(dto.getUsePrmisnEnnc());
-        entity.setKeywords(dto.getKeywords());
-        entity.setRequestCnt(dto.getRequestCnt());
-        entity.setUseScopeResn(dto.getUseScopeResn());
-        entity.setCreatedAt(parseDate(dto.getCreatedAt()));
-        entity.setUpdatedAt(parseDate(dto.getUpdatedAt()));
-    }
-
-    private void applyOperationFields(PublicApiItemDto dto, PublicApiOperation entity, PublicApiList list) {
-        entity.setPublicApiList(list);
-        entity.setOperationNm(dto.getOperationNm());
-        entity.setOperationUrl(truncate(dto.getOperationUrl(), 500));
-        entity.setRegisterStatus(dto.getRegisterStatus());
-        entity.setRequestParamNm(dto.getRequestParamNm());
-        entity.setRequestParamNmEn(dto.getRequestParamNmEn());
-        entity.setResponseParamNm(dto.getResponseParamNm());
-        entity.setResponseParamNmEn(dto.getResponseParamNmEn());
-    }
-
-    private LocalDate parseDate(String dateStr) {
+    private Date toSqlDate(String dateStr) {
         if (dateStr == null || dateStr.isBlank()) return null;
         try {
-            return LocalDate.parse(dateStr.trim(), DateTimeFormatter.ofPattern("yyyy-MM-dd"));
+            LocalDate d = LocalDate.parse(dateStr.trim(), DateTimeFormatter.ofPattern("yyyy-MM-dd"));
+            return Date.valueOf(d);
         } catch (DateTimeParseException e) {
             return null;
         }

@@ -11,11 +11,10 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
-import java.util.List;
+import java.util.*;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
-/**
- * dataset / file-data-list / standard-data-list DB 저장 담당
- */
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -25,19 +24,37 @@ public class PublicDataSaveService {
 
     @Transactional
     public int saveAll(List<PublicDataItemDto> items, String sourceType) {
-        int count = 0;
+        if (items == null || items.isEmpty()) return 0;
+        long start = System.currentTimeMillis();
+
+        // 1. 이 페이지의 모든 id를 한 번에 조회
+        List<String> ids = items.stream()
+                .map(PublicDataItemDto::getId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toList());
+
+        Map<String, PublicDataItem> existing = repository.findAllById(ids).stream()
+                .collect(Collectors.toMap(PublicDataItem::getId, Function.identity()));
+
+        // 2. 엔티티 생성/업데이트 후 일괄 저장
+        List<PublicDataItem> toSave = new ArrayList<>();
         for (PublicDataItemDto dto : items) {
+            if (dto.getId() == null) continue;
             try {
-                PublicDataItem entity = repository.findById(dto.getId())
-                        .orElseGet(() -> PublicDataItem.builder().id(dto.getId()).build());
+                PublicDataItem entity = existing.getOrDefault(dto.getId(),
+                        PublicDataItem.builder().id(dto.getId()).build());
                 applyFields(dto, entity, sourceType);
-                repository.save(entity);
-                count++;
+                toSave.add(entity);
             } catch (Exception e) {
                 log.warn("[DataSave] 저장 실패 - id={}, error={}", dto.getId(), e.getMessage());
             }
         }
-        return count;
+        repository.saveAll(toSave);
+
+        long elapsed = System.currentTimeMillis() - start;
+        log.info("[SavePerf] {} {} items saved in {}ms", sourceType, toSave.size(), elapsed);
+
+        return toSave.size();
     }
 
     private void applyFields(PublicDataItemDto dto, PublicDataItem entity, String sourceType) {

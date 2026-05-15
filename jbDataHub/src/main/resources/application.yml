@@ -5,6 +5,14 @@ spring:
     active: local          # 로컬 기본값, 운영 시 SPRING_PROFILES_ACTIVE=prod 로 덮어씀
   cache:
     type: simple
+  datasource:
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 3
+      connection-timeout: 30000
+      idle-timeout: 600000
+      max-lifetime: 1800000
+      pool-name: jbDataHub-HikariPool
   jpa:
     hibernate:
       ddl-auto: update
@@ -12,6 +20,11 @@ spring:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
         format_sql: false
+        jdbc:
+          batch_size: 100
+          batch_versioned_data: true
+        order_inserts: true
+        order_updates: true
     show-sql: false
     database-platform: org.hibernate.dialect.PostgreSQLDialect
 

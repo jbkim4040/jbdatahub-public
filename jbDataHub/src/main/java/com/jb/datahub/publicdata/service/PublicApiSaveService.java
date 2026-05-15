@@ -13,13 +13,10 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
-import java.util.List;
+import java.util.*;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
-/**
- * DB 저장만 담당
- * - 외부 API 호출 없음
- * - PublicApiList / PublicApiOperation upsert
- */
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -28,54 +25,78 @@ public class PublicApiSaveService {
     private final PublicApiListRepository publicApiListRepository;
     private final PublicApiOperationRepository publicApiOperationRepository;
 
-    /**
-     * DTO 목록을 Entity로 변환하여 upsert 저장
-     *
-     * @return 성공적으로 저장된 건수
-     */
     @Transactional
     public int saveAll(List<PublicApiItemDto> items) {
-        int count = 0;
+        if (items == null || items.isEmpty()) return 0;
+        long start = System.currentTimeMillis();
+
+        // 1. 이 페이지의 모든 listId를 한 번에 조회
+        List<String> listIds = items.stream()
+                .map(PublicApiItemDto::getListId)
+                .filter(Objects::nonNull)
+                .distinct()
+                .collect(Collectors.toList());
+
+        Map<String, PublicApiList> existingLists = publicApiListRepository
+                .findAllById(listIds).stream()
+                .collect(Collectors.toMap(PublicApiList::getListId, Function.identity()));
+
+        // 2. List 엔티티 생성/업데이트 후 일괄 저장 (flush로 FK 보장)
+        List<PublicApiList> listsToSave = new ArrayList<>();
         for (PublicApiItemDto dto : items) {
-            count += saveOne(dto);
-        }
-        return count;
-    }
-
-    private int saveOne(PublicApiItemDto dto) {
-        try{
-            // 1) PublicApiList upsert
-            //    saveAndFlush: Operation이 List를 FK로 참조하기 전에
-            //    반드시 DB에 먼저 반영되어야 TransientObjectException 방지
-            PublicApiList apiList = publicApiListRepository
-                    .findById(dto.getListId())
-                    .orElseGet(() -> PublicApiList.builder().listId(dto.getListId()).build());
-
+            if (dto.getListId() == null) continue;
+            PublicApiList apiList = existingLists.getOrDefault(dto.getListId(),
+                    PublicApiList.builder().listId(dto.getListId()).build());
             applyListFields(dto, apiList);
-            apiList = publicApiListRepository.saveAndFlush(apiList);
+            listsToSave.add(apiList);
+        }
+        List<PublicApiList> savedLists = publicApiListRepository.saveAll(listsToSave);
+        publicApiListRepository.flush();
 
-            // 2) PublicApiOperation upsert
-            if (dto.getOperationSeq() != null && !dto.getOperationSeq().isBlank()) {
+        // 3. 이 페이지의 모든 operationSeq를 한 번에 조회
+        Map<String, PublicApiList> savedListMap = savedLists.stream()
+                .collect(Collectors.toMap(PublicApiList::getListId, Function.identity()));
+
+        List<Long> opSeqs = items.stream()
+                .filter(dto -> dto.getOperationSeq() != null && !dto.getOperationSeq().isBlank())
+                .map(dto -> {
+                    try { return Long.parseLong(dto.getOperationSeq()); }
+                    catch (NumberFormatException e) { return null; }
+                })
+                .filter(Objects::nonNull)
+                .collect(Collectors.toList());
+
+        Map<Long, PublicApiOperation> existingOps = opSeqs.isEmpty()
+                ? Collections.emptyMap()
+                : publicApiOperationRepository.findAllById(opSeqs).stream()
+                        .collect(Collectors.toMap(PublicApiOperation::getOperationSeq, Function.identity()));
+
+        // 4. Operation 엔티티 생성/업데이트 후 일괄 저장
+        List<PublicApiOperation> opsToSave = new ArrayList<>();
+        for (PublicApiItemDto dto : items) {
+            if (dto.getOperationSeq() == null || dto.getOperationSeq().isBlank()) continue;
+            try {
                 Long seq = Long.parseLong(dto.getOperationSeq());
-
-                PublicApiOperation operation = publicApiOperationRepository
-                        .findById(seq)
-                        .orElseGet(() -> PublicApiOperation.builder().operationSeq(seq).build());
-
-                applyOperationFields(dto, operation, apiList);
-                publicApiOperationRepository.save(operation);
+                PublicApiList apiList = savedListMap.get(dto.getListId());
+                if (apiList == null) continue;
+                PublicApiOperation op = existingOps.getOrDefault(seq,
+                        PublicApiOperation.builder().operationSeq(seq).build());
+                applyOperationFields(dto, op, apiList);
+                opsToSave.add(op);
+            } catch (Exception e) {
+                log.warn("[Save] Operation 저장 실패 - operationSeq={}, error={}", dto.getOperationSeq(), e.getMessage());
             }
-        }catch(Exception e) {
-            log.warn("[Save] 저장 실패 - listId={}, operationSeq={}, error={}",
-                    dto.getListId(), dto.getOperationSeq(), e.getMessage());
+        }
+        if (!opsToSave.isEmpty()) {
+            publicApiOperationRepository.saveAll(opsToSave);
         }
 
-        return 1;
-    }
+        long elapsed = System.currentTimeMillis() - start;
+        log.info("[SavePerf] {} items → list {} + op {} saved in {}ms",
+                items.size(), listsToSave.size(), opsToSave.size(), elapsed);
 
-    // ──────────────────────────────────────────
-    //  필드 매핑
-    // ──────────────────────────────────────────
+        return listsToSave.size();
+    }
 
     private void applyListFields(PublicApiItemDto dto, PublicApiList entity) {
         entity.setListTitle(dto.getListTitle());
@@ -131,10 +152,6 @@ public class PublicApiSaveService {
         entity.setResponseParamNm(dto.getResponseParamNm());
         entity.setResponseParamNmEn(dto.getResponseParamNmEn());
     }
-
-    // ──────────────────────────────────────────
-    //  유틸
-    // ──────────────────────────────────────────
 
     private LocalDate parseDate(String dateStr) {
         if (dateStr == null || dateStr.isBlank()) return null;

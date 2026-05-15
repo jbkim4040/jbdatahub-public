@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { getList, getStats, getDataItems, getDataItemStats } from '../api/publicApi'
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, PieChart, Pie, Legend
@@ -48,12 +48,15 @@ function OpenApiTab({ stats }) {
   const [loading, setLoading] = useState(false)
   const [sort, setSort]       = useState({ field: null, dir: null })
 
+  const scrollRef = useRef(0)
   const loadList = useCallback(async (p = 0, q = query, s = sort) => {
+    scrollRef.current = window.scrollY
     setLoading(true)
     try {
       const res = await getList(p, 20, q, s.field, s.dir)
       setData(res.data)
       setPage(p)
+      requestAnimationFrame(() => window.scrollTo(0, scrollRef.current))
     } catch (e) { console.error(e) }
     finally { setLoading(false) }
   }, [query, sort])
@@ -190,12 +193,15 @@ function DataItemTab({ sourceType }) {
   const [loading, setLoading] = useState(false)
   const [sort, setSort]       = useState({ field: null, dir: null })
 
+  const scrollRef = useRef(0)
   const loadItems = useCallback(async (p = 0, q = query, s = sort) => {
+    scrollRef.current = window.scrollY
     setLoading(true)
     try {
       const res = await getDataItems(sourceType, p, 20, q, s.field, s.dir)
       setData(res.data)
       setPage(p)
+      requestAnimationFrame(() => window.scrollTo(0, scrollRef.current))
     } catch (e) { console.error(e) }
     finally { setLoading(false) }
   }, [sourceType, query, sort])
@@ -225,22 +231,40 @@ function DataItemTab({ sourceType }) {
       )}
 
       {/* 분류별 차트 */}
-      {stats?.countByCategory?.length > 0 && (
+      {(stats?.countByCategory?.length > 0 || stats?.countByFormat?.length > 0) && (
         <div className={styles.charts}>
-          <div className={styles.chartBox}>
-            <h3>분류별 건수 (상위 10개)</h3>
-            <ResponsiveContainer width="100%" height={240}>
-              <BarChart data={stats.countByCategory} margin={{ left: 0, right: 10 }}>
-                <XAxis dataKey="name" tick={{ fontSize: 11 }} interval={0}
-                  angle={-25} textAnchor="end" height={60} />
-                <YAxis tick={{ fontSize: 11 }} />
-                <Tooltip formatter={(v) => v.toLocaleString()} />
-                <Bar dataKey="count" radius={[4, 4, 0, 0]}>
-                  {stats.countByCategory.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
+          {stats?.countByCategory?.length > 0 && (
+            <div className={styles.chartBox}>
+              <h3>분류별 건수 (상위 10개)</h3>
+              <ResponsiveContainer width="100%" height={240}>
+                <BarChart data={stats.countByCategory} margin={{ left: 0, right: 10 }}>
+                  <XAxis dataKey="name" tick={{ fontSize: 11 }} interval={0}
+                    angle={-25} textAnchor="end" height={60} />
+                  <YAxis tick={{ fontSize: 11 }} />
+                  <Tooltip formatter={(v) => v.toLocaleString()} />
+                  <Bar dataKey="count" radius={[4, 4, 0, 0]}>
+                    {stats.countByCategory.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+          {stats?.countByFormat?.length > 0 && (
+            <div className={styles.chartBox}>
+              <h3>형식 비율</h3>
+              <ResponsiveContainer width="100%" height={240}>
+                <PieChart>
+                  <Pie data={stats.countByFormat} dataKey="count" nameKey="name"
+                    cx="50%" cy="50%" outerRadius={80}
+                    label={({ name, percent }) => `${name} ${(percent * 100).toFixed(1)}%`}>
+                    {stats.countByFormat.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
+                  </Pie>
+                  <Tooltip formatter={(v) => v.toLocaleString()} />
+                  <Legend />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+          )}
         </div>
       )}
 

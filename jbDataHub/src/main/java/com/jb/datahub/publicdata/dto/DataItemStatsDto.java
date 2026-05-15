@@ -11,4 +11,5 @@ import java.util.Map;
 public class DataItemStatsDto {
     private long totalCount;
     private List<Map<String, Object>> countByCategory;
+    private List<Map<String, Object>> countByFormat;
 }

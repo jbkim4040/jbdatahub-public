@@ -186,9 +186,9 @@ export default function CollectPage() {
             {status.totalCount > 0 && <li>전체 건수: <strong>{fmt(status.totalCount)}</strong></li>}
             {status.currentPage > 0 && <li>마지막 페이지: <strong>{status.currentPage}</strong></li>}
           </ul>
-          <button className={styles.btnResume} onClick={handleResume}>↩ 이어서 수집</button>
-          <ul>
-          </ul>
+          {status.status === 'STOPPED' && (
+            <button className={styles.btnResume} onClick={handleResume}>↩ 이어서 수집</button>
+          )}
         </div>
       )}
 

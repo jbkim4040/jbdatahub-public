@@ -29,7 +29,6 @@ public class PublicApiQueryService {
     private final PublicApiListRepository repository;
     private final PublicDataItemRepository dataItemRepository;
 
-    // 허용된 정렬 필드 (SQL injection 방지)
     private static final Set<String> LIST_SORT_FIELDS =
             Set.of("listTitle", "orgNm", "requestCnt", "updatedAt", "isCharged");
     private static final Set<String> ITEM_SORT_FIELDS =
@@ -42,9 +41,6 @@ public class PublicApiQueryService {
                 : Sort.by(field).descending();
     }
 
-    /**
-     * 전체 목록 조회 (페이징 + 검색 + 정렬)
-     */
     public PageResponseDto<PublicApiListDto> getList(int page, int size, String title,
                                                       String sortBy, String sortDir) {
         Pageable pageable = PageRequest.of(page, size, buildSort(LIST_SORT_FIELDS, sortBy, sortDir));
@@ -54,7 +50,6 @@ public class PublicApiQueryService {
         return PageResponseDto.from(result.map(PublicApiListDto::from));
     }
 
-    /** 통계 조회 (수집 완료 시 자동 evict) */
     @Cacheable("stats")
     public StatsDto getStats() {
         long total = repository.count();
@@ -95,10 +90,10 @@ public class PublicApiQueryService {
                 .build();
     }
 
-    /** 데이터 유형별 통계 (dataset / file-data / standard-data) */
     public DataItemStatsDto getDataItemStats(String sourceType) {
         long total = dataItemRepository.countBySourceType(sourceType);
         Pageable top10 = PageRequest.of(0, 10);
+
         List<Map<String, Object>> byCategory = dataItemRepository
                 .countByCategoryBySourceType(sourceType, top10).stream()
                 .map(row -> {
@@ -108,13 +103,24 @@ public class PublicApiQueryService {
                     return m;
                 })
                 .collect(Collectors.toList());
+
+        List<Map<String, Object>> byFormat = dataItemRepository
+                .countByFormatBySourceType(sourceType, top10).stream()
+                .map(row -> {
+                    Map<String, Object> m = new LinkedHashMap<>();
+                    m.put("name", row[0] != null ? row[0] : "미분류");
+                    m.put("count", row[1]);
+                    return m;
+                })
+                .collect(Collectors.toList());
+
         return DataItemStatsDto.builder()
                 .totalCount(total)
                 .countByCategory(byCategory)
+                .countByFormat(byFormat)
                 .build();
     }
 
-    /** 데이터셋 / 파일데이터 / 표준데이터 목록 조회 (페이징 + 검색 + 정렬) */
     public PageResponseDto<PublicDataItemResponseDto> getDataItems(
             String sourceType, int page, int size, String title,
             String sortBy, String sortDir) {

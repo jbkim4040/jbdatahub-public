@@ -3,6 +3,7 @@ package com.jb.datahub.publicdata.service;
 import com.jb.datahub.publicdata.dto.PublicApiItemDto;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -81,6 +82,7 @@ public class PublicApiSaveService {
             response_param_nm_en = EXCLUDED.response_param_nm_en
         """;
 
+    @CacheEvict(value = "stats", allEntries = true)
     @Transactional
     public int saveAll(List<PublicApiItemDto> items) {
         if (items == null || items.isEmpty()) return 0;

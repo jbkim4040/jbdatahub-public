@@ -3,6 +3,7 @@ package com.jb.datahub.publicdata.service;
 import com.jb.datahub.publicdata.dto.PublicDataItemDto;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -54,6 +55,7 @@ public class PublicDataSaveService {
             update_cycle = EXCLUDED.update_cycle
         """;
 
+    @CacheEvict(value = "stats", allEntries = true)
     @Transactional
     public int saveAll(List<PublicDataItemDto> items, String sourceType) {
         if (items == null || items.isEmpty()) return 0;

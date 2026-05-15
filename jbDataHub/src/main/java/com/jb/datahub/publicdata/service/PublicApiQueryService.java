@@ -90,6 +90,7 @@ public class PublicApiQueryService {
                 .build();
     }
 
+    @Cacheable(value = "dataItemStats", key = "#sourceType")
     public DataItemStatsDto getDataItemStats(String sourceType) {
         long total = dataItemRepository.countBySourceType(sourceType);
         Pageable top10 = PageRequest.of(0, 10);

@@ -19,7 +19,7 @@ public class CollectionLogService {
     private final CollectionLogRepository repository;
 
     @Transactional
-    @CacheEvict(value = "stats", allEntries = true)
+    @CacheEvict(value = {"stats", "dataItemStats"}, allEntries = true)
     public void saveLog(String sourceType, String status, int totalSaved, int totalCount,
                         LocalDateTime startedAt) {
         CollectionLog log = CollectionLog.builder()

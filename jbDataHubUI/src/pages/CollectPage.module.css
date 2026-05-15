@@ -58,9 +58,36 @@
 .statLabel { font-size: .75rem; color: #6b8fb5; }
 .statValue { font-size: 1.05rem; font-weight: 700; color: #1e3a5f; }
 
-.barWrap { position: relative; background: #dbeafe; border-radius: 20px; height: 10px; overflow: hidden; margin-bottom: .4rem; }
-.bar { height: 100%; background: linear-gradient(90deg, #3b7dd8, #60a5fa); border-radius: 20px; transition: width .4s ease; }
-.barLabel { font-size: .78rem; color: #5a7aaa; text-align: right; }
+/* 진행률 바: ETA 라벨이 내부에 들어가도록 높이/정렬 조정 */
+.barWrap {
+  position: relative;
+  background: #dbeafe;
+  border-radius: 20px;
+  height: 22px;
+  overflow: hidden;
+  margin-bottom: .4rem;
+}
+.bar {
+  height: 100%;
+  background: linear-gradient(90deg, #3b7dd8, #60a5fa);
+  border-radius: 20px;
+  transition: width .4s ease;
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+.progressLabel {
+  color: white;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.3);
+  font-size: 0.85rem;
+  padding-left: 8px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 600;
+  letter-spacing: .01em;
+}
+.barLabel { font-size: .78rem; color: #5a7aaa; text-align: right; display: block; }
 .startedAt { font-size: .78rem; color: #888; margin-top: .4rem; }
 
 /* ── 결과 박스 ── */

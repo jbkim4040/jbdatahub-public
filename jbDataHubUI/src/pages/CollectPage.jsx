@@ -163,15 +163,21 @@ export default function CollectPage() {
           </div>
           {status.totalCount > 0 && (
             <div className={styles.barWrap}>
-              <div className={styles.bar} style={{ width: `${pct}%` }} />
+              <div className={styles.bar} style={{ width: `${pct}%` }}>
+                <span className={styles.progressLabel}>
+                  {typeof pct === 'number' ? pct.toFixed(1) : pct}%
+                  {pct >= 5 && status.etaSeconds > 0
+                    ? ` · ${fmtEta(status.etaSeconds)}`
+                    : ' · 계산 중...'}
+                </span>
+              </div>
               <span className={styles.barLabel}>{fmt(status.savedCount)} / {fmt(status.totalCount)}건</span>
             </div>
           )}
           {status.startedAt && <div className={styles.startedAt}>시작 시각: {fmtDate(status.startedAt)}</div>}
-          {status.elapsedSeconds && (
+          {status.elapsedSeconds > 0 && (
             <div className={styles.startedAt}>
               경과: {fmtDuration(status.elapsedSeconds)}
-              {status.etaSeconds && <> · {fmtEta(status.etaSeconds)}</>}
             </div>
           )}
         </div>

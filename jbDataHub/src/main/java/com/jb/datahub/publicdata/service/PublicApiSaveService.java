@@ -42,20 +42,21 @@ public class PublicApiSaveService {
                 .collect(Collectors.toMap(PublicApiList::getListId, Function.identity()));
 
         // 2. List 엔티티 생성/업데이트 후 일괄 저장 (flush로 FK 보장)
-        List<PublicApiList> listsToSave = new ArrayList<>();
+        // LinkedHashMap: 동일 listId가 여러 번 나와도 마지막 값으로 덮어씀 (dedup)
+        Map<String, PublicApiList> listsToSaveMap = new LinkedHashMap<>();
         for (PublicApiItemDto dto : items) {
             if (dto.getListId() == null) continue;
             PublicApiList apiList = existingLists.getOrDefault(dto.getListId(),
                     PublicApiList.builder().listId(dto.getListId()).build());
             applyListFields(dto, apiList);
-            listsToSave.add(apiList);
+            listsToSaveMap.put(dto.getListId(), apiList);
         }
-        List<PublicApiList> savedLists = publicApiListRepository.saveAll(listsToSave);
+        List<PublicApiList> listsToSave = new ArrayList<>(listsToSaveMap.values());
+        publicApiListRepository.saveAll(listsToSave);
         publicApiListRepository.flush();
 
         // 3. 이 페이지의 모든 operationSeq를 한 번에 조회
-        Map<String, PublicApiList> savedListMap = savedLists.stream()
-                .collect(Collectors.toMap(PublicApiList::getListId, Function.identity()));
+        Map<String, PublicApiList> savedListMap = listsToSaveMap;
 
         List<Long> opSeqs = items.stream()
                 .filter(dto -> dto.getOperationSeq() != null && !dto.getOperationSeq().isBlank())
@@ -92,7 +93,7 @@ public class PublicApiSaveService {
         }
 
         long elapsed = System.currentTimeMillis() - start;
-        log.info("[SavePerf] {} items → list {} + op {} saved in {}ms",
+        log.info("[SavePerf] {} items → list {} (dedup) + op {} saved in {}ms",
                 items.size(), listsToSave.size(), opsToSave.size(), elapsed);
 
         return listsToSave.size();

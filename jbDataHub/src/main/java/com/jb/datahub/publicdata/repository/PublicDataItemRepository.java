@@ -26,6 +26,12 @@ public interface PublicDataItemRepository extends JpaRepository<PublicDataItem, 
            "GROUP BY COALESCE(p.ext, p.dataType, '미분류') ORDER BY COUNT(p) DESC")
     List<Object[]> countByFormatBySourceType(@Param("sourceType") String sourceType, Pageable pageable);
 
+    @Query("SELECT p FROM PublicDataItem p WHERE p.sourceType = :sourceType")
+    List<PublicDataItem> findPageBySourceType(@Param("sourceType") String sourceType, Pageable pageable);
+
+    @Query("SELECT COUNT(p) FROM PublicDataItem p WHERE p.sourceType = :sourceType")
+    long countOnlyBySourceType(@Param("sourceType") String sourceType);
+
     Page<PublicDataItem> findBySourceType(String sourceType, Pageable pageable);
 
     Page<PublicDataItem> findBySourceTypeAndTitleContainingIgnoreCase(String sourceType, String title, Pageable pageable);

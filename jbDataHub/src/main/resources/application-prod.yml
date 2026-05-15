@@ -33,3 +33,9 @@ logging:
   level:
     org.hibernate.SQL: WARN
     com.jb.datahub: INFO
+
+springdoc:
+  api-docs:
+    enabled: false
+  swagger-ui:
+    enabled: false

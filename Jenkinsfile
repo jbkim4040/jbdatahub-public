@@ -40,6 +40,8 @@ pipeline {
                     docker run -d \
                         --name jbdatahubui \
                         --restart unless-stopped \
+                        --log-opt max-size=10m \
+                        --log-opt max-file=3 \
                         --network $NETWORK \
                         jbdatahubui:latest
                 '''
@@ -70,6 +72,8 @@ pipeline {
                     docker run -d \
                         --name jbdatahub-${INACTIVE} \
                         --restart unless-stopped \
+                        --log-opt max-size=20m \
+                        --log-opt max-file=5 \
                         --env-file $WORKSPACE/.env \
                         -e SPRING_PROFILES_ACTIVE=prod \
                         --network $NETWORK \

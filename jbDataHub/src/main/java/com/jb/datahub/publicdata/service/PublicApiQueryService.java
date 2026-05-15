@@ -12,6 +12,7 @@ import com.jb.datahub.publicdata.repository.PublicApiOperationRepository;
 import com.jb.datahub.publicdata.repository.PublicDataItemRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.cache.annotation.Cacheable;
+import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
@@ -126,18 +127,29 @@ public class PublicApiQueryService {
                 .build();
     }
 
+    @Cacheable(value = "itemCount", key = "#sourceType")
+    public long countBySourceType(String sourceType) {
+        return dataItemRepository.countOnlyBySourceType(sourceType);
+    }
+
     public PageResponseDto<PublicDataItemResponseDto> getDataItems(
             String sourceType, int page, int size, String title,
             String sortBy, String sortDir) {
 
-        Pageable pageable = PageRequest.of(page, size, buildSort(ITEM_SORT_FIELDS, sortBy, sortDir));
+        Sort sort = buildSort(ITEM_SORT_FIELDS, sortBy, sortDir);
+        Pageable pageable = PageRequest.of(page, size, sort);
         boolean hasType  = sourceType != null && !sourceType.isBlank();
         boolean hasTitle = title != null && !title.isBlank();
 
-        var result = (hasType && hasTitle)
+        if (hasType && !hasTitle) {
+            long total = countBySourceType(sourceType);
+            var items  = dataItemRepository.findPageBySourceType(sourceType, pageable);
+            var pg = new PageImpl<>(items, pageable, total);
+            return PageResponseDto.from(pg.map(PublicDataItemResponseDto::new));
+        }
+
+        var result = (hasType)
                 ? dataItemRepository.findBySourceTypeAndTitleContainingIgnoreCase(sourceType, title, pageable)
-                : hasType
-                ? dataItemRepository.findBySourceType(sourceType, pageable)
                 : hasTitle
                 ? dataItemRepository.findByTitleContainingIgnoreCase(title, pageable)
                 : dataItemRepository.findAll(pageable);
@@ -145,7 +157,7 @@ public class PublicApiQueryService {
         return PageResponseDto.from(result.map(PublicDataItemResponseDto::new));
     }
 
-    public PublicApiDetailDto getDetail(String listId) {
+        public PublicApiDetailDto getDetail(String listId) {
         var apiList = repository.findById(listId)
                 .orElseThrow(() -> new IllegalArgumentException("API를 찾을 수 없습니다: " + listId));
         var operations = operationRepository.findByPublicApiList_ListId(listId).stream()

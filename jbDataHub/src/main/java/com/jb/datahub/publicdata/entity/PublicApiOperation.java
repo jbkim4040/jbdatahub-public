@@ -53,4 +53,8 @@ public class PublicApiOperation {
     /** 응답변수 영문명 */
     @Column(name = "response_param_nm_en", columnDefinition = "TEXT")
     private String responseParamNmEn;
+
+    /** 자동 생성된 DDL */
+    @Column(name = "generated_ddl", columnDefinition = "TEXT")
+    private String generatedDdl;
 }

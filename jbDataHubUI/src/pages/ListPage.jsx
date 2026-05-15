@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
-import { getList, getStats, getDataItems, getDataItemStats } from '../api/publicApi'
+import { getList, getStats, getDataItems, getDataItemStats, getApiDetail } from '../api/publicApi'
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, PieChart, Pie, Legend
 } from 'recharts'
@@ -47,6 +47,9 @@ function OpenApiTab({ stats }) {
   const [page, setPage]       = useState(0)
   const [loading, setLoading] = useState(false)
   const [sort, setSort]       = useState({ field: null, dir: null })
+  const [selectedApi, setSelectedApi] = useState(null)
+  const [detailLoading, setDetailLoading] = useState(false)
+  const [openedOps, setOpenedOps] = useState(new Set())
 
   const scrollRef = useRef(0)
   const loadList = useCallback(async (p = 0, q = query, s = sort) => {
@@ -67,6 +70,27 @@ function OpenApiTab({ stats }) {
   const handleSearch = (e) => { e.preventDefault(); setQuery(search); loadList(0, search, sort) }
   const handleReset  = () => { setSearch(''); setQuery(''); loadList(0, '', sort) }
   const handleSort   = (newSort) => setSort(newSort)
+
+  const handleRowClick = async (row) => {
+    setDetailLoading(true)
+    setSelectedApi(null)
+    setOpenedOps(new Set())
+    try {
+      const res = await getApiDetail(row.listId)
+      setSelectedApi(res.data)
+    } catch (e) { console.error(e) }
+    finally { setDetailLoading(false) }
+  }
+
+  const toggleOp = (seq) => {
+    setOpenedOps(prev => {
+      const next = new Set(prev)
+      if (next.has(seq)) next.delete(seq) else next.add(seq)
+      return next
+    })
+  }
+
+  const copyDdl = (text) => navigator.clipboard.writeText(text)
 
   const categoryData = stats?.countByCategory ?? []
   const apiTypeData  = stats?.countByApiType
@@ -155,7 +179,7 @@ function OpenApiTab({ stats }) {
                 {data.content.length === 0
                   ? <tr><td colSpan={8} className={styles.empty}>검색 결과가 없습니다.</td></tr>
                   : data.content.map((row) => (
-                    <tr key={row.listId}>
+                    <tr key={row.listId} className={styles.clickableRow} onClick={() => handleRowClick(row)} title="클릭하여 상세 보기">
                       <td className={styles.mono}>{row.listId}</td>
                       <td className={styles.titleCell} title={row.listTitle}>{row.listTitle}</td>
                       <td>{row.orgNm}</td>
@@ -179,6 +203,60 @@ function OpenApiTab({ stats }) {
           </div>
         </div>
       )}
+
+      {/* ── 상세 모달 ── */}
+      {(detailLoading || selectedApi) && (
+        <div className={styles.detailOverlay} onClick={() => setSelectedApi(null)}>
+          <div className={styles.detailModal} onClick={e => e.stopPropagation()}>
+            {detailLoading && <div className={styles.detailLoading}>불러오는 중...</div>}
+            {selectedApi && (
+              <>
+                <div className={styles.detailHeader}>
+                  <h2 className={styles.detailTitle}>{selectedApi.listTitle}</h2>
+                  <button className={styles.closeBtn} onClick={() => setSelectedApi(null)}>✕</button>
+                </div>
+                <div className={styles.detailMeta}>
+                  <span>🏢 {selectedApi.orgNm}{selectedApi.deptNm ? ` / ${selectedApi.deptNm}` : ''}</span>
+                  <span>📂 {selectedApi.newCategoryNm}</span>
+                  <span>🔑 {selectedApi.listId}</span>
+                  <span>{selectedApi.apiType}</span>
+                  <span>{selectedApi.isCharged}</span>
+                  {selectedApi.updatedAt && <span>📅 {selectedApi.updatedAt}</span>}
+                </div>
+                {selectedApi.description && (
+                  <p className={styles.detailDesc}>{selectedApi.description}</p>
+                )}
+                <h3 className={styles.sectionTitle}>
+                  오퍼레이션 ({selectedApi.operations?.length ?? 0}개)
+                </h3>
+                {selectedApi.operations?.length === 0 && (
+                  <p className={styles.noDdl}>등록된 오퍼레이션이 없습니다.</p>
+                )}
+                {selectedApi.operations?.map(op => (
+                  <div key={op.operationSeq} className={styles.opCard}>
+                    <div className={styles.opHeader} onClick={() => toggleOp(op.operationSeq)}>
+                      <span className={styles.opName}>{op.operationNm || '(이름 없음)'}</span>
+                      <span className={styles.opUrl}>{op.operationUrl}</span>
+                      {op.registerStatus && <span className={styles.opStatus}>{op.registerStatus}</span>}
+                      <span className={styles.opToggle}>{openedOps.has(op.operationSeq) ? '▲' : '▼'}</span>
+                    </div>
+                    {openedOps.has(op.operationSeq) && (
+                      op.generatedDdl ? (
+                        <div className={styles.ddlWrap}>
+                          <button className={styles.copyBtn} onClick={() => copyDdl(op.generatedDdl)}>복사</button>
+                          <pre className={styles.ddlCode}>{op.generatedDdl}</pre>
+                        </div>
+                      ) : (
+                        <p className={styles.noDdl}>DDL이 아직 생성되지 않았습니다. 관리자가 DDL 전체 생성을 실행해 주세요.</p>
+                      )
+                    )}
+                  </div>
+                ))}
+              </>
+            )}
+          </div>
+        </div>
+      )}
     </>
   )
 }
@@ -192,6 +270,9 @@ function DataItemTab({ sourceType }) {
   const [page, setPage]       = useState(0)
   const [loading, setLoading] = useState(false)
   const [sort, setSort]       = useState({ field: null, dir: null })
+  const [selectedApi, setSelectedApi] = useState(null)
+  const [detailLoading, setDetailLoading] = useState(false)
+  const [openedOps, setOpenedOps] = useState(new Set())
 
   const scrollRef = useRef(0)
   const loadItems = useCallback(async (p = 0, q = query, s = sort) => {

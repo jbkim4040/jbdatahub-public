@@ -55,3 +55,10 @@ export const updateScheduler = (data) => http.put('/admin/scheduler', data)
 
 /** 관리자 — 수집 재개 (중단 지점부터) */
 export const resumeCollect = () => http.post("/admin/collect/resume")
+
+
+/** API 상세 조회 (operations + DDL 포함) */
+export const getApiDetail = (listId) => http.get(`/public-data/detail/${listId}`)
+
+/** 관리자 — 전체 DDL 생성 (비동기, 202 반환) */
+export const generateAllDdl = () => http.post('/admin/ddl/generate-all')

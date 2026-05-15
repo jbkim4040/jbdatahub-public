@@ -4,6 +4,7 @@ import com.jb.datahub.publicdata.dto.CollectResultDto;
 import com.jb.datahub.publicdata.dto.CollectStatusDto;
 import com.jb.datahub.publicdata.dto.CollectionLogDto;
 import com.jb.datahub.publicdata.service.CollectionLogService;
+import com.jb.datahub.publicdata.service.DdlGeneratorService;
 import com.jb.datahub.publicdata.service.CollectionStateService;
 import com.jb.datahub.publicdata.service.PublicApiService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -27,6 +28,7 @@ public class PublicApiCollectController {
     private final PublicApiService       publicApiService;
     private final CollectionStateService stateService;
     private final CollectionLogService   logService;
+    private final DdlGeneratorService    ddlGeneratorService;
 
     @GetMapping("/collect/status")
     @PreAuthorize("hasAnyRole('ADMIN','SUPER_ADMIN')")
@@ -109,5 +111,13 @@ public class PublicApiCollectController {
     public ResponseEntity<Void> stopCollect() {
         publicApiService.stopCollect();
         return ResponseEntity.ok().build();
+    }
+
+    @PostMapping("/ddl/generate-all")
+    @PreAuthorize("hasAnyRole('ADMIN','SUPER_ADMIN')")
+    @Operation(summary = "DDL generate all")
+    public ResponseEntity<Void> generateAllDdl() {
+        ddlGeneratorService.generateAndSaveAll();
+        return ResponseEntity.accepted().build();
     }
 }

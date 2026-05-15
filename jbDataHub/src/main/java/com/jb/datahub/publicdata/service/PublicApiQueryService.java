@@ -2,10 +2,13 @@ package com.jb.datahub.publicdata.service;
 
 import com.jb.datahub.publicdata.dto.DataItemStatsDto;
 import com.jb.datahub.publicdata.dto.PageResponseDto;
+import com.jb.datahub.publicdata.dto.PublicApiDetailDto;
 import com.jb.datahub.publicdata.dto.PublicApiListDto;
+import com.jb.datahub.publicdata.dto.PublicApiOperationDto;
 import com.jb.datahub.publicdata.dto.PublicDataItemResponseDto;
 import com.jb.datahub.publicdata.dto.StatsDto;
 import com.jb.datahub.publicdata.repository.PublicApiListRepository;
+import com.jb.datahub.publicdata.repository.PublicApiOperationRepository;
 import com.jb.datahub.publicdata.repository.PublicDataItemRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.cache.annotation.Cacheable;
@@ -26,8 +29,9 @@ import java.util.stream.Collectors;
 @Transactional(readOnly = true)
 public class PublicApiQueryService {
 
-    private final PublicApiListRepository repository;
-    private final PublicDataItemRepository dataItemRepository;
+    private final PublicApiListRepository     repository;
+    private final PublicApiOperationRepository operationRepository;
+    private final PublicDataItemRepository    dataItemRepository;
 
     private static final Set<String> LIST_SORT_FIELDS =
             Set.of("listTitle", "orgNm", "requestCnt", "updatedAt", "isCharged");
@@ -139,5 +143,14 @@ public class PublicApiQueryService {
                 : dataItemRepository.findAll(pageable);
 
         return PageResponseDto.from(result.map(PublicDataItemResponseDto::new));
+    }
+
+    public PublicApiDetailDto getDetail(String listId) {
+        var apiList = repository.findById(listId)
+                .orElseThrow(() -> new IllegalArgumentException(API를 찾을 수 없습니다:  + listId));
+        var operations = operationRepository.findByPublicApiList_ListId(listId).stream()
+                .map(PublicApiOperationDto::new)
+                .toList();
+        return PublicApiDetailDto.from(apiList, operations);
     }
 }

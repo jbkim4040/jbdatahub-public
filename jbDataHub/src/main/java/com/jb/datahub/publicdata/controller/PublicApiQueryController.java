@@ -1,6 +1,7 @@
 package com.jb.datahub.publicdata.controller;
 
 import com.jb.datahub.publicdata.dto.DataItemStatsDto;
+import com.jb.datahub.publicdata.dto.PublicApiDetailDto;
 import com.jb.datahub.publicdata.dto.PageResponseDto;
 import com.jb.datahub.publicdata.dto.PublicApiListDto;
 import com.jb.datahub.publicdata.dto.PublicDataItemResponseDto;
@@ -63,5 +64,11 @@ public class PublicApiQueryController {
             @RequestParam(required = false) String sortDir
     ) {
         return ResponseEntity.ok(queryService.getDataItems(sourceType, page, size, title, sortBy, sortDir));
+    }
+
+    @GetMapping("/detail/{listId}")
+    @Operation(summary = "API detail")
+    public ResponseEntity<PublicApiDetailDto> getDetail(@PathVariable String listId) {
+        return ResponseEntity.ok(queryService.getDetail(listId));
     }
 }

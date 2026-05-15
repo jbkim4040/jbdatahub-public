@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import {
   collectAll, collectPage,
   collectDataset, collectFileData, collectStandardData,
-  stopCollect, resumeCollect, getCollectStatus, getCollectHistory,
+  stopCollect, resumeCollect, getCollectStatus, getCollectHistory, generateAllDdl,
 } from '../api/publicApi'
 import styles from './CollectPage.module.css'
 
@@ -92,6 +92,10 @@ export default function CollectPage() {
 
   const handleStop = async () => { setStopping(true); try { await stopCollect() } catch { /* ignore */ } }
   const handleResume = async () => { setStartError(null); try { await resumeCollect(); await fetchStatus(); startPolling() } catch(e) { setStartError(e.response?.data?.message ?? "재개 실패") } }
+  const handleGenerateDdl = async () => {
+    try { await generateAllDdl(); alert('DDL 생성이 백그라운드에서 시작되었습니다. 완료까지 수 분이 소요됩니다.') }
+    catch(e) { alert('DDL 생성 시작 실패: ' + (e.response?.data ?? e.message)) }
+  }
 
   const handlePageCollect = async () => {
     const p = parseInt(pageInput)
@@ -254,6 +258,18 @@ export default function CollectPage() {
             </table>
           </div>
         )}
+      </div>
+
+      <div className={styles.divider} />
+
+      {/* DDL 전체 생성 */}
+      <div className={styles.section}>
+        <h2>DDL 전체 생성</h2>
+        <p>수집된 모든 오퍼레이션의 응답 파라미터를 분석하여 테이블 DDL을 생성합니다.<br/>
+           약 12,000개 오퍼레이션 처리로 수 분이 소요되며 백그라운드에서 실행됩니다.</p>
+        <button className={styles.btnCollect} onClick={handleGenerateDdl}>
+          DDL 전체 생성
+        </button>
       </div>
     </div>
   )

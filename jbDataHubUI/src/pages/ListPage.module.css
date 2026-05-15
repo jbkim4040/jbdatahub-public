@@ -81,3 +81,64 @@
   border-radius: 4px; font-size: .8rem; text-decoration: none;
 }
 .linkBtn:hover { background: #c8d8f8; }
+
+
+/* ── API 상세 모달 ─────────────────────────────── */
+.detailOverlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,.45);
+  display: flex; align-items: flex-start; justify-content: center;
+  z-index: 1000; padding: 2rem 1rem; overflow-y: auto;
+}
+.detailModal {
+  background: #fff; border-radius: 12px; width: 100%; max-width: 860px;
+  box-shadow: 0 8px 32px rgba(0,0,0,.22); padding: 2rem;
+  position: relative; margin: auto;
+}
+.detailHeader {
+  display: flex; align-items: flex-start; justify-content: space-between;
+  border-bottom: 2px solid #e0e6ef; padding-bottom: 1rem; margin-bottom: 1.2rem;
+}
+.detailTitle { font-size: 1.15rem; font-weight: 700; color: #1e3a5f; margin: 0; flex: 1; padding-right: 1rem; }
+.closeBtn {
+  background: none; border: none; font-size: 1.4rem; cursor: pointer;
+  color: #888; line-height: 1; padding: 0; flex-shrink: 0;
+}
+.closeBtn:hover { color: #333; }
+.detailMeta {
+  display: flex; flex-wrap: wrap; gap: .5rem 1.4rem; margin-bottom: 1rem;
+  font-size: .86rem; color: #555;
+}
+.detailMeta span { display: flex; align-items: center; gap: .3rem; }
+.detailDesc { font-size: .88rem; color: #444; margin-bottom: 1.4rem; line-height: 1.6; }
+.sectionTitle {
+  font-size: 1rem; font-weight: 600; color: #1e3a5f;
+  margin: 0 0 .8rem; padding-bottom: .4rem; border-bottom: 1px solid #e0e6ef;
+}
+.opCard {
+  border: 1px solid #e0e6ef; border-radius: 8px; margin-bottom: 1rem; overflow: hidden;
+}
+.opHeader {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: .75rem 1rem; background: #f7f9fc; cursor: pointer;
+  gap: 1rem;
+}
+.opHeader:hover { background: #eef2f8; }
+.opName { font-weight: 600; font-size: .92rem; color: #1e3a5f; }
+.opUrl { font-size: .8rem; color: #666; font-family: monospace; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
+.opStatus { font-size: .78rem; padding: .2rem .5rem; border-radius: 4px; background: #d1fae5; color: #065f46; flex-shrink: 0; }
+.ddlWrap { padding: .8rem 1rem; background: #0f172a; position: relative; }
+.ddlCode {
+  font-family: 'Courier New', monospace; font-size: .8rem; color: #e2e8f0;
+  white-space: pre; overflow-x: auto; margin: 0; line-height: 1.6;
+}
+.copyBtn {
+  position: absolute; top: .6rem; right: .8rem;
+  background: #334155; color: #cbd5e1; border: 1px solid #475569;
+  border-radius: 4px; padding: .25rem .6rem; font-size: .76rem; cursor: pointer;
+}
+.copyBtn:hover { background: #475569; color: #fff; }
+.noDdl { padding: .8rem 1rem; font-size: .84rem; color: #888; font-style: italic; }
+.opToggle { font-size: .8rem; color: #888; flex-shrink: 0; }
+.clickableRow { cursor: pointer; }
+.clickableRow:hover td { background: #eef4ff !important; }
+.detailLoading { text-align: center; padding: 2rem; color: #888; }

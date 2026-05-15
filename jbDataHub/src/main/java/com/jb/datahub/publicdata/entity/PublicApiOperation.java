@@ -13,7 +13,7 @@ import lombok.*;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-@ToString
+@ToString(exclude = "publicApiList")
 public class PublicApiOperation {
 
     /** 오퍼레이션 일련 번호 (PK) */

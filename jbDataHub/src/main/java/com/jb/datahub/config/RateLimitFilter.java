@@ -16,22 +16,26 @@ import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * IP 기반 슬라이딩 윈도우 Rate Limiter.
- * /api/** 경로에만 적용. 기본: 분당 200건.
+ * /api/auth/** : 10/min (브루트포스 방어)
+ * /api/**      : 200/min
  */
 @Component
 @Order(1)
 public class RateLimitFilter extends OncePerRequestFilter {
 
-    private static final int  MAX_RPM   = 200;
-    private static final long WINDOW_MS = 60_000L;
+    private static final int  MAX_RPM      = 200;
+    private static final int  AUTH_MAX_RPM = 10;
+    private static final long WINDOW_MS    = 60_000L;
 
-    private final ConcurrentHashMap<String, Deque<Long>> store = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, Deque<Long>> store     = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, Deque<Long>> authStore = new ConcurrentHashMap<>();
 
     @Override
     protected void doFilterInternal(HttpServletRequest req,
                                     HttpServletResponse res,
                                     FilterChain chain) throws IOException, ServletException {
-        if (!req.getRequestURI().startsWith("/api/")) {
+        String uri = req.getRequestURI();
+        if (!uri.startsWith("/api/")) {
             chain.doFilter(req, res);
             return;
         }
@@ -39,14 +43,18 @@ public class RateLimitFilter extends OncePerRequestFilter {
         String ip  = getClientIp(req);
         long   now = System.currentTimeMillis();
 
-        Deque<Long> ts = store.computeIfAbsent(ip, k -> new ArrayDeque<>());
+        boolean isAuth = uri.startsWith("/api/auth/");
+        ConcurrentHashMap<String, Deque<Long>> target = isAuth ? authStore : store;
+        int limit = isAuth ? AUTH_MAX_RPM : MAX_RPM;
+
+        Deque<Long> ts = target.computeIfAbsent(ip, k -> new ArrayDeque<>());
         synchronized (ts) {
             while (!ts.isEmpty() && ts.peekFirst() < now - WINDOW_MS) ts.pollFirst();
-            if (ts.size() >= MAX_RPM) {
+            if (ts.size() >= limit) {
                 res.setStatus(429);
                 res.setContentType("application/json;charset=UTF-8");
                 res.getWriter().write(
-                    "{\"error\":\"Too Many Requests\",\"message\":\"분당 최대 " + MAX_RPM + "건 요청 가능합니다.\"}"
+                    "{\"error\":\"Too Many Requests\",\"message\":\"분당 최대 " + limit + "건 요청 가능합니다.\"}"
                 );
                 return;
             }
@@ -65,6 +73,11 @@ public class RateLimitFilter extends OncePerRequestFilter {
     @Scheduled(fixedDelay = 300_000)
     public void cleanup() {
         long cutoff = System.currentTimeMillis() - WINDOW_MS;
+        authStore.entrySet().removeIf(e -> {
+            synchronized (e.getValue()) {
+                return e.getValue().stream().allMatch(t -> t < cutoff);
+            }
+        });
         store.entrySet().removeIf(e -> {
             synchronized (e.getValue()) {
                 return e.getValue().stream().allMatch(t -> t < cutoff);

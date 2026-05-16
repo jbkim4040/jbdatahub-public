@@ -41,3 +41,15 @@ springdoc:
     operations-sorter: alpha
     display-request-duration: true
     try-it-out-enabled: true
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health, metrics, info
+  endpoint:
+    health:
+      show-details: when_authorized
+  info:
+    env:
+      enabled: false

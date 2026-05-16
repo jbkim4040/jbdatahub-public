@@ -33,6 +33,8 @@ logging:
   level:
     org.hibernate.SQL: WARN
     com.jb.datahub: INFO
+  structured:
+    format: ecs
 
 springdoc:
   api-docs:

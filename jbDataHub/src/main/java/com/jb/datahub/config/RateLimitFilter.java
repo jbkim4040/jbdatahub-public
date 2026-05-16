@@ -16,19 +16,22 @@ import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * IP 기반 슬라이딩 윈도우 Rate Limiter.
- * /api/auth/** : 10/min (브루트포스 방어)
- * /api/**      : 200/min
+ * /api/auth/login   : 10/min (브루트포스 방어)
+ * /api/auth/refresh : 30/min (토큰 자동 갱신 허용)
+ * /api/**           : 200/min
  */
 @Component
-@Order(1)
+@Order(2)
 public class RateLimitFilter extends OncePerRequestFilter {
 
-    private static final int  MAX_RPM      = 200;
-    private static final int  AUTH_MAX_RPM = 10;
-    private static final long WINDOW_MS    = 60_000L;
+    private static final int  MAX_RPM         = 200;
+    private static final int  LOGIN_MAX_RPM   = 10;
+    private static final int  REFRESH_MAX_RPM = 30;
+    private static final long WINDOW_MS       = 60_000L;
 
-    private final ConcurrentHashMap<String, Deque<Long>> store     = new ConcurrentHashMap<>();
-    private final ConcurrentHashMap<String, Deque<Long>> authStore = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, Deque<Long>> store        = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, Deque<Long>> loginStore   = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, Deque<Long>> refreshStore = new ConcurrentHashMap<>();
 
     @Override
     protected void doFilterInternal(HttpServletRequest req,
@@ -43,9 +46,18 @@ public class RateLimitFilter extends OncePerRequestFilter {
         String ip  = getClientIp(req);
         long   now = System.currentTimeMillis();
 
-        boolean isAuth = uri.startsWith("/api/auth/");
-        ConcurrentHashMap<String, Deque<Long>> target = isAuth ? authStore : store;
-        int limit = isAuth ? AUTH_MAX_RPM : MAX_RPM;
+        ConcurrentHashMap<String, Deque<Long>> target;
+        int limit;
+        if (uri.startsWith("/api/auth/login")) {
+            target = loginStore;
+            limit  = LOGIN_MAX_RPM;
+        } else if (uri.startsWith("/api/auth/refresh")) {
+            target = refreshStore;
+            limit  = REFRESH_MAX_RPM;
+        } else {
+            target = store;
+            limit  = MAX_RPM;
+        }
 
         Deque<Long> ts = target.computeIfAbsent(ip, k -> new ArrayDeque<>());
         synchronized (ts) {
@@ -73,15 +85,12 @@ public class RateLimitFilter extends OncePerRequestFilter {
     @Scheduled(fixedDelay = 300_000)
     public void cleanup() {
         long cutoff = System.currentTimeMillis() - WINDOW_MS;
-        authStore.entrySet().removeIf(e -> {
-            synchronized (e.getValue()) {
-                return e.getValue().stream().allMatch(t -> t < cutoff);
-            }
-        });
-        store.entrySet().removeIf(e -> {
-            synchronized (e.getValue()) {
-                return e.getValue().stream().allMatch(t -> t < cutoff);
-            }
-        });
+        for (ConcurrentHashMap<String, Deque<Long>> s : new ConcurrentHashMap[]{loginStore, refreshStore, store}) {
+            s.entrySet().removeIf(e -> {
+                synchronized (e.getValue()) {
+                    return e.getValue().stream().allMatch(t -> t < cutoff);
+                }
+            });
+        }
     }
 }

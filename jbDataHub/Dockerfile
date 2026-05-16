@@ -14,7 +14,7 @@ RUN --mount=type=cache,target=/root/.gradle \
 
 COPY src src
 RUN --mount=type=cache,target=/root/.gradle \
-    ./gradlew bootJar --no-daemon -q
+    GRADLE_OPTS="-Xmx512m -Xms128m" ./gradlew bootJar --no-daemon -q
 
 FROM eclipse-temurin:21-jre-alpine
 

@@ -79,10 +79,10 @@ pipeline {
                         --network $NETWORK \
                         jbdatahub-backend:latest
 
-                    # ── 4. 헬스체크 (5초 간격 × 최대 60회 = 5분) ─────────
+                    # ── 4. 헬스체크 (5초 간격 × 최대 100회 = 8분20초) ─────────
                     echo "헬스체크 시작 (jbdatahub-${INACTIVE})..."
                     PASSED=0
-                    for i in $(seq 1 60); do
+                    for i in $(seq 1 100); do
                         STATUS=$(docker exec jbdatahub-${INACTIVE} \
                             curl -s -o /dev/null -w "%{http_code}" \
                             http://localhost:8080/api/health 2>/dev/null) || STATUS="000"
@@ -96,7 +96,7 @@ pipeline {
                     done
 
                     if [ "$PASSED" = "0" ]; then
-                        echo "❌ 헬스체크 타임아웃 (300초) — 롤백"
+                        echo "❌ 헬스체크 타임아웃 (500초) — 롤백"
                         docker stop jbdatahub-${INACTIVE} 2>/dev/null || true
                         exit 1
                     fi

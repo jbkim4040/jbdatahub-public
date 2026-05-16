@@ -114,6 +114,15 @@ pipeline {
 
                     # ── 7. 상태 저장 ──────────────────────────────────────
                     echo "${INACTIVE}" > $STATE_FILE
+
+                    # ── 8. Prometheus 타겟 자동 갱신 ──────────────────────
+                    if docker ps --format "{{.Names}}" | grep -q "^prometheus$"; then
+                        PROM_CFG=$(printf "global:\\n  scrape_interval: 60s\\n  evaluation_interval: 60s\\nscrape_configs:\\n  - job_name: 'jbdatahub'\\n    metrics_path: '/actuator/prometheus'\\n    static_configs:\\n      - targets: ['jbdatahub-${INACTIVE}:8080']\\n")
+                        echo "$PROM_CFG" > /tmp/prometheus.yml
+                        docker cp /tmp/prometheus.yml prometheus:/etc/prometheus/prometheus.yml
+                        docker exec prometheus wget -q -O - --post-data "" http://localhost:9090/-/reload >/dev/null 2>&1 || true
+                        echo "✅ Prometheus → jbdatahub-${INACTIVE}:8080"
+                    fi
                     echo "✅ Blue/Green 배포 완료 — active: ${INACTIVE}"
                 '''
             }

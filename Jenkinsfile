@@ -129,7 +129,7 @@ pipeline {
                             # 모니터링 디렉토리가 아직 동기화되지 않은 환경의 fallback
                             printf "global:\\n  scrape_interval: 30s\\nscrape_configs:\\n  - job_name: 'jbdatahub'\\n    metrics_path: '/actuator/prometheus'\\n    static_configs:\\n      - targets: ['jbdatahub-${INACTIVE}:8080']\\n" > /tmp/prometheus.yml
                         fi
-                        cat /tmp/prometheus.yml | docker exec -i prometheus sh -c 'cat > /etc/prometheus/prometheus.yml'
+                        cat /tmp/prometheus.yml | docker run --rm -i -v /home/ubuntu/monitoring:/monitoring alpine sh -c 'cat > /monitoring/prometheus.yml'
                         if [ -f "$WORKSPACE/monitoring/alert.rules.yml" ]; then
                             docker cp $WORKSPACE/monitoring/alert.rules.yml prometheus:/etc/prometheus/alert.rules.yml
                         fi

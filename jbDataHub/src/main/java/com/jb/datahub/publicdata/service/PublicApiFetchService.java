@@ -8,7 +8,9 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.util.UriComponentsBuilder;
+import reactor.util.retry.Retry;
 
+import java.time.Duration;
 import java.net.URI;
 
 /**
@@ -81,6 +83,7 @@ public class PublicApiFetchService {
                 .uri(uri)
                 .retrieve()
                 .bodyToMono(PublicApiResponseDto.class)
+                .retryWhen(Retry.backoff(2, Duration.ofMillis(500)).maxBackoff(Duration.ofSeconds(3)))
                 .block();
     }
 
@@ -127,6 +130,7 @@ public class PublicApiFetchService {
                 .uri(uri)
                 .retrieve()
                 .bodyToMono(PublicDataResponseDto.class)
+                .retryWhen(Retry.backoff(2, Duration.ofMillis(500)).maxBackoff(Duration.ofSeconds(3)))
                 .block();
     }
 

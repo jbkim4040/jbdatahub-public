@@ -48,6 +48,7 @@ public class PublicApiQueryService {
 
     public PageResponseDto<PublicApiListDto> getList(int page, int size, String title,
                                                       String sortBy, String sortDir) {
+        size = Math.min(size, 100);
         Pageable pageable = PageRequest.of(page, size, buildSort(LIST_SORT_FIELDS, sortBy, sortDir));
         var result = (title != null && !title.isBlank())
                 ? repository.findByListTitleContainingIgnoreCase(title, pageable)
@@ -141,6 +142,7 @@ public class PublicApiQueryService {
             String sourceType, int page, int size, String title,
             String sortBy, String sortDir) {
 
+        size = Math.min(size, 100);
         Sort sort = buildSort(ITEM_SORT_FIELDS, sortBy, sortDir);
         Pageable pageable = PageRequest.of(page, size, sort);
         boolean hasType  = sourceType != null && !sourceType.isBlank();

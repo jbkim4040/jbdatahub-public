@@ -144,7 +144,29 @@ pipeline {
     }
 
     post {
-        success { echo "🎉 배포 성공! 빌드 번호: ${BUILD_NUMBER}" }
-        failure { echo "❌ 배포 실패! 로그를 확인하세요." }
+        success {
+            echo "🎉 배포 성공! 빌드 번호: ${BUILD_NUMBER}"
+            sh """
+                GITHUB_TOKEN=\$(grep ^GITHUB_TOKEN= /var/jenkins_home/secrets/.env | cut -d= -f2-)
+                curl -sf -X POST \\
+                  -H "Authorization: token \${GITHUB_TOKEN}" \\
+                  -H "Content-Type: application/json" \\
+                  https://api.github.com/repos/jbkim4040/jb-workspace/statuses/${GIT_COMMIT} \\
+                  -d "{\\\"state\\\": \\\"success\\\", \\\"description\\\": \\\"Build #${BUILD_NUMBER} succeeded\\\", \\\"context\\\": \\\"jenkins/build\\\"}" \\
+                  -o /dev/null || true
+            """
+        }
+        failure {
+            echo "❌ 배포 실패! 로그를 확인하세요."
+            sh """
+                GITHUB_TOKEN=\$(grep ^GITHUB_TOKEN= /var/jenkins_home/secrets/.env | cut -d= -f2-)
+                curl -sf -X POST \\
+                  -H "Authorization: token \${GITHUB_TOKEN}" \\
+                  -H "Content-Type: application/json" \\
+                  https://api.github.com/repos/jbkim4040/jb-workspace/statuses/${GIT_COMMIT} \\
+                  -d "{\\\"state\\\": \\\"failure\\\", \\\"description\\\": \\\"Build #${BUILD_NUMBER} failed\\\", \\\"context\\\": \\\"jenkins/build\\\"}" \\
+                  -o /dev/null || true
+            """
+        }
     }
 }

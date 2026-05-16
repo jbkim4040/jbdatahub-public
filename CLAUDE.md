@@ -29,9 +29,10 @@ jb-workspace/
 - 배포 실패 시 이전 컨테이너(green/blue) 자동 유지
 
 ## Git 워크플로우 (반드시 준수)
-1. 브랜치 생성: `YYYYMMDDHHMI-{프로젝트}-claude` (KST 기준)
-   - 백엔드: `202605141607-jbdatahub-claude`
-   - 프론트: `202605141607-jbdatahubui-claude`
+1. 브랜치 생성: **기능 단위 명칭** 사용
+   - 기능 추가: `feature/{기능명}` → 예: `feature/semantic-search`, `feature/topic-grouping`
+   - 버그 수정: `fix/{설명}` → 예: `fix/cache-manager-missing`, `fix/scheduler-super-admin`
+   - 리팩터링: `refactor/{설명}` → 예: `refactor/upsert-performance`
 2. 커밋 & 푸시: `git push https://jbkim4040:<PAT>@github.com/jbkim4040/jb-workspace.git <branch>`
 3. PR 생성: `POST /repos/jbkim4040/jb-workspace/pulls`
 4. Squash merge: `PUT /repos/.../pulls/{n}/merge` (merge_method: squash)
@@ -70,6 +71,7 @@ spring:
 - `@CacheEvict(value = "stats", allEntries = true)` — 데이터 저장 후 stats 캐시 무효화
 - `PublicApiList.@ToString(exclude = "operations")` — 순환 참조 방지 필수
 - SCP로 파일 전송 후 커밋 (SSH heredoc 사용 시 따옴표 이스케이프 버그 발생)
+- Java 소스 내 `replaceAll` 정규식 이스케이프 주의: `"^\"|\\"$"` → `"^\"|\"$"` 형태로 작성
 
 ## 인프라 접속
 - 서버: `ssh -i ~/Downloads/study.key ubuntu@158.180.65.135`

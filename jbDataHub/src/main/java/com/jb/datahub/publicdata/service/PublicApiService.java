@@ -137,6 +137,8 @@ public class PublicApiService {
                         log.warn("[Collect-{}] page={} 실패: {}", TYPE, pages.get(i), e.getMessage());
                     }
                 }
+                // 배치 간격: 외부 API 부하 분산 (100ms)
+                try { Thread.sleep(100); } catch (InterruptedException ignored) { Thread.currentThread().interrupt(); }
             }
         } finally {
             executor.shutdown();
@@ -202,6 +204,8 @@ public class PublicApiService {
                         log.warn("[Collect-{}] page={} 실패: {}", sourceType, pages.get(i), e.getMessage());
                     }
                 }
+                // 배치 간격: 외부 API 부하 분산 (100ms)
+                try { Thread.sleep(100); } catch (InterruptedException ignored) { Thread.currentThread().interrupt(); }
             }
         } finally {
             executor.shutdown();

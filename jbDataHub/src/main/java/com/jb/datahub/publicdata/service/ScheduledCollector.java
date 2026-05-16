@@ -90,10 +90,13 @@ public class ScheduledCollector {
                 log.info("[MidnightCheck] {} 포털={} DB={}", sourceType, portalCount, dbCount);
 
                 if (portalCount != dbCount) {
+                    if (stateService.isRunning()) {
+                        log.warn("[MidnightCheck] {} 변동 감지했으나 이미 수집 중 — 건너뜀", sourceType);
+                        continue;
+                    }
                     log.info("[MidnightCheck] {} 수량 변동({} → {}) 감지 → 수집 트리거",
                             sourceType, dbCount, portalCount);
                     triggerCollection(sourceType);
-                    // 수집이 비동기로 시작되므로 다음 타입 체크는 계속 진행
                 }
             } catch (Exception e) {
                 log.error("[MidnightCheck] {} 오류: {}", sourceType, e.getMessage());

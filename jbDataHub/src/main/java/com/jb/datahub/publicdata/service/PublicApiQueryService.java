@@ -46,14 +46,23 @@ public class PublicApiQueryService {
                 : Sort.by(field).descending();
     }
 
+    @Cacheable("listCountAll")
+    public long countAllLists() {
+        return repository.countAll();
+    }
+
     public PageResponseDto<PublicApiListDto> getList(int page, int size, String title,
                                                       String sortBy, String sortDir) {
         size = Math.min(size, 100);
         Pageable pageable = PageRequest.of(page, size, buildSort(LIST_SORT_FIELDS, sortBy, sortDir));
-        var result = (title != null && !title.isBlank())
-                ? repository.findByListTitleContainingIgnoreCase(title, pageable)
-                : repository.findAll(pageable);
-        return PageResponseDto.from(result.map(PublicApiListDto::from));
+        if (title != null && !title.isBlank()) {
+            var result = repository.findByListTitleContainingIgnoreCase(title, pageable);
+            return PageResponseDto.from(result.map(PublicApiListDto::from));
+        }
+        long total = countAllLists();
+        var items = repository.findAllLists(pageable);
+        var pg = new PageImpl<>(items, pageable, total);
+        return PageResponseDto.from(pg.map(PublicApiListDto::from));
     }
 
     @Cacheable("stats")

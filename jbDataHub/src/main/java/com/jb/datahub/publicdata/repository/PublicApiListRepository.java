@@ -23,6 +23,12 @@ public interface PublicApiListRepository extends JpaRepository<PublicApiList, St
            "GROUP BY p.newCategoryNm ORDER BY COUNT(p) DESC")
     List<Object[]> countByCategory();
 
+    @Query("SELECT COUNT(p) FROM PublicApiList p")
+    long countAll();
+
+    @Query("SELECT p FROM PublicApiList p")
+    List<PublicApiList> findAllLists(Pageable pageable);
+
     @Query("SELECT p.orgNm, COUNT(p) FROM PublicApiList p " +
            "WHERE p.orgNm IS NOT NULL " +
            "GROUP BY p.orgNm ORDER BY COUNT(p) DESC")

@@ -82,7 +82,7 @@ public class PublicApiSaveService {
             response_param_nm_en = EXCLUDED.response_param_nm_en
         """;
 
-    @CacheEvict(value = {"stats", "dataItemStats", "itemCount", "itemCountAll"}, allEntries = true)
+    @CacheEvict(value = {"stats", "dataItemStats", "itemCount", "itemCountAll", "listCountAll"}, allEntries = true)
     @Transactional
     public int saveAll(List<PublicApiItemDto> items) {
         if (items == null || items.isEmpty()) return 0;

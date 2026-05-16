@@ -48,6 +48,7 @@ server {
         proxy_set_header   X-Real-IP         $remote_addr;
         proxy_set_header   X-Forwarded-For   $proxy_add_x_forwarded_for;
         proxy_set_header   X-Forwarded-Proto $scheme;
+        add_header         Cache-Control "no-cache, no-store, must-revalidate" always;
     }
 
     location ~* ^/assets/ {
@@ -66,19 +67,7 @@ server {
         proxy_read_timeout 60s;
     }
 
-    location /swagger-ui/ {
-        proxy_pass         http://backend/swagger-ui/;
-        proxy_set_header   Host              $host;
-        proxy_set_header   X-Real-IP         $remote_addr;
-        proxy_set_header   X-Forwarded-For   $proxy_add_x_forwarded_for;
-        proxy_set_header   X-Forwarded-Proto $scheme;
-    }
-
-    location /v3/api-docs {
-        proxy_pass         http://backend/v3/api-docs;
-        proxy_set_header   Host              $host;
-        proxy_set_header   X-Real-IP         $remote_addr;
-        proxy_set_header   X-Forwarded-For   $proxy_add_x_forwarded_for;
-        proxy_set_header   X-Forwarded-Proto $scheme;
+    location ~* ^/(swagger-ui|v3/api-docs) {
+        return 404;
     }
 }

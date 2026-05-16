@@ -20,7 +20,6 @@ spring:
       ddl-auto: validate
     properties:
       hibernate:
-        dialect: org.hibernate.dialect.PostgreSQLDialect
         format_sql: false
         jdbc:
           batch_size: 100
@@ -28,7 +27,6 @@ spring:
         order_inserts: true
         order_updates: true
     show-sql: false
-    database-platform: org.hibernate.dialect.PostgreSQLDialect
 
 server:
   port: 8080

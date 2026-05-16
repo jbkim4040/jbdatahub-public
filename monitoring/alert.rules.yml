@@ -1,0 +1,89 @@
+groups:
+  - name: jbdatahub-availability
+    interval: 30s
+    rules:
+      - alert: BackendDown
+        expr: up{job="jbdatahub"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "jbDataHub 백엔드 응답 없음"
+          description: "{{ $labels.instance }} 가 2분 이상 메트릭을 노출하지 않음. Blue/Green 전환 직후라면 무시 가능."
+
+      - alert: HighHttp5xxRate
+        expr: |
+          sum(rate(http_server_requests_seconds_count{job="jbdatahub",status=~"5.."}[5m]))
+            /
+          sum(rate(http_server_requests_seconds_count{job="jbdatahub"}[5m]))
+            > 0.05
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "5xx 에러율 5% 초과 (5분 평균)"
+          description: "현재 에러율 {{ $value | humanizePercentage }}. 로그/Sentry 확인 필요."
+
+      - alert: SlowRequestP95
+        expr: |
+          histogram_quantile(0.95,
+            sum by (le, uri) (rate(http_server_requests_seconds_bucket{job="jbdatahub"}[5m]))
+          ) > 2
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "p95 요청 지연 2초 초과"
+          description: "{{ $labels.uri }} p95 = {{ $value }}s"
+
+  - name: jbdatahub-jvm
+    interval: 30s
+    rules:
+      - alert: JvmHeapPressure
+        expr: |
+          sum by (instance) (jvm_memory_used_bytes{job="jbdatahub",area="heap"})
+            /
+          sum by (instance) (jvm_memory_max_bytes{job="jbdatahub",area="heap"})
+            > 0.9
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "JVM heap 사용률 90% 초과"
+          description: "10분 이상 heap이 가득 차 있음 → 메모리 누수 또는 부하 폭증 점검"
+
+      - alert: JvmGcPause
+        expr: |
+          rate(jvm_gc_pause_seconds_sum{job="jbdatahub"}[5m]) > 0.2
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "GC pause 누적 시간 과다"
+          description: "초당 GC pause 합 = {{ $value }}s (5분 평균)"
+
+  - name: jbdatahub-db
+    interval: 30s
+    rules:
+      - alert: HikariPoolExhausted
+        expr: |
+          hikaricp_connections_active{job="jbdatahub"}
+            /
+          hikaricp_connections_max{job="jbdatahub"}
+            > 0.9
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "HikariCP 사용률 90% 초과"
+          description: "DB 커넥션 거의 소진. 슬로우 쿼리 또는 풀 크기 조정 필요."
+
+      - alert: DbCircuitOpen
+        expr: |
+          rate(http_server_requests_seconds_count{job="jbdatahub",uri="/actuator/health",status="503"}[5m]) > 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "헬스체크에서 DB 연결 실패 감지"
+          description: "health endpoint 503 응답 → DB 연결 점검"

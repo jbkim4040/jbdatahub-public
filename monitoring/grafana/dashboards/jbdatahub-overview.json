@@ -1,0 +1,252 @@
+{
+  "annotations": {"list": []},
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "id": null,
+  "links": [],
+  "liveNow": false,
+  "panels": [
+    {
+      "type": "row",
+      "title": "HTTP",
+      "gridPos": {"x": 0, "y": 0, "w": 24, "h": 1},
+      "id": 100,
+      "collapsed": false,
+      "panels": []
+    },
+    {
+      "type": "stat",
+      "title": "Request Rate (req/s)",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "id": 1,
+      "gridPos": {"x": 0, "y": 1, "w": 6, "h": 6},
+      "targets": [
+        {
+          "expr": "sum(rate(http_server_requests_seconds_count{job=\"jbdatahub\"}[1m]))",
+          "refId": "A",
+          "legendFormat": "req/s"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "thresholds": {"mode": "absolute", "steps": [{"value": null, "color": "green"}, {"value": 100, "color": "yellow"}, {"value": 500, "color": "red"}]}
+        }
+      },
+      "options": {"colorMode": "background", "graphMode": "area"}
+    },
+    {
+      "type": "stat",
+      "title": "5xx Error Rate",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "id": 2,
+      "gridPos": {"x": 6, "y": 1, "w": 6, "h": 6},
+      "targets": [
+        {
+          "expr": "sum(rate(http_server_requests_seconds_count{job=\"jbdatahub\",status=~\"5..\"}[5m])) / clamp_min(sum(rate(http_server_requests_seconds_count{job=\"jbdatahub\"}[5m])), 0.0001)",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "thresholds": {"mode": "absolute", "steps": [{"value": null, "color": "green"}, {"value": 0.01, "color": "yellow"}, {"value": 0.05, "color": "red"}]}
+        }
+      },
+      "options": {"colorMode": "background"}
+    },
+    {
+      "type": "stat",
+      "title": "p95 Latency",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "id": 3,
+      "gridPos": {"x": 12, "y": 1, "w": 6, "h": 6},
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(http_server_requests_seconds_bucket{job=\"jbdatahub\"}[5m])))",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "thresholds": {"mode": "absolute", "steps": [{"value": null, "color": "green"}, {"value": 1, "color": "yellow"}, {"value": 2, "color": "red"}]}
+        }
+      },
+      "options": {"colorMode": "background"}
+    },
+    {
+      "type": "stat",
+      "title": "Uptime",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "id": 4,
+      "gridPos": {"x": 18, "y": 1, "w": 6, "h": 6},
+      "targets": [
+        {
+          "expr": "process_uptime_seconds{job=\"jbdatahub\"}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {"defaults": {"unit": "s"}}
+    },
+    {
+      "type": "timeseries",
+      "title": "Requests per URI",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "id": 5,
+      "gridPos": {"x": 0, "y": 7, "w": 12, "h": 8},
+      "targets": [
+        {
+          "expr": "sum by (uri) (rate(http_server_requests_seconds_count{job=\"jbdatahub\"}[1m]))",
+          "refId": "A",
+          "legendFormat": "{{uri}}"
+        }
+      ],
+      "fieldConfig": {"defaults": {"unit": "reqps"}}
+    },
+    {
+      "type": "timeseries",
+      "title": "Latency p50 / p95 / p99",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "id": 6,
+      "gridPos": {"x": 12, "y": 7, "w": 12, "h": 8},
+      "targets": [
+        {"expr": "histogram_quantile(0.50, sum by (le) (rate(http_server_requests_seconds_bucket{job=\"jbdatahub\"}[5m])))", "refId": "A", "legendFormat": "p50"},
+        {"expr": "histogram_quantile(0.95, sum by (le) (rate(http_server_requests_seconds_bucket{job=\"jbdatahub\"}[5m])))", "refId": "B", "legendFormat": "p95"},
+        {"expr": "histogram_quantile(0.99, sum by (le) (rate(http_server_requests_seconds_bucket{job=\"jbdatahub\"}[5m])))", "refId": "C", "legendFormat": "p99"}
+      ],
+      "fieldConfig": {"defaults": {"unit": "s"}}
+    },
+    {
+      "type": "row",
+      "title": "JVM",
+      "gridPos": {"x": 0, "y": 15, "w": 24, "h": 1},
+      "id": 101,
+      "collapsed": false,
+      "panels": []
+    },
+    {
+      "type": "timeseries",
+      "title": "JVM Heap Used",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "id": 7,
+      "gridPos": {"x": 0, "y": 16, "w": 12, "h": 8},
+      "targets": [
+        {"expr": "sum(jvm_memory_used_bytes{job=\"jbdatahub\",area=\"heap\"})", "refId": "A", "legendFormat": "used"},
+        {"expr": "sum(jvm_memory_max_bytes{job=\"jbdatahub\",area=\"heap\"})", "refId": "B", "legendFormat": "max"}
+      ],
+      "fieldConfig": {"defaults": {"unit": "bytes"}}
+    },
+    {
+      "type": "timeseries",
+      "title": "GC Pause (s/s)",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "id": 8,
+      "gridPos": {"x": 12, "y": 16, "w": 12, "h": 8},
+      "targets": [
+        {"expr": "sum by (action) (rate(jvm_gc_pause_seconds_sum{job=\"jbdatahub\"}[1m]))", "refId": "A", "legendFormat": "{{action}}"}
+      ],
+      "fieldConfig": {"defaults": {"unit": "s"}}
+    },
+    {
+      "type": "timeseries",
+      "title": "Threads",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "id": 9,
+      "gridPos": {"x": 0, "y": 24, "w": 12, "h": 7},
+      "targets": [
+        {"expr": "jvm_threads_live_threads{job=\"jbdatahub\"}", "refId": "A", "legendFormat": "live"},
+        {"expr": "jvm_threads_daemon_threads{job=\"jbdatahub\"}", "refId": "B", "legendFormat": "daemon"}
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "CPU Usage",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "id": 10,
+      "gridPos": {"x": 12, "y": 24, "w": 12, "h": 7},
+      "targets": [
+        {"expr": "process_cpu_usage{job=\"jbdatahub\"}", "refId": "A", "legendFormat": "process"},
+        {"expr": "system_cpu_usage{job=\"jbdatahub\"}", "refId": "B", "legendFormat": "system"}
+      ],
+      "fieldConfig": {"defaults": {"unit": "percentunit", "max": 1, "min": 0}}
+    },
+    {
+      "type": "row",
+      "title": "DB / HikariCP",
+      "gridPos": {"x": 0, "y": 31, "w": 24, "h": 1},
+      "id": 102,
+      "collapsed": false,
+      "panels": []
+    },
+    {
+      "type": "timeseries",
+      "title": "Hikari Connections",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "id": 11,
+      "gridPos": {"x": 0, "y": 32, "w": 12, "h": 8},
+      "targets": [
+        {"expr": "hikaricp_connections_active{job=\"jbdatahub\"}", "refId": "A", "legendFormat": "active"},
+        {"expr": "hikaricp_connections_idle{job=\"jbdatahub\"}", "refId": "B", "legendFormat": "idle"},
+        {"expr": "hikaricp_connections_pending{job=\"jbdatahub\"}", "refId": "C", "legendFormat": "pending"},
+        {"expr": "hikaricp_connections_max{job=\"jbdatahub\"}", "refId": "D", "legendFormat": "max"}
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Connection Acquire Time (p95)",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "id": 12,
+      "gridPos": {"x": 12, "y": 32, "w": 12, "h": 8},
+      "targets": [
+        {"expr": "histogram_quantile(0.95, sum by (le) (rate(hikaricp_connections_acquire_seconds_bucket{job=\"jbdatahub\"}[5m])))", "refId": "A", "legendFormat": "p95"}
+      ],
+      "fieldConfig": {"defaults": {"unit": "s"}}
+    },
+    {
+      "type": "row",
+      "title": "Cache",
+      "gridPos": {"x": 0, "y": 40, "w": 24, "h": 1},
+      "id": 103,
+      "collapsed": false,
+      "panels": []
+    },
+    {
+      "type": "timeseries",
+      "title": "Caffeine Hit Ratio",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "id": 13,
+      "gridPos": {"x": 0, "y": 41, "w": 12, "h": 8},
+      "targets": [
+        {
+          "expr": "sum by (cache) (rate(cache_gets_total{job=\"jbdatahub\",result=\"hit\"}[5m])) / clamp_min(sum by (cache) (rate(cache_gets_total{job=\"jbdatahub\"}[5m])), 0.0001)",
+          "refId": "A",
+          "legendFormat": "{{cache}}"
+        }
+      ],
+      "fieldConfig": {"defaults": {"unit": "percentunit", "min": 0, "max": 1}}
+    },
+    {
+      "type": "timeseries",
+      "title": "Cache Size",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "id": 14,
+      "gridPos": {"x": 12, "y": 41, "w": 12, "h": 8},
+      "targets": [
+        {"expr": "cache_size{job=\"jbdatahub\"}", "refId": "A", "legendFormat": "{{cache}}"}
+      ]
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 38,
+  "tags": ["jbdatahub", "overview"],
+  "templating": {"list": []},
+  "time": {"from": "now-1h", "to": "now"},
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "jbDataHub — Overview",
+  "uid": "jbdatahub-overview",
+  "version": 1,
+  "weekStart": ""
+}

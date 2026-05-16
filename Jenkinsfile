@@ -108,18 +108,31 @@ pipeline {
                     docker exec nginx nginx -t && docker exec nginx nginx -s reload
                     echo "✅ nginx → jbdatahub-${INACTIVE}"
 
-                    # ── 6. 이전 컨테이너 중지 ────────────────────────────
+                    # ── 6. 이전 컨테이너 중지 & 제거 ─────────────────────
+                    # rm 까지 해야 unless-stopped 정책이 다음 docker daemon 재시작 때
+                    # 죽은 컨테이너를 깨우는 일이 없음 (unhealthy 좀비 방지)
                     docker stop jbdatahub-${ACTIVE} 2>/dev/null || true
-                    echo "✅ jbdatahub-${ACTIVE} 중지"
+                    docker rm   jbdatahub-${ACTIVE} 2>/dev/null || true
+                    echo "✅ jbdatahub-${ACTIVE} 중지 및 제거"
 
                     # ── 7. 상태 저장 ──────────────────────────────────────
                     echo "${INACTIVE}" > $STATE_FILE
 
                     # ── 8. Prometheus 타겟 자동 갱신 ──────────────────────
+                    # monitoring/prometheus.yml 의 ACTIVE_COLOR 자리만 치환해
+                    # 알림 규칙/Alertmanager 연결을 그대로 유지
                     if docker ps --format "{{.Names}}" | grep -q "^prometheus$"; then
-                        PROM_CFG=$(printf "global:\\n  scrape_interval: 60s\\n  evaluation_interval: 60s\\nscrape_configs:\\n  - job_name: 'jbdatahub'\\n    metrics_path: '/actuator/prometheus'\\n    static_configs:\\n      - targets: ['jbdatahub-${INACTIVE}:8080']\\n")
-                        echo "$PROM_CFG" > /tmp/prometheus.yml
+                        if [ -f "$WORKSPACE/monitoring/prometheus.yml" ]; then
+                            sed "s/ACTIVE_COLOR/jbdatahub-${INACTIVE}/" \
+                                $WORKSPACE/monitoring/prometheus.yml > /tmp/prometheus.yml
+                        else
+                            # 모니터링 디렉토리가 아직 동기화되지 않은 환경의 fallback
+                            printf "global:\\n  scrape_interval: 30s\\nscrape_configs:\\n  - job_name: 'jbdatahub'\\n    metrics_path: '/actuator/prometheus'\\n    static_configs:\\n      - targets: ['jbdatahub-${INACTIVE}:8080']\\n" > /tmp/prometheus.yml
+                        fi
                         docker cp /tmp/prometheus.yml prometheus:/etc/prometheus/prometheus.yml
+                        if [ -f "$WORKSPACE/monitoring/alert.rules.yml" ]; then
+                            docker cp $WORKSPACE/monitoring/alert.rules.yml prometheus:/etc/prometheus/alert.rules.yml
+                        fi
                         docker exec prometheus wget -q -O - --post-data "" http://localhost:9090/-/reload >/dev/null 2>&1 || true
                         echo "✅ Prometheus → jbdatahub-${INACTIVE}:8080"
                     fi

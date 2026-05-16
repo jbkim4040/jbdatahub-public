@@ -1,0 +1,30 @@
+global:
+  resolve_timeout: 5m
+
+route:
+  receiver: 'default'
+  group_by: ['alertname', 'severity']
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 4h
+  routes:
+    - match:
+        severity: critical
+      receiver: 'critical'
+      repeat_interval: 1h
+
+receivers:
+  - name: 'default'
+    # 기본은 로그만. 외부 알림 채널이 정해지면 webhook_configs/slack_configs 추가.
+    webhook_configs: []
+
+  - name: 'critical'
+    # critical 도 동일하게 비활성. 운영자가 채널 정해지면 채워 넣을 자리.
+    webhook_configs: []
+
+inhibit_rules:
+  - source_match:
+      severity: 'critical'
+    target_match:
+      severity: 'warning'
+    equal: ['alertname', 'instance']

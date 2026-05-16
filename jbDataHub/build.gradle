@@ -2,6 +2,7 @@ plugins {
     id 'java'
     id 'org.springframework.boot' version '3.5.14'
     id 'io.spring.dependency-management' version '1.1.7'
+    id 'org.owasp.dependencycheck' version '11.1.1'
 }
 
 group = 'com.jb'
@@ -47,4 +48,26 @@ dependencies {
 
 tasks.named('test') {
     useJUnitPlatform()
+}
+
+// OWASP Dependency-Check
+// 실행: ./gradlew dependencyCheckAnalyze --info
+// NVD API 키 사용 시: -PnvdApiKey=<key> 로 전달
+// Jenkins 메인 파이프라인엔 비활성. 별도 stage("Security Scan") 또는 cron 으로 실행.
+dependencyCheck {
+    formats = ['HTML', 'JSON']
+    outputDirectory = "$buildDir/reports/dependency-check"
+    failBuildOnCVSS = 11           // 리포트만 생성, 빌드 실패시키지 않음
+    suppressionFile = file('dependency-check-suppressions.xml').exists()
+        ? 'dependency-check-suppressions.xml' : null
+    nvd {
+        apiKey = project.findProperty('nvdApiKey') ?: System.getenv('NVD_API_KEY') ?: ''
+    }
+    analyzers {
+        assemblyEnabled = false    // .NET 분석기 비활성 (불필요)
+        nodeAuditEnabled = false
+        nodeEnabled = false
+    }
+    skipConfigurations = ['developmentOnly', 'testImplementation', 'testRuntimeOnly',
+                          'testCompileOnly', 'testAnnotationProcessor']
 }

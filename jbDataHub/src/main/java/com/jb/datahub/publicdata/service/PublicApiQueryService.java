@@ -132,6 +132,11 @@ public class PublicApiQueryService {
         return dataItemRepository.countOnlyBySourceType(sourceType);
     }
 
+    @Cacheable(value = "itemCountAll")
+    public long countAllItems() {
+        return dataItemRepository.countAll();
+    }
+
     public PageResponseDto<PublicDataItemResponseDto> getDataItems(
             String sourceType, int page, int size, String title,
             String sortBy, String sortDir) {
@@ -148,11 +153,16 @@ public class PublicApiQueryService {
             return PageResponseDto.from(pg.map(PublicDataItemResponseDto::new));
         }
 
+        if (!hasType && !hasTitle) {
+            long total = countAllItems();
+            var items = dataItemRepository.findAllItems(pageable);
+            var pg = new PageImpl<>(items, pageable, total);
+            return PageResponseDto.from(pg.map(PublicDataItemResponseDto::new));
+        }
+
         var result = (hasType)
                 ? dataItemRepository.findBySourceTypeAndTitleContainingIgnoreCase(sourceType, title, pageable)
-                : hasTitle
-                ? dataItemRepository.findByTitleContainingIgnoreCase(title, pageable)
-                : dataItemRepository.findAll(pageable);
+                : dataItemRepository.findByTitleContainingIgnoreCase(title, pageable);
 
         return PageResponseDto.from(result.map(PublicDataItemResponseDto::new));
     }

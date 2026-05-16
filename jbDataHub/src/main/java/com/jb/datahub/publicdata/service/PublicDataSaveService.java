@@ -55,7 +55,7 @@ public class PublicDataSaveService {
             update_cycle = EXCLUDED.update_cycle
         """;
 
-    @CacheEvict(value = {"stats", "dataItemStats", "itemCount"}, allEntries = true)
+    @CacheEvict(value = {"stats", "dataItemStats", "itemCount", "itemCountAll"}, allEntries = true)
     @Transactional
     public int saveAll(List<PublicDataItemDto> items, String sourceType) {
         if (items == null || items.isEmpty()) return 0;

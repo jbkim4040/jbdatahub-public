@@ -32,6 +32,12 @@ public interface PublicDataItemRepository extends JpaRepository<PublicDataItem, 
     @Query("SELECT COUNT(p) FROM PublicDataItem p WHERE p.sourceType = :sourceType")
     long countOnlyBySourceType(@Param("sourceType") String sourceType);
 
+    @Query("SELECT COUNT(p) FROM PublicDataItem p")
+    long countAll();
+
+    @Query("SELECT p FROM PublicDataItem p")
+    List<PublicDataItem> findAllItems(Pageable pageable);
+
     Page<PublicDataItem> findBySourceType(String sourceType, Pageable pageable);
 
     Page<PublicDataItem> findBySourceTypeAndTitleContainingIgnoreCase(String sourceType, String title, Pageable pageable);

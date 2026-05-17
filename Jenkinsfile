@@ -14,8 +14,8 @@ pipeline {
         STATE_FILE     = "/home/ubuntu/bg-state.txt"
         NETWORK        = "jb-workspace_app-network"
         DOCKER_BUILDKIT = "1"
-        APP_SERVER     = "ubuntu@158.180.65.135"
-        PROMETHEUS_URL = "http://134.185.105.226:9091"
+        APP_SERVER     = "ubuntu@140.245.74.59"
+        PROMETHEUS_URL = "http://168.107.20.90:9091"
         TRIVY_CACHE    = "/tmp/trivy-cache"
     }
 

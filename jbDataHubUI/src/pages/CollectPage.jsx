@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import {
   collectAll, collectPage,
   collectDataset, collectFileData, collectStandardData,
-  stopCollect, resumeCollect, getCollectStatus, getCollectHistory, generateAllDdl,
+  stopCollect, getCollectStatus, getCollectHistory,
 } from '../api/publicApi'
 import styles from './CollectPage.module.css'
 
@@ -23,14 +23,9 @@ const TYPE_LABELS = {
 const fmt = (n) => n?.toLocaleString() ?? '-'
 const fmtDate = (iso) => {
   if (!iso) return null
+  // 서버는 UTC LocalDateTime → 'Z' 없이 전송됨. 'Z' 추가로 KST 자동 변환
   const d = new Date(iso.endsWith('Z') ? iso : iso + 'Z')
   return `${d.getFullYear()}.${String(d.getMonth()+1).padStart(2,'0')}.${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`
-}
-const fmtEta = (secs) => {
-  if (!secs) return null
-  if (secs < 60) return `약 ${secs}초 남음`
-  const m = Math.floor(secs / 60), s = secs % 60
-  return s > 0 ? `약 ${m}분 ${s}초 남음` : `약 ${m}분 남음`
 }
 const fmtDuration = (secs) => {
   if (!secs) return '-'
@@ -91,11 +86,6 @@ export default function CollectPage() {
   }
 
   const handleStop = async () => { setStopping(true); try { await stopCollect() } catch { /* ignore */ } }
-  const handleResume = async () => { setStartError(null); try { await resumeCollect(); await fetchStatus(); startPolling() } catch(e) { setStartError(e.response?.data?.message ?? "재개 실패") } }
-  const handleGenerateDdl = async () => {
-    try { await generateAllDdl(); alert('DDL 생성이 백그라운드에서 시작되었습니다. 완료까지 수 분이 소요됩니다.') }
-    catch(e) { alert('DDL 생성 시작 실패: ' + (e.response?.data ?? e.message)) }
-  }
 
   const handlePageCollect = async () => {
     const p = parseInt(pageInput)
@@ -127,9 +117,32 @@ export default function CollectPage() {
             <div key={key} className={`${styles.card} ${active ? styles.cardActive : ''}`}>
               <div className={styles.cardTop}>
                 <span className={styles.cardLabel}>{label}</span>
-                {active && <span className={styles.badge}>수집 중</span>}
+                {active && <span className={styles.spinner} />}
               </div>
-              {h ? (
+
+              {active ? (
+                <div className={styles.cardProgress}>
+                  <div className={styles.cardProgressStats}>
+                    <span className={styles.cardSaved}>{fmt(status.savedCount)}건 저장</span>
+                    {status.totalCount > 0
+                      ? <span className={styles.cardPct}>{pct}%</span>
+                      : <span className={styles.cardPage}>p.{status.currentPage}</span>
+                    }
+                  </div>
+                  <div className={styles.cardBarWrap}>
+                    <div
+                      className={styles.cardBar}
+                      style={{ width: status.totalCount > 0 ? `${pct}%` : '100%', opacity: status.totalCount > 0 ? 1 : 0.4 }}
+                    />
+                  </div>
+                  {status.totalCount > 0 && (
+                    <div className={styles.cardTotal}>{fmt(status.savedCount)} / {fmt(status.totalCount)}건</div>
+                  )}
+                  <button className={styles.btnStopInline} onClick={handleStop} disabled={stopping}>
+                    {stopping ? '중지 중...' : '⏹ 중지'}
+                  </button>
+                </div>
+              ) : h ? (
                 <div className={styles.lastInfo}>
                   <span className={styles.lastDate}>🕐 {fmtDate(h.lastCompletedAt)}</span>
                   <span className={styles.lastCount}>{fmt(h.lastSavedCount)}건 저장</span>
@@ -137,6 +150,7 @@ export default function CollectPage() {
               ) : (
                 <div className={styles.noHistory}>수집 이력 없음</div>
               )}
+
               <button className={styles.btnStart} onClick={() => handleCollect(fn)} disabled={isRunning}>
                 {active ? '수집 중...' : '수집 시작'}
               </button>
@@ -167,23 +181,11 @@ export default function CollectPage() {
           </div>
           {status.totalCount > 0 && (
             <div className={styles.barWrap}>
-              <div className={styles.bar} style={{ width: `${pct}%` }}>
-                <span className={styles.progressLabel}>
-                  {typeof pct === 'number' ? pct.toFixed(1) : pct}%
-                  {pct >= 5 && status.etaSeconds > 0
-                    ? ` · ${fmtEta(status.etaSeconds)}`
-                    : ' · 계산 중...'}
-                </span>
-              </div>
+              <div className={styles.bar} style={{ width: `${pct}%` }} />
               <span className={styles.barLabel}>{fmt(status.savedCount)} / {fmt(status.totalCount)}건</span>
             </div>
           )}
           {status.startedAt && <div className={styles.startedAt}>시작 시각: {fmtDate(status.startedAt)}</div>}
-          {status.elapsedSeconds > 0 && (
-            <div className={styles.startedAt}>
-              경과: {fmtDuration(status.elapsedSeconds)}
-            </div>
-          )}
         </div>
       )}
 
@@ -196,9 +198,6 @@ export default function CollectPage() {
             {status.totalCount > 0 && <li>전체 건수: <strong>{fmt(status.totalCount)}</strong></li>}
             {status.currentPage > 0 && <li>마지막 페이지: <strong>{status.currentPage}</strong></li>}
           </ul>
-          {status.status === 'STOPPED' && (
-            <button className={styles.btnResume} onClick={handleResume}>↩ 이어서 수집</button>
-          )}
         </div>
       )}
 
@@ -258,18 +257,6 @@ export default function CollectPage() {
             </table>
           </div>
         )}
-      </div>
-
-      <div className={styles.divider} />
-
-      {/* DDL 전체 생성 */}
-      <div className={styles.section}>
-        <h2>DDL 전체 생성</h2>
-        <p>수집된 모든 오퍼레이션의 응답 파라미터를 분석하여 테이블 DDL을 생성합니다.<br/>
-           약 12,000개 오퍼레이션 처리로 수 분이 소요되며 백그라운드에서 실행됩니다.</p>
-        <button className={styles.btnCollect} onClick={handleGenerateDdl}>
-          DDL 전체 생성
-        </button>
       </div>
     </div>
   )

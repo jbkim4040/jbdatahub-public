@@ -32,6 +32,30 @@
 .btnStart:hover:not(:disabled) { background: #2a4f7e; }
 .btnStart:disabled { opacity: .5; cursor: not-allowed; }
 
+/* ── 카드 인라인 진행 표시 ── */
+.cardProgress { display: flex; flex-direction: column; gap: .45rem; }
+.cardProgressStats { display: flex; align-items: baseline; justify-content: space-between; }
+.cardSaved { font-size: .82rem; font-weight: 700; color: #1e3a5f; }
+.cardPct { font-size: .95rem; font-weight: 800; color: #3b7dd8; }
+.cardPage { font-size: .78rem; color: #6b8fb5; }
+.cardTotal { font-size: .73rem; color: #6b8fb5; text-align: right; }
+.cardBarWrap { background: #dbeafe; border-radius: 20px; height: 6px; overflow: hidden; }
+.cardBar {
+  height: 100%;
+  background: linear-gradient(90deg, #3b7dd8, #60a5fa);
+  border-radius: 20px;
+  transition: width .5s ease;
+  animation: pulse 1.5s ease-in-out infinite;
+}
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .7; } }
+.btnStopInline {
+  padding: .3rem .7rem; background: #e74c3c; color: #fff;
+  border: none; border-radius: 5px; font-size: .78rem; cursor: pointer;
+  transition: background .15s; align-self: flex-start;
+}
+.btnStopInline:hover:not(:disabled) { background: #c0392b; }
+.btnStopInline:disabled { opacity: .6; cursor: not-allowed; }
+
 /* ── 진행 상황 패널 ── */
 .progressPanel {
   background: #eef4ff; border: 1.5px solid #93c5fd; border-radius: 10px;
@@ -58,36 +82,9 @@
 .statLabel { font-size: .75rem; color: #6b8fb5; }
 .statValue { font-size: 1.05rem; font-weight: 700; color: #1e3a5f; }
 
-/* 진행률 바: ETA 라벨이 내부에 들어가도록 높이/정렬 조정 */
-.barWrap {
-  position: relative;
-  background: #dbeafe;
-  border-radius: 20px;
-  height: 22px;
-  overflow: hidden;
-  margin-bottom: .4rem;
-}
-.bar {
-  height: 100%;
-  background: linear-gradient(90deg, #3b7dd8, #60a5fa);
-  border-radius: 20px;
-  transition: width .4s ease;
-  display: flex;
-  align-items: center;
-  min-width: 0;
-}
-.progressLabel {
-  color: white;
-  text-shadow: 0 1px 2px rgba(0,0,0,0.3);
-  font-size: 0.85rem;
-  padding-left: 8px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 600;
-  letter-spacing: .01em;
-}
-.barLabel { font-size: .78rem; color: #5a7aaa; text-align: right; display: block; }
+.barWrap { position: relative; background: #dbeafe; border-radius: 20px; height: 10px; overflow: hidden; margin-bottom: .4rem; }
+.bar { height: 100%; background: linear-gradient(90deg, #3b7dd8, #60a5fa); border-radius: 20px; transition: width .4s ease; }
+.barLabel { font-size: .78rem; color: #5a7aaa; text-align: right; }
 .startedAt { font-size: .78rem; color: #888; margin-top: .4rem; }
 
 /* ── 결과 박스 ── */
@@ -131,17 +128,3 @@
 .statusTag { padding: 2px 9px; border-radius: 20px; font-size: .8rem; font-weight: 600; }
 .tagDone    { background: #dcfce7; color: #166534; }
 .tagStopped { background: #fee2e2; color: #991b1b; }
-
-/* Resume 버튼 */
-.btnResume {
-  margin-top: 1rem;
-  padding: .55rem 1.4rem;
-  border: none;
-  border-radius: 6px;
-  font-size: .9rem;
-  cursor: pointer;
-  background: #e67e22;
-  color: #fff;
-  transition: opacity .2s;
-}
-.btnResume:hover { opacity: .85; }

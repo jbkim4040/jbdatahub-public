@@ -1,0 +1,594 @@
+pipeline {
+    agent any
+
+    parameters {
+        booleanParam(
+            name: 'SKIP_DEPENDENCY_CHECK',
+            defaultValue: false,
+            description: 'OWASP Dependency-Check 건너뜀 (첫 실행 시 NVD DB 다운로드로 10분+ 소요)'
+        )
+        booleanParam(
+            name: 'SKIP_DAST',
+            defaultValue: false,
+            description: 'OWASP ZAP DAST 건너뜀 (앱이 실행 중이 아닐 때 사용)'
+        )
+        booleanParam(
+            name: 'FAIL_ON_HIGH',
+            defaultValue: false,
+            description: 'HIGH 이상 취약점 발견 시 파이프라인 실패 처리'
+        )
+        string(
+            name: 'TARGET_URL',
+            defaultValue: 'http://158.180.65.135',
+            description: 'DAST 대상 URL (ZAP이 공격할 앱 주소)'
+        )
+    }
+
+    environment {
+        APP_SERVER  = 'ubuntu@158.180.65.135'
+        REPORT_DIR  = "${WORKSPACE}/security-reports"
+        TRIVY_CACHE = '/tmp/trivy-cache'
+        DC_DATA     = '/tmp/owasp-dc-data'
+    }
+
+    stages {
+
+        // ────────────────────────────────────────────────────────────
+        stage('초기화') {
+            steps {
+                checkout scm
+                sh '''
+                    mkdir -p ${REPORT_DIR}/images ${TRIVY_CACHE} ${DC_DATA}
+                    echo "============================================"
+                    echo " 보안 점검 시작: $(date '+%Y-%m-%d %H:%M:%S')"
+                    echo " 대상 소스    : ${WORKSPACE}"
+                    echo " 대상 서버    : ${APP_SERVER}"
+                    echo " DAST URL     : ${TARGET_URL}"
+                    echo "============================================"
+                '''
+            }
+        }
+
+        // ────────────────────────────────────────────────────────────
+        stage('[1] 시크릿 스캔 — Gitleaks') {
+            steps {
+                sh '''
+                    echo ">>> Gitleaks: 소스코드 내 하드코딩된 시크릿/자격증명 탐지"
+
+                    docker run --rm \
+                        -v ${WORKSPACE}:/path \
+                        zricethezav/gitleaks:latest detect \
+                        --source /path \
+                        --report-format json \
+                        --report-path /path/security-reports/gitleaks.json \
+                        --no-git \
+                        --verbose 2>&1 || true
+
+                    COUNT=0
+                    if [ -f "${REPORT_DIR}/gitleaks.json" ]; then
+                        COUNT=$(python3 -c "
+import json
+with open('${REPORT_DIR}/gitleaks.json') as f:
+    d = json.load(f)
+print(len(d) if isinstance(d, list) else 0)
+" 2>/dev/null || echo 0)
+                    fi
+
+                    if [ "${COUNT}" -gt 0 ]; then
+                        echo "⚠️  WARNING: ${COUNT}개의 시크릿이 소스코드에 포함되어 있을 수 있습니다!"
+                    else
+                        echo "✅ 시크릿 탐지 없음"
+                    fi
+                '''
+            }
+        }
+
+        // ────────────────────────────────────────────────────────────
+        stage('[2] 소스코드 취약점 — Trivy FS') {
+            steps {
+                sh '''
+                    echo ">>> Trivy FS: 소스/의존성/설정파일 취약점 + IaC 잘못된 설정 탐지"
+
+                    # JSON 리포트 (전체 심각도)
+                    docker run --rm \
+                        -v ${WORKSPACE}:/workspace \
+                        -v ${TRIVY_CACHE}:/root/.cache/trivy \
+                        aquasec/trivy:latest fs \
+                        --scanners vuln,secret,misconfig \
+                        --severity LOW,MEDIUM,HIGH,CRITICAL \
+                        --format json \
+                        --output /workspace/security-reports/trivy-fs.json \
+                        /workspace 2>&1 | grep -v "^[[:space:]]*$" | tail -10 || true
+
+                    # HTML 리포트 (HIGH 이상만)
+                    docker run --rm \
+                        -v ${WORKSPACE}:/workspace \
+                        -v ${TRIVY_CACHE}:/root/.cache/trivy \
+                        aquasec/trivy:latest fs \
+                        --scanners vuln,secret,misconfig \
+                        --severity HIGH,CRITICAL \
+                        --format template \
+                        --template "@contrib/html.tpl" \
+                        --output /workspace/security-reports/trivy-fs.html \
+                        /workspace 2>&1 | tail -5 || true
+
+                    # 결과 요약
+                    python3 -c "
+import json
+try:
+    with open('${REPORT_DIR}/trivy-fs.json') as f:
+        d = json.load(f)
+    counts = {}
+    for r in d.get('Results', []):
+        for v in r.get('Vulnerabilities', []) or []:
+            s = v.get('Severity','UNKNOWN')
+            counts[s] = counts.get(s,0) + 1
+        for m in r.get('Misconfigurations', []) or []:
+            s = m.get('Severity','UNKNOWN')
+            counts[s] = counts.get(s,0) + 1
+    for sev in ['CRITICAL','HIGH','MEDIUM','LOW']:
+        print(f'  {sev}: {counts.get(sev,0)}')
+except Exception as e:
+    print(f'파싱 오류: {e}')
+" || true
+                '''
+            }
+        }
+
+        // ────────────────────────────────────────────────────────────
+        stage('[3] Java SAST — Semgrep') {
+            steps {
+                sh '''
+                    echo ">>> Semgrep: Java 보안 패턴 정적 분석 (OWASP Top10, Spring Security)"
+
+                    docker run --rm \
+                        -v ${WORKSPACE}:/workspace \
+                        semgrep/semgrep:latest \
+                        semgrep scan \
+                        --config "p/java" \
+                        --config "p/owasp-top-ten" \
+                        --config "p/spring-security" \
+                        --config "p/secrets" \
+                        --json \
+                        /workspace/jbDataHub/src \
+                        > ${REPORT_DIR}/semgrep.json 2>&1 || true
+
+                    python3 -c "
+import json
+try:
+    with open('${REPORT_DIR}/semgrep.json') as f:
+        d = json.load(f)
+    findings = d.get('results', [])
+    by_sev = {}
+    for r in findings:
+        sev = r.get('extra',{}).get('severity','INFO')
+        by_sev[sev] = by_sev.get(sev,0) + 1
+    print(f'  총 {len(findings)}건 발견: {by_sev}')
+    # 상위 5개 출력
+    for r in findings[:5]:
+        path = r.get('path','?').replace('${WORKSPACE}/','')
+        line = r.get('start',{}).get('line','?')
+        msg  = r.get('extra',{}).get('message','')[:80]
+        sev  = r.get('extra',{}).get('severity','?')
+        print(f'  [{sev}] {path}:{line} — {msg}')
+except Exception as e:
+    print(f'파싱 오류: {e}')
+" || true
+                '''
+            }
+        }
+
+        // ────────────────────────────────────────────────────────────
+        stage('[4] Java 의존성 CVE — OWASP Dependency-Check') {
+            when { expression { return !params.SKIP_DEPENDENCY_CHECK } }
+            steps {
+                sh '''
+                    echo ">>> OWASP Dependency-Check: Java 라이브러리 알려진 CVE 탐지"
+                    echo "    (첫 실행 시 NVD DB 다운로드로 시간이 걸릴 수 있습니다)"
+
+                    mkdir -p ${REPORT_DIR}/dependency-check
+
+                    docker run --rm \
+                        -v ${WORKSPACE}/jbDataHub:/src:ro \
+                        -v ${REPORT_DIR}/dependency-check:/report \
+                        -v ${DC_DATA}:/usr/share/dependency-check/data \
+                        owasp/dependency-check:latest \
+                        --scan /src \
+                        --format "HTML" \
+                        --format "JSON" \
+                        --out /report \
+                        --project "jb-datahub" \
+                        --nvdApiDelay 4000 \
+                        2>&1 | grep -E "(INFO|WARN|ERROR|Found|CVE)" | tail -30 || true
+
+                    python3 -c "
+import json, os
+json_path = '${REPORT_DIR}/dependency-check/dependency-check-report.json'
+if not os.path.exists(json_path):
+    print('  리포트 없음 (스캔 실패 또는 스킵)')
+else:
+    with open(json_path) as f:
+        d = json.load(f)
+    deps = d.get('dependencies', [])
+    vuln_deps = [dep for dep in deps if dep.get('vulnerabilities')]
+    counts = {}
+    for dep in vuln_deps:
+        for v in dep.get('vulnerabilities', []):
+            sev = v.get('severity', 'UNKNOWN').upper()
+            counts[sev] = counts.get(sev, 0) + 1
+    print(f'  취약한 의존성: {len(vuln_deps)}개')
+    for sev in ['CRITICAL','HIGH','MEDIUM','LOW']:
+        print(f'  {sev}: {counts.get(sev,0)}')
+" || true
+                '''
+            }
+        }
+
+        // ────────────────────────────────────────────────────────────
+        stage('[5] 프론트엔드 의존성 — npm audit') {
+            steps {
+                sh '''
+                    echo ">>> npm audit: 프론트엔드 패키지 취약점 탐지"
+
+                    if [ ! -f "${WORKSPACE}/jbDataHubUI/package.json" ]; then
+                        echo "  package.json 없음 — 건너뜀"
+                        exit 0
+                    fi
+
+                    docker run --rm \
+                        -v ${WORKSPACE}/jbDataHubUI:/app \
+                        -w /app \
+                        node:20-alpine \
+                        sh -c "npm install --prefer-offline --silent 2>/dev/null; npm audit --json 2>/dev/null; exit 0" \
+                        > ${REPORT_DIR}/npm-audit.json 2>&1 || true
+
+                    python3 -c "
+import json
+try:
+    with open('${REPORT_DIR}/npm-audit.json') as f:
+        content = f.read()
+    # JSON 부분만 추출
+    start = content.find('{')
+    if start >= 0:
+        d = json.loads(content[start:])
+        v = d.get('metadata', {}).get('vulnerabilities', {})
+        print(f'  CRITICAL: {v.get(\"critical\",0)}')
+        print(f'  HIGH    : {v.get(\"high\",0)}')
+        print(f'  MEDIUM  : {v.get(\"moderate\",0)}')
+        print(f'  LOW     : {v.get(\"low\",0)}')
+except Exception as e:
+    print(f'  파싱 오류: {e}')
+" || true
+                '''
+            }
+        }
+
+        // ────────────────────────────────────────────────────────────
+        stage('[6] 컨테이너 이미지 — Trivy Image') {
+            steps {
+                sh '''
+                    echo ">>> Trivy Image: Server 1 Docker 이미지 OS/라이브러리 CVE 탐지"
+
+                    for IMAGE in jbdatahub-backend:latest jbdatahubui:latest; do
+                        echo "  스캔 대상: ${IMAGE}"
+                        SAFE=$(echo ${IMAGE} | tr '/:' '--')
+
+                        # Server 1에서 이미지 존재 여부 확인
+                        EXISTS=$(ssh -o StrictHostKeyChecking=no ${APP_SERVER} \
+                            "docker image inspect ${IMAGE} >/dev/null 2>&1 && echo yes || echo no")
+
+                        if [ "${EXISTS}" = "no" ]; then
+                            echo "  이미지 없음: ${IMAGE} — 건너뜀"
+                            continue
+                        fi
+
+                        # Server 1에서 Trivy 실행
+                        ssh -o StrictHostKeyChecking=no ${APP_SERVER} \
+                            "mkdir -p /tmp/trivy-cache && \
+                             docker run --rm \
+                                 -v /var/run/docker.sock:/var/run/docker.sock \
+                                 -v /tmp/trivy-cache:/root/.cache/trivy \
+                                 aquasec/trivy:latest image \
+                                 --severity HIGH,CRITICAL \
+                                 --format json \
+                                 ${IMAGE} 2>/dev/null" \
+                            > ${REPORT_DIR}/images/trivy-${SAFE}.json 2>/dev/null || echo "  스캔 실패: ${IMAGE}"
+
+                        python3 -c "
+import json
+try:
+    with open('${REPORT_DIR}/images/trivy-${SAFE}.json') as f:
+        d = json.load(f)
+    counts = {}
+    for r in d.get('Results', []):
+        for v in r.get('Vulnerabilities', []) or []:
+            s = v.get('Severity','UNKNOWN')
+            counts[s] = counts.get(s,0) + 1
+    print(f'  {counts}')
+except:
+    print('  리포트 없음')
+" || true
+                    done
+                '''
+            }
+        }
+
+        // ────────────────────────────────────────────────────────────
+        stage('[7] DAST — OWASP ZAP') {
+            when { expression { return !params.SKIP_DAST } }
+            steps {
+                sh '''
+                    echo ">>> OWASP ZAP: 실행 중인 앱 동적 보안 분석 (Baseline Scan)"
+                    echo "    대상: ${TARGET_URL}"
+
+                    mkdir -p ${REPORT_DIR}/zap
+
+                    docker run --rm \
+                        -v ${REPORT_DIR}/zap:/zap/wrk:rw \
+                        --add-host=host.docker.internal:host-gateway \
+                        ghcr.io/zaproxy/zaproxy:stable \
+                        zap-baseline.py \
+                        -t ${TARGET_URL} \
+                        -r zap-report.html \
+                        -J zap-report.json \
+                        -l WARN \
+                        -I 2>&1 | tail -40 || true
+
+                    [ -f "${REPORT_DIR}/zap/zap-report.html" ] && \
+                        mv ${REPORT_DIR}/zap/zap-report.html ${REPORT_DIR}/zap-report.html || true
+                    [ -f "${REPORT_DIR}/zap/zap-report.json" ] && \
+                        mv ${REPORT_DIR}/zap/zap-report.json ${REPORT_DIR}/zap-report.json || true
+
+                    python3 -c "
+import json, os
+path = '${REPORT_DIR}/zap-report.json'
+if not os.path.exists(path):
+    print('  ZAP 리포트 없음')
+else:
+    with open(path) as f:
+        d = json.load(f)
+    sites = d.get('site', [])
+    if sites:
+        alerts = sites[0].get('alerts', [])
+        counts = {}
+        for a in alerts:
+            risk = a.get('riskdesc','Informational').split()[0]
+            counts[risk] = counts.get(risk,0) + 1
+        for risk in ['High','Medium','Low','Informational']:
+            print(f'  {risk}: {counts.get(risk,0)}')
+" || true
+                '''
+            }
+        }
+
+        // ────────────────────────────────────────────────────────────
+        stage('종합 결과 리포트') {
+            steps {
+                sh '''
+                    python3 << 'PYEOF'
+import json, os, datetime, sys
+
+REPORT_DIR = os.environ.get('REPORT_DIR', '')
+ts = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+
+summary = {'timestamp': ts, 'tools': {}, 'overall': 'PASS'}
+fail_on_high = os.environ.get('FAIL_ON_HIGH', 'false').lower() == 'true'
+
+def load_json(path):
+    try:
+        with open(path) as f:
+            return json.load(f), None
+    except Exception as e:
+        return None, str(e)
+
+# ── 1. Gitleaks ──────────────────────────────────────────────────
+d, err = load_json(f"{REPORT_DIR}/gitleaks.json")
+if d is not None:
+    count = len(d) if isinstance(d, list) else 0
+    summary['tools']['gitleaks'] = {
+        'name': 'Gitleaks (시크릿 스캔)',
+        'status': 'FAIL' if count > 0 else 'PASS',
+        'detail': f'{count}개 시크릿 발견'
+    }
+    if count > 0:
+        summary['overall'] = 'FAIL'
+else:
+    summary['tools']['gitleaks'] = {'name': 'Gitleaks', 'status': 'ERROR', 'detail': err}
+
+# ── 2. Trivy FS ──────────────────────────────────────────────────
+d, err = load_json(f"{REPORT_DIR}/trivy-fs.json")
+if d is not None:
+    counts = {}
+    for r in d.get('Results', []):
+        for v in r.get('Vulnerabilities', []) or []:
+            s = v.get('Severity', 'UNKNOWN')
+            counts[s] = counts.get(s, 0) + 1
+        for m in r.get('Misconfigurations', []) or []:
+            s = m.get('Severity', 'UNKNOWN')
+            counts[s] = counts.get(s, 0) + 1
+    crit = counts.get('CRITICAL', 0)
+    high = counts.get('HIGH', 0)
+    status = 'FAIL' if crit > 0 else 'WARN' if high > 0 else 'PASS'
+    summary['tools']['trivy_fs'] = {
+        'name': 'Trivy FS (소스 취약점)',
+        'status': status,
+        'detail': f"CRITICAL:{crit} HIGH:{high} MEDIUM:{counts.get('MEDIUM',0)} LOW:{counts.get('LOW',0)}"
+    }
+    if crit > 0 or (fail_on_high and high > 0):
+        summary['overall'] = 'FAIL'
+else:
+    summary['tools']['trivy_fs'] = {'name': 'Trivy FS', 'status': 'ERROR', 'detail': err}
+
+# ── 3. Semgrep ───────────────────────────────────────────────────
+d, err = load_json(f"{REPORT_DIR}/semgrep.json")
+if d is not None:
+    findings = d.get('results', [])
+    by_sev = {}
+    for r in findings:
+        sev = r.get('extra', {}).get('severity', 'INFO')
+        by_sev[sev] = by_sev.get(sev, 0) + 1
+    errors = by_sev.get('ERROR', 0)
+    warns  = by_sev.get('WARNING', 0)
+    status = 'FAIL' if errors > 0 else 'WARN' if warns > 0 else 'PASS'
+    summary['tools']['semgrep'] = {
+        'name': 'Semgrep (Java SAST)',
+        'status': status,
+        'detail': f'총 {len(findings)}건: {by_sev}'
+    }
+    if errors > 0 and fail_on_high:
+        summary['overall'] = 'FAIL'
+else:
+    summary['tools']['semgrep'] = {'name': 'Semgrep', 'status': 'ERROR', 'detail': err}
+
+# ── 4. OWASP Dependency-Check ────────────────────────────────────
+dc_path = f"{REPORT_DIR}/dependency-check/dependency-check-report.json"
+d, err = load_json(dc_path)
+if d is not None:
+    deps = d.get('dependencies', [])
+    vuln_deps = [dep for dep in deps if dep.get('vulnerabilities')]
+    counts = {}
+    for dep in vuln_deps:
+        for v in dep.get('vulnerabilities', []):
+            sev = v.get('severity', 'UNKNOWN').upper()
+            counts[sev] = counts.get(sev, 0) + 1
+    crit = counts.get('CRITICAL', 0)
+    high = counts.get('HIGH', 0)
+    status = 'FAIL' if crit > 0 else 'WARN' if high > 0 else 'PASS'
+    summary['tools']['owasp_dc'] = {
+        'name': 'OWASP Dependency-Check (Java CVE)',
+        'status': status,
+        'detail': f'취약 의존성 {len(vuln_deps)}개: CRITICAL:{crit} HIGH:{high} MEDIUM:{counts.get("MEDIUM",0)}'
+    }
+    if crit > 0 or (fail_on_high and high > 0):
+        summary['overall'] = 'FAIL'
+elif not os.path.exists(dc_path):
+    summary['tools']['owasp_dc'] = {'name': 'OWASP Dependency-Check', 'status': 'SKIPPED', 'detail': '파라미터로 건너뜀'}
+else:
+    summary['tools']['owasp_dc'] = {'name': 'OWASP Dependency-Check', 'status': 'ERROR', 'detail': err}
+
+# ── 5. npm audit ─────────────────────────────────────────────────
+d, err = load_json(f"{REPORT_DIR}/npm-audit.json")
+if d is None:
+    # npm audit 출력은 앞에 텍스트가 섞일 수 있어 JSON 부분만 추출
+    try:
+        raw = open(f"{REPORT_DIR}/npm-audit.json").read()
+        start = raw.find('{')
+        d = json.loads(raw[start:]) if start >= 0 else None
+    except:
+        d = None
+if d is not None:
+    v = d.get('metadata', {}).get('vulnerabilities', {})
+    crit = v.get('critical', 0)
+    high = v.get('high', 0)
+    status = 'FAIL' if crit > 0 else 'WARN' if high > 0 else 'PASS'
+    summary['tools']['npm_audit'] = {
+        'name': 'npm audit (프론트엔드 CVE)',
+        'status': status,
+        'detail': f"CRITICAL:{crit} HIGH:{high} MEDIUM:{v.get('moderate',0)} LOW:{v.get('low',0)}"
+    }
+    if crit > 0 or (fail_on_high and high > 0):
+        summary['overall'] = 'FAIL'
+else:
+    summary['tools']['npm_audit'] = {'name': 'npm audit', 'status': 'ERROR', 'detail': str(err)}
+
+# ── 6. Trivy Image ───────────────────────────────────────────────
+image_results = {}
+images_dir = f"{REPORT_DIR}/images"
+if os.path.isdir(images_dir):
+    for fname in os.listdir(images_dir):
+        if fname.endswith('.json'):
+            d, _ = load_json(f"{images_dir}/{fname}")
+            if d:
+                counts = {}
+                for r in d.get('Results', []):
+                    for v in r.get('Vulnerabilities', []) or []:
+                        s = v.get('Severity', 'UNKNOWN')
+                        counts[s] = counts.get(s, 0) + 1
+                image_results[fname.replace('.json','')] = counts
+crit_total = sum(c.get('CRITICAL',0) for c in image_results.values())
+high_total  = sum(c.get('HIGH',0)    for c in image_results.values())
+status = 'FAIL' if crit_total > 0 else 'WARN' if high_total > 0 else 'PASS' if image_results else 'SKIPPED'
+summary['tools']['trivy_image'] = {
+    'name': 'Trivy Image (컨테이너 CVE)',
+    'status': status,
+    'detail': f'이미지 {len(image_results)}개 스캔 — CRITICAL:{crit_total} HIGH:{high_total}'
+}
+if crit_total > 0 or (fail_on_high and high_total > 0):
+    summary['overall'] = 'FAIL'
+
+# ── 7. OWASP ZAP ─────────────────────────────────────────────────
+d, err = load_json(f"{REPORT_DIR}/zap-report.json")
+if d is not None:
+    sites = d.get('site', [])
+    counts = {}
+    if sites:
+        for a in sites[0].get('alerts', []):
+            risk = a.get('riskdesc', 'Informational').split()[0]
+            counts[risk] = counts.get(risk, 0) + 1
+    high = counts.get('High', 0)
+    med  = counts.get('Medium', 0)
+    status = 'FAIL' if high > 0 else 'WARN' if med > 0 else 'PASS'
+    summary['tools']['owasp_zap'] = {
+        'name': 'OWASP ZAP (DAST)',
+        'status': status,
+        'detail': f"High:{high} Medium:{med} Low:{counts.get('Low',0)}"
+    }
+    if high > 0 and fail_on_high:
+        summary['overall'] = 'FAIL'
+elif not os.path.exists(f"{REPORT_DIR}/zap-report.json"):
+    summary['tools']['owasp_zap'] = {'name': 'OWASP ZAP', 'status': 'SKIPPED', 'detail': '파라미터로 건너뜀'}
+else:
+    summary['tools']['owasp_zap'] = {'name': 'OWASP ZAP', 'status': 'ERROR', 'detail': err}
+
+# ── 출력 ─────────────────────────────────────────────────────────
+icons = {'PASS': '✅', 'FAIL': '❌', 'WARN': '⚠️ ', 'SKIPPED': '⏭️ ', 'ERROR': '💥'}
+
+print()
+print('=' * 62)
+print(f'  🔒 보안 점검 종합 결과 — {ts}')
+print('=' * 62)
+for key, info in summary['tools'].items():
+    icon   = icons.get(info['status'], '?')
+    name   = info['name']
+    status = info['status']
+    detail = info.get('detail', '')
+    print(f'  {icon} {name}')
+    print(f'       {status} — {detail}')
+print()
+print(f'  최종 판정: {"✅ PASS" if summary["overall"] == "PASS" else "❌ FAIL"}')
+print('=' * 62)
+print(f'  리포트 위치: security-reports/ (Jenkins Artifacts)')
+print('=' * 62)
+
+# JSON 저장
+with open(f"{REPORT_DIR}/security-summary.json", 'w', encoding='utf-8') as f:
+    json.dump(summary, f, indent=2, ensure_ascii=False)
+
+# FAIL_ON_HIGH 모드에서 빌드 실패 처리
+if fail_on_high and summary['overall'] == 'FAIL':
+    print()
+    print('FAIL_ON_HIGH=true: HIGH 이상 취약점으로 빌드를 실패 처리합니다.')
+    sys.exit(1)
+PYEOF
+                '''
+            }
+        }
+    }
+
+    post {
+        always {
+            archiveArtifacts(
+                artifacts: 'security-reports/**/*',
+                allowEmptyArchive: true,
+                fingerprint: true
+            )
+            echo "리포트가 Jenkins Artifacts에 저장되었습니다."
+        }
+        success {
+            echo "✅ 보안 점검 파이프라인 완료"
+        }
+        failure {
+            echo "❌ 보안 점검 실패 또는 HIGH 이상 취약점 발견"
+        }
+    }
+}

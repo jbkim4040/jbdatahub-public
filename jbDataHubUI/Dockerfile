@@ -11,7 +11,8 @@ RUN npm run build
 
 FROM nginx:alpine
 
-# Vite 기준 dist/, CRA 기준 build/ 로 변경
+RUN apk upgrade --no-cache nghttp2-libs
+
 COPY --from=builder /app/dist /usr/share/nginx/html
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 

@@ -8,7 +8,11 @@ async def init_pool() -> None:
     global _pool
     if _pool is None:
         _pool = await asyncpg.create_pool(
-            dsn=settings.db_dsn,
+            host=settings.db_host,
+            port=settings.db_port,
+            user=settings.db_user,
+            password=settings.db_password,
+            database=settings.db_name,
             min_size=1,
             max_size=10,
             command_timeout=30,

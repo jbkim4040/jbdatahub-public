@@ -189,7 +189,7 @@ async def download_pdf(report_id: str):
         raise HTTPException(status_code=404, detail="Report not found")
     pdf = _build_pdf(row["title"], row["content_md"])
     from urllib.parse import quote
-    title_safe = re.sub(r"[^\w.-]", "_", row["title"])[:40] or "report"
+    title_safe = re.sub(r"[^a-zA-Z0-9._-]", "_", row["title"])[:40].strip("_") or "report"
     quoted = quote(row["title"] + ".pdf")
     disposition = f"attachment; filename={title_safe}.pdf; filename*=UTF-8''{quoted}"
     return StreamingResponse(io.BytesIO(pdf), media_type="application/pdf",
@@ -262,7 +262,7 @@ async def download_docx(report_id: str):
     doc.save(buf)
     buf.seek(0)
     from urllib.parse import quote
-    title_safe = re.sub(r"[^\w.-]", "_", row["title"])[:40] or "report"
+    title_safe = re.sub(r"[^a-zA-Z0-9._-]", "_", row["title"])[:40].strip("_") or "report"
     quoted = quote(row["title"] + ".docx")
     disposition = f"attachment; filename={title_safe}.docx; filename*=UTF-8''{quoted}"
     return StreamingResponse(buf,

@@ -10,6 +10,7 @@ spring:
       initialization-fail-timeout: 1  # 시작 시 1ms만 대기 후 앱 실행 (연결 실패해도 기동)
       minimum-idle: 1                 # 초기 연결 최소화 (startup 단축)
       maximum-pool-size: 10
+      connection-init-sql: "SET default_transaction_read_only = off"
       idle-timeout: 300000
       max-lifetime: 600000
   jpa:

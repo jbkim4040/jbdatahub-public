@@ -29,9 +29,13 @@ pipeline {
         stage('소스 배포') {
             steps {
                 sh '''
-                    rsync -az --delete \
-                        -e "ssh -o StrictHostKeyChecking=no" \
-                        $WORKSPACE/ $APP_SERVER:/home/ubuntu/jb-workspace-deploy/
+                    ssh -o StrictHostKeyChecking=no $APP_SERVER "
+                        if [ -d /home/ubuntu/jb-workspace-deploy/.git ]; then
+                            cd /home/ubuntu/jb-workspace-deploy && git pull origin master
+                        else
+                            git clone https://jbkim4040:$(grep ^GITHUB_TOKEN= $ENV_FILE | cut -d= -f2-)@github.com/jbkim4040/jb-workspace.git /home/ubuntu/jb-workspace-deploy
+                        fi
+                    "
                 '''
                 echo "✅ 소스 동기화 완료"
             }

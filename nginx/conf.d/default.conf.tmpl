@@ -12,7 +12,7 @@ gzip_min_length 1024;
 
 # HTTP: ACME challenge + HTTPS redirect
 server {
-    listen 80;
+    listen 80 default_server;
     server_name jbdatahub.com;
 
     location /.well-known/acme-challenge/ {
@@ -29,6 +29,7 @@ server {
     listen 443 ssl;
     server_name jbdatahub.com;
 
+    # Let's Encrypt origin cert (cert.pem/key.pem 는 호스트의 /home/ubuntu/nginx-ssl/ 에서 마운트)
     ssl_certificate     /etc/nginx/ssl/cert.pem;
     ssl_certificate_key /etc/nginx/ssl/key.pem;
     ssl_protocols       TLSv1.2 TLSv1.3;
@@ -36,48 +37,44 @@ server {
 
     add_header X-Frame-Options "DENY" always;
     add_header X-Content-Type-Options "nosniff" always;
+    add_header Strict-Transport-Security "max-age=63072000; includeSubDomains; preload" always;
+    add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none';" always;
     add_header Referrer-Policy "strict-origin-when-cross-origin" always;
-    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
-    add_header Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'" always;
-    add_header Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=()" always;
-    add_header Cross-Origin-Opener-Policy "same-origin" always;
-    add_header Cross-Origin-Resource-Policy "same-origin" always;
-
-    location / {
-        proxy_pass         http://jbdatahubui:3000;
-        proxy_set_header   Host              $host;
-        proxy_set_header   X-Real-IP         $remote_addr;
-        proxy_set_header   X-Forwarded-For   $proxy_add_x_forwarded_for;
-        proxy_set_header   X-Forwarded-Proto $scheme;
-        add_header         Cache-Control "no-cache, no-store, must-revalidate" always;
-    }
-
-    location ~* ^/assets/ {
-        proxy_pass         http://jbdatahubui:3000;
-        proxy_set_header   Host $host;
-        add_header         Cache-Control "public, max-age=31536000, immutable";
-        access_log         off;
-    }
-
-    location /api/auth/ {
-        proxy_pass         http://backend/api/auth/;
-        proxy_set_header   Host              $host;
-        proxy_set_header   X-Real-IP         $remote_addr;
-        proxy_set_header   X-Forwarded-For   $proxy_add_x_forwarded_for;
-        proxy_set_header   X-Forwarded-Proto $scheme;
-        add_header         Cache-Control "no-store, no-cache, must-revalidate" always;
-    }
+    add_header Permissions-Policy "geolocation=(), microphone=(), camera=()" always;
 
     location /api/ {
         proxy_pass         http://backend;
         proxy_set_header   Host              $host;
         proxy_set_header   X-Real-IP         $remote_addr;
         proxy_set_header   X-Forwarded-For   $proxy_add_x_forwarded_for;
-        proxy_set_header   X-Forwarded-Proto $scheme;
-        proxy_read_timeout 60s;
+        proxy_set_header   X-Forwarded-Proto https;
+        proxy_read_timeout 120s;
     }
 
-    location ~* ^/(swagger-ui|v3/api-docs) {
-        return 404;
+    location /actuator/ {
+        allow 127.0.0.1;
+        deny all;
+        proxy_pass         http://backend;
+        proxy_set_header   Host              $host;
+        proxy_set_header   X-Forwarded-Proto https;
+    }
+
+    location /swagger-ui/ {
+        proxy_pass         http://backend/swagger-ui/;
+        proxy_set_header   Host              $host;
+        proxy_set_header   X-Forwarded-Proto https;
+    }
+
+    location /v3/api-docs {
+        proxy_pass         http://backend/v3/api-docs;
+        proxy_set_header   Host              $host;
+        proxy_set_header   X-Forwarded-Proto https;
+    }
+
+    location / {
+        proxy_pass         http://jbdatahubui:3000;
+        proxy_set_header   Host              $host;
+        proxy_set_header   X-Real-IP         $remote_addr;
+        proxy_set_header   X-Forwarded-Proto https;
     }
 }

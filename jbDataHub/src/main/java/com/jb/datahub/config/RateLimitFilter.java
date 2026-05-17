@@ -16,29 +16,22 @@ import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * IP 기반 슬라이딩 윈도우 Rate Limiter.
- * /api/auth/login   : 10/min (브루트포스 방어)
- * /api/auth/refresh : 30/min (토큰 자동 갱신 허용)
- * /api/**           : 200/min
+ * /api/** 경로에만 적용. 기본: 분당 200건.
  */
 @Component
-@Order(2)
+@Order(1)
 public class RateLimitFilter extends OncePerRequestFilter {
 
-    private static final int  MAX_RPM         = 200;
-    private static final int  LOGIN_MAX_RPM   = 10;
-    private static final int  REFRESH_MAX_RPM = 30;
-    private static final long WINDOW_MS       = 60_000L;
+    private static final int  MAX_RPM   = 200;
+    private static final long WINDOW_MS = 60_000L;
 
-    private final ConcurrentHashMap<String, Deque<Long>> store        = new ConcurrentHashMap<>();
-    private final ConcurrentHashMap<String, Deque<Long>> loginStore   = new ConcurrentHashMap<>();
-    private final ConcurrentHashMap<String, Deque<Long>> refreshStore = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, Deque<Long>> store = new ConcurrentHashMap<>();
 
     @Override
     protected void doFilterInternal(HttpServletRequest req,
                                     HttpServletResponse res,
                                     FilterChain chain) throws IOException, ServletException {
-        String uri = req.getRequestURI();
-        if (!uri.startsWith("/api/")) {
+        if (!req.getRequestURI().startsWith("/api/")) {
             chain.doFilter(req, res);
             return;
         }
@@ -46,27 +39,14 @@ public class RateLimitFilter extends OncePerRequestFilter {
         String ip  = getClientIp(req);
         long   now = System.currentTimeMillis();
 
-        ConcurrentHashMap<String, Deque<Long>> target;
-        int limit;
-        if (uri.startsWith("/api/auth/login")) {
-            target = loginStore;
-            limit  = LOGIN_MAX_RPM;
-        } else if (uri.startsWith("/api/auth/refresh")) {
-            target = refreshStore;
-            limit  = REFRESH_MAX_RPM;
-        } else {
-            target = store;
-            limit  = MAX_RPM;
-        }
-
-        Deque<Long> ts = target.computeIfAbsent(ip, k -> new ArrayDeque<>());
+        Deque<Long> ts = store.computeIfAbsent(ip, k -> new ArrayDeque<>());
         synchronized (ts) {
             while (!ts.isEmpty() && ts.peekFirst() < now - WINDOW_MS) ts.pollFirst();
-            if (ts.size() >= limit) {
+            if (ts.size() >= MAX_RPM) {
                 res.setStatus(429);
                 res.setContentType("application/json;charset=UTF-8");
                 res.getWriter().write(
-                    "{\"error\":\"Too Many Requests\",\"message\":\"분당 최대 " + limit + "건 요청 가능합니다.\"}"
+                    "{\"error\":\"Too Many Requests\",\"message\":\"분당 최대 " + MAX_RPM + "건 요청 가능합니다.\"}"
                 );
                 return;
             }
@@ -77,20 +57,25 @@ public class RateLimitFilter extends OncePerRequestFilter {
     }
 
     private String getClientIp(HttpServletRequest req) {
+        String realIp = req.getHeader("X-Real-IP");
+        if (realIp != null && !realIp.isBlank()) return realIp.trim();
+        // X-Forwarded-For의 마지막 값(신뢰 가능한 프록시가 추가한 IP) 사용
         String xff = req.getHeader("X-Forwarded-For");
-        return (xff != null && !xff.isBlank()) ? xff.split(",")[0].trim() : req.getRemoteAddr();
+        if (xff != null && !xff.isBlank()) {
+            String[] parts = xff.split(",");
+            return parts[parts.length - 1].trim();
+        }
+        return req.getRemoteAddr();
     }
 
     /** 5분마다 만료된 IP 항목 정리 (메모리 누수 방지) */
     @Scheduled(fixedDelay = 300_000)
     public void cleanup() {
         long cutoff = System.currentTimeMillis() - WINDOW_MS;
-        for (ConcurrentHashMap<String, Deque<Long>> s : new ConcurrentHashMap[]{loginStore, refreshStore, store}) {
-            s.entrySet().removeIf(e -> {
-                synchronized (e.getValue()) {
-                    return e.getValue().stream().allMatch(t -> t < cutoff);
-                }
-            });
-        }
+        store.entrySet().removeIf(e -> {
+            synchronized (e.getValue()) {
+                return e.getValue().stream().allMatch(t -> t < cutoff);
+            }
+        });
     }
 }

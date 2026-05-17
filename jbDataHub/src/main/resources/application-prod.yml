@@ -8,22 +8,12 @@ spring:
     hikari:
       connection-timeout: 10000       # 10초 (기본 30초)
       initialization-fail-timeout: 1  # 시작 시 1ms만 대기 후 앱 실행 (연결 실패해도 기동)
-      minimum-idle: 1                 # 초기 연결 최소화 (startup 단축)
+      minimum-idle: 2
       maximum-pool-size: 10
-      connection-init-sql: "SET default_transaction_read_only = off"
       idle-timeout: 300000
       max-lifetime: 600000
   jpa:
     open-in-view: false               # OSIV 끔 — 불필요한 세션 유지 제거
-    hibernate:
-      ddl-auto: none                  # 메타데이터 접근 안 하므로 validate 의미 없음
-    properties:
-      hibernate:
-        dialect: org.hibernate.dialect.PostgreSQLDialect    # 명시 → JDBC metadata 조회 생략
-        boot:
-          allow_jdbc_metadata_access: false                  # startup 시 DB 메타데이터 일괄 조회 차단 (가장 큰 효과)
-        temp:
-          use_jdbc_metadata_defaults: false                  # Supabase pgBouncer 환경에서 metadata 조회 회피
 
 publicdata:
   api:
@@ -35,6 +25,18 @@ admin:
   username: ${ADMIN_USERNAME}
   password: ${ADMIN_PASSWORD}
 
+cors:
+  allowed-origins: ${CORS_ALLOWED_ORIGINS:https://jbdatahub.com}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: "health"
+  endpoint:
+    health:
+      show-details: never
+
 jwt:
   secret: ${JWT_SECRET}
   expiration: 900000    # 15분 (ms)
@@ -43,11 +45,3 @@ logging:
   level:
     org.hibernate.SQL: WARN
     com.jb.datahub: INFO
-  structured:
-    format: ecs
-
-springdoc:
-  api-docs:
-    enabled: false
-  swagger-ui:
-    enabled: false

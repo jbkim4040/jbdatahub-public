@@ -80,8 +80,11 @@ print(len(d) if isinstance(d, list) else 0)
 
         stage('.env 복사') {
             steps {
-                sh 'cp $ENV_FILE $WORKSPACE/.env'
-                echo "✅ 시크릿 파일 복사 완료"
+                sh '''
+                    cp $ENV_FILE $WORKSPACE/.env
+                    scp -o StrictHostKeyChecking=no $WORKSPACE/.env $APP_SERVER:/tmp/.env
+                '''
+                echo "✅ 시크릿 파일 복사 완료 (Jenkins + WAS)"
             }
         }
 

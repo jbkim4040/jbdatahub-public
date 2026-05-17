@@ -14,6 +14,11 @@ java {
     }
 }
 
+// CVE 패치: Spring Boot BOM 버전 오버라이드
+// CVE-2026-42583/42579/42584/42587: netty 4.1.132 → 4.1.133
+// CVE-2026-42198: postgresql JDBC 42.7.10 → 42.7.11
+ext['netty.version'] = '4.1.133.Final'
+
 repositories {
     mavenCentral()
 }
@@ -39,7 +44,7 @@ dependencies {
     annotationProcessor 'org.projectlombok:lombok'
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
     testImplementation 'io.projectreactor:reactor-test'
-    runtimeOnly 'org.postgresql:postgresql'
+    runtimeOnly 'org.postgresql:postgresql:42.7.11'
     testCompileOnly 'org.projectlombok:lombok'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
     testAnnotationProcessor 'org.projectlombok:lombok'

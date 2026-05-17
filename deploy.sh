@@ -60,8 +60,7 @@ fi
 
 # ── 5. nginx upstream 전환 ───────────────────────────────────────────
 sed "s/ACTIVE_COLOR/jbdatahub-${INACTIVE}/" \
-    $WORKSPACE_DIR/nginx/conf.d/default.conf.tmpl > /tmp/nginx-bg.conf
-docker cp /tmp/nginx-bg.conf nginx:/etc/nginx/conf.d/default.conf
+    $WORKSPACE_DIR/nginx/conf.d/default.conf.tmpl > /home/ubuntu/nginx-ssl/jbdatahub.conf
 docker exec nginx nginx -t && docker exec nginx nginx -s reload
 echo "✅ nginx → jbdatahub-${INACTIVE}"
 

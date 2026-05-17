@@ -2,8 +2,8 @@
 set -e
 
 # ── 여기만 수정 ──────────────────────────────────────────
-DOMAIN="yourdomain.com"          # 실제 도메인
-EMAIL="your@email.com"           # 인증서 알림 메일
+DOMAIN="jbdatahub.com"          # 실제 도메인
+EMAIL="20243216@vision.hoseo.edu"           # 인증서 알림 메일
 STAGING=0                        # 테스트 시 1 / 실서비스 시 0
 # ────────────────────────────────────────────────────────
 

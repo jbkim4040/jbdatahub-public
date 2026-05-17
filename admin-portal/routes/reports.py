@@ -1,4 +1,5 @@
 import io
+import re
 import json
 import markdown as md
 from datetime import datetime
@@ -187,9 +188,12 @@ async def download_pdf(report_id: str):
     if not row:
         raise HTTPException(status_code=404, detail="Report not found")
     pdf = _build_pdf(row["title"], row["content_md"])
-    filename = f"{row['title'].replace(' ', '_')[:40]}.pdf"
+    from urllib.parse import quote
+    title_safe = re.sub(r"[^\w.-]", "_", row["title"])[:40] or "report"
+    quoted = quote(row["title"] + ".pdf")
+    disposition = f"attachment; filename={title_safe}.pdf; filename*=UTF-8''{quoted}"
     return StreamingResponse(io.BytesIO(pdf), media_type="application/pdf",
-                             headers={"Content-Disposition": f"attachment; filename={filename}"})
+                             headers={"Content-Disposition": disposition})
 
 
 @router.get("/{report_id}/docx")
@@ -257,7 +261,10 @@ async def download_docx(report_id: str):
     buf = io.BytesIO()
     doc.save(buf)
     buf.seek(0)
-    filename = f"{row['title'].replace(' ', '_')[:40]}.docx"
+    from urllib.parse import quote
+    title_safe = re.sub(r"[^\w.-]", "_", row["title"])[:40] or "report"
+    quoted = quote(row["title"] + ".docx")
+    disposition = f"attachment; filename={title_safe}.docx; filename*=UTF-8''{quoted}"
     return StreamingResponse(buf,
         media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        headers={"Content-Disposition": f"attachment; filename={filename}"})
+        headers={"Content-Disposition": disposition})

@@ -2,27 +2,23 @@ pipeline {
     agent any
 
     environment {
-        MANAGER_HOST = '134.185.105.226'
-        MANAGER_KEY  = '/home/ubuntu/.ssh/id_ed25519_manager'
+        HOST_IP   = '172.17.0.1'
+        JENKINS_KEY = '/var/jenkins_home/.ssh/id_jenkins'
     }
 
     stages {
         stage('Blue/Green Deploy') {
             steps {
                 sh """
-                    ssh -o StrictHostKeyChecking=no -i ${MANAGER_KEY} ubuntu@${MANAGER_HOST} \
-                        '~/deploy-admin.sh' 2>&1
+                    ssh -o StrictHostKeyChecking=no -i ${JENKINS_KEY} ubuntu@${HOST_IP} \
+                        'bash ~/deploy-admin.sh'
                 """
             }
         }
     }
 
     post {
-        success {
-            echo 'Admin Portal Blue/Green deploy succeeded.'
-        }
-        failure {
-            echo 'Deploy failed — previous slot still active.'
-        }
+        success { echo 'Admin Portal Blue/Green deploy succeeded.' }
+        failure { echo 'Deploy FAILED — previous slot still active.' }
     }
 }

@@ -2,12 +2,12 @@ pipeline {
     agent any
 
     environment {
-        ENV_FILE         = "/var/jenkins_home/secrets/.env"
-        STATE_FILE       = "/var/jenkins_home/bg-state.txt"
-        NETWORK          = "jb-workspace_app-network"
-        DOCKER_BUILDKIT  = "1"
-        APP_SERVER       = "ubuntu@158.180.65.135"
-        PROMETHEUS_URL   = "http://134.185.105.226:9091"
+        ENV_FILE       = "/var/jenkins_home/secrets/.env"
+        STATE_FILE     = "/var/jenkins_home/bg-state.txt"
+        NETWORK        = "jb-workspace_app-network"
+        DOCKER_BUILDKIT = "1"
+        APP_SERVER     = "ubuntu@158.180.65.135"
+        PROMETHEUS_URL = "http://134.185.105.226:9091"
     }
 
     stages {
@@ -29,13 +29,12 @@ pipeline {
         stage('소스 배포') {
             steps {
                 sh '''
-                    ssh -o StrictHostKeyChecking=no $APP_SERVER "
-                        if [ -d /home/ubuntu/jb-workspace-deploy/.git ]; then
+                    ssh -o StrictHostKeyChecking=no $APP_SERVER \
+                        "if [ -d /home/ubuntu/jb-workspace-deploy/.git ]; then
                             cd /home/ubuntu/jb-workspace-deploy && git pull origin master
-                        else
+                         else
                             git clone https://jbkim4040:$(grep ^GITHUB_TOKEN= $ENV_FILE | cut -d= -f2-)@github.com/jbkim4040/jb-workspace.git /home/ubuntu/jb-workspace-deploy
-                        fi
-                    "
+                         fi"
                 '''
                 echo "✅ 소스 동기화 완료"
             }
@@ -54,18 +53,17 @@ pipeline {
         stage('UI 빌드') {
             steps {
                 sh '''
-                    ssh -o StrictHostKeyChecking=no $APP_SERVER "
-                        docker build -t jbdatahubui:latest /home/ubuntu/jb-workspace-deploy/jbDataHubUI
-                        docker stop jbdatahubui 2>/dev/null || true
-                        docker rm   jbdatahubui 2>/dev/null || true
-                        docker run -d \
-                            --name jbdatahubui \
-                            --restart unless-stopped \
-                            --log-opt max-size=10m \
-                            --log-opt max-file=3 \
-                            --network jb-workspace_app-network \
-                            jbdatahubui:latest
-                    "
+                    ssh -o StrictHostKeyChecking=no $APP_SERVER \
+                        "docker build -t jbdatahubui:latest /home/ubuntu/jb-workspace-deploy/jbDataHubUI && \
+                         docker stop jbdatahubui 2>/dev/null || true && \
+                         docker rm   jbdatahubui 2>/dev/null || true && \
+                         docker run -d \
+                             --name jbdatahubui \
+                             --restart unless-stopped \
+                             --log-opt max-size=10m \
+                             --log-opt max-file=3 \
+                             --network jb-workspace_app-network \
+                             jbdatahubui:latest"
                 '''
                 echo "✅ UI 빌드 완료"
             }
@@ -74,79 +72,12 @@ pipeline {
         stage('Blue/Green 백엔드 배포') {
             steps {
                 sh '''
-                    ssh -o StrictHostKeyChecking=no $APP_SERVER "
-                        # ── 1. 현재 active 색상 결정 ──────────────────────────
-                        ACTIVE=\$(cat $STATE_FILE 2>/dev/null || echo 'blue')
-                        if [ \"\$ACTIVE\" = \"blue\" ]; then
-                            INACTIVE=\"green\"
-                            HOST_PORT=8081
-                        else
-                            INACTIVE=\"blue\"
-                            HOST_PORT=8080
-                        fi
-                        echo \"현재 active=\${ACTIVE} / 배포 대상=\${INACTIVE} / 포트=\${HOST_PORT}\"
-
-                        # ── 2. 기존 단일 jbdatahub 컨테이너 정리 (첫 전환 시) ──
-                        docker stop jbdatahub 2>/dev/null || true
-                        docker rm   jbdatahub 2>/dev/null || true
-
-                        # ── 3. Inactive 컨테이너 빌드 & 시작 ─────────────────
-                        docker build -t jbdatahub-backend:latest /home/ubuntu/jb-workspace-deploy/jbDataHub
-                        docker stop jbdatahub-\${INACTIVE} 2>/dev/null || true
-                        docker rm   jbdatahub-\${INACTIVE} 2>/dev/null || true
-                        docker run -d \
-                            --name jbdatahub-\${INACTIVE} \
-                            --restart unless-stopped \
-                            --log-opt max-size=20m \
-                            --log-opt max-file=5 \
-                            --env-file /tmp/.env \
-                            -e SPRING_PROFILES_ACTIVE=prod \
-                            -p \${HOST_PORT}:8080 \
-                            --network jb-workspace_app-network \
-                            jbdatahub-backend:latest
-
-                        # ── 4. 헬스체크 (5초 간격 × 최대 240회 = 20분) ─────────
-                        echo \"헬스체크 시작 (jbdatahub-\${INACTIVE})...\"
-                        PASSED=0
-                        for i in \$(seq 1 240); do
-                            STATUS=\$(docker exec jbdatahub-\${INACTIVE} \
-                                curl -s -o /dev/null -w \"%{http_code}\" \
-                                http://localhost:8080/api/health 2>/dev/null) || STATUS=\"000\"
-                            echo \"[\${i}/240] health=\${STATUS}\"
-                            if [ \"\$STATUS\" = \"200\" ]; then
-                                echo \"✅ 헬스체크 통과\"
-                                PASSED=1
-                                break
-                            fi
-                            sleep 5
-                        done
-
-                        if [ \"\$PASSED\" = \"0\" ]; then
-                            echo \"❌ 헬스체크 타임아웃 (1200초) — 롤백\"
-                            docker stop jbdatahub-\${INACTIVE} 2>/dev/null || true
-                            exit 1
-                        fi
-
-                        # ── 5. nginx upstream 전환 ────────────────────────────
-                        sed \"s/ACTIVE_COLOR/jbdatahub-\${INACTIVE}/\" \
-                            /home/ubuntu/jb-workspace-deploy/nginx/conf.d/default.conf.tmpl > /tmp/nginx-bg.conf
-                        docker cp /tmp/nginx-bg.conf nginx:/etc/nginx/conf.d/default.conf
-                        docker exec nginx nginx -t && docker exec nginx nginx -s reload
-                        echo \"✅ nginx → jbdatahub-\${INACTIVE}\"
-
-                        # ── 6. 이전 컨테이너 중지 & 제거 ─────────────────────
-                        docker stop jbdatahub-\${ACTIVE} 2>/dev/null || true
-                        docker rm   jbdatahub-\${ACTIVE} 2>/dev/null || true
-                        echo \"✅ jbdatahub-\${ACTIVE} 중지 및 제거\"
-
-                        # ── 7. 상태 저장 ──────────────────────────────────────
-                        echo \"\${INACTIVE}\" > $STATE_FILE
-                        echo \"✅ Blue/Green 배포 완료 — active: \${INACTIVE}\"
-                    "
-
-                    # ── 8. Prometheus 리로드 (Server 2) ───────────────────────
-                    curl -s -X POST ${PROMETHEUS_URL}/-/reload >/dev/null 2>&1 || true
-                    echo "✅ Prometheus 리로드 완료"
+                    # deploy.sh 를 Server 1에 전송 후 실행
+                    scp -o StrictHostKeyChecking=no \
+                        $WORKSPACE/deploy.sh \
+                        $APP_SERVER:/tmp/deploy.sh
+                    ssh -o StrictHostKeyChecking=no $APP_SERVER \
+                        "chmod +x /tmp/deploy.sh && STATE_FILE=$STATE_FILE bash /tmp/deploy.sh"
                 '''
             }
         }
@@ -154,26 +85,27 @@ pipeline {
         stage('Nginx 시작') {
             steps {
                 sh '''
-                    ssh -o StrictHostKeyChecking=no $APP_SERVER "
-                        if docker ps --format '{{.Names}}' | grep -q '^nginx$'; then
-                            echo '✅ nginx 이미 실행 중'
-                        else
-                            mkdir -p /home/ubuntu/jb-workspace-deploy/certbot/conf \
-                                     /home/ubuntu/jb-workspace-deploy/certbot/www
-                            docker run -d \
-                                --name nginx \
-                                --restart unless-stopped \
-                                -p 80:80 \
-                                -p 443:443 \
-                                -v /home/ubuntu/jb-workspace-deploy/nginx/conf.d:/etc/nginx/conf.d \
-                                -v /home/ubuntu/jb-workspace-deploy/certbot/conf:/etc/letsencrypt:ro \
-                                -v /home/ubuntu/jb-workspace-deploy/certbot/www:/var/www/certbot:ro \
-                                --network jb-workspace_app-network \
-                                nginx:alpine
-                            echo '✅ nginx 시작 완료'
-                        fi
-                    "
+                    ssh -o StrictHostKeyChecking=no $APP_SERVER \
+                        "docker ps --format '{{.Names}}' | grep -q '^nginx$' || \
+                         (mkdir -p /home/ubuntu/jb-workspace-deploy/certbot/conf \
+                                   /home/ubuntu/jb-workspace-deploy/certbot/www && \
+                          docker run -d \
+                             --name nginx \
+                             --restart unless-stopped \
+                             -p 80:80 -p 443:443 \
+                             -v /home/ubuntu/jb-workspace-deploy/nginx/conf.d:/etc/nginx/conf.d \
+                             -v /home/ubuntu/jb-workspace-deploy/certbot/conf:/etc/letsencrypt:ro \
+                             -v /home/ubuntu/jb-workspace-deploy/certbot/www:/var/www/certbot:ro \
+                             --network jb-workspace_app-network \
+                             nginx:alpine && echo '✅ nginx 시작 완료')"
                 '''
+            }
+        }
+
+        stage('Prometheus 리로드') {
+            steps {
+                sh 'curl -s -X POST ${PROMETHEUS_URL}/-/reload >/dev/null 2>&1 || true'
+                echo "✅ Prometheus 리로드 완료"
             }
         }
     }

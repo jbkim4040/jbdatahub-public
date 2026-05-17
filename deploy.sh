@@ -3,7 +3,7 @@
 set -e
 
 WORKSPACE_DIR="/home/ubuntu/jb-workspace-deploy"
-STATE_FILE="/var/jenkins_home/bg-state.txt"
+STATE_FILE="/home/ubuntu/bg-state.txt"
 NETWORK="jb-workspace_app-network"
 
 # ── 1. active 색상 결정 ──────────────────────────────────────────────

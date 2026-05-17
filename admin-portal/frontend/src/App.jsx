@@ -5,6 +5,7 @@ import PRList from './pages/PRList'
 import SecurityReports from './pages/SecurityReports'
 import Deploy from './pages/Deploy'
 import RequestPage from './pages/RequestPage'
+import ReportsPage from './pages/ReportsPage'
 
 export default function App() {
   return (
@@ -15,6 +16,7 @@ export default function App() {
         <Route path="security/*" element={<SecurityReports />} />
         <Route path="deploy/*"   element={<Deploy />} />
         <Route path="request/*"  element={<RequestPage />} />
+        <Route path="reports/*"  element={<ReportsPage />} />
       </Route>
     </Routes>
   )

@@ -26,3 +26,12 @@ export const requestApi = {
   preview: (payload) => api.post('/request/preview', payload),
   apply:   (payload) => api.post('/request/apply',   payload),
 }
+
+export const reportsApi = {
+  list:   (page = 1, type) => api.get(`/reports?page=${page}${type ? `&report_type=${type}` : ''}`),
+  get:    (id)             => api.get(`/reports/${id}`),
+  create: (payload)        => api.post('/reports', payload),
+  remove: (id)             => api.delete(`/reports/${id}`),
+  pdfUrl: (id)             => `/api/reports/${id}/pdf`,
+  docxUrl:(id)             => `/api/reports/${id}/docx`,
+}

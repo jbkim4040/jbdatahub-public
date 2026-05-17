@@ -1,5 +1,5 @@
 import { NavLink, Outlet } from 'react-router-dom'
-import { GitPullRequest, Shield, Rocket, LayoutDashboard, MessageSquarePlus } from 'lucide-react'
+import { GitPullRequest, Shield, Rocket, LayoutDashboard, MessageSquarePlus, FileText } from 'lucide-react'
 
 const nav = [
   { to: '/',        icon: LayoutDashboard,    label: '대시보드' },
@@ -7,6 +7,7 @@ const nav = [
   { to: '/security',icon: Shield,             label: '보안 이력' },
   { to: '/deploy',  icon: Rocket,             label: '배포 관리' },
   { to: '/request', icon: MessageSquarePlus,  label: '기능 요청' },
+  { to: '/reports', icon: FileText,           label: '리포트' },
 ]
 
 export default function Layout() {
@@ -24,9 +25,7 @@ export default function Layout() {
               end={to === '/'}
               className={({ isActive }) =>
                 `flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors ${
-                  isActive
-                    ? 'bg-blue-600 text-white'
-                    : 'text-gray-400 hover:bg-gray-800 hover:text-white'
+                  isActive ? 'bg-blue-600 text-white' : 'text-gray-400 hover:bg-gray-800 hover:text-white'
                 }`
               }
             >

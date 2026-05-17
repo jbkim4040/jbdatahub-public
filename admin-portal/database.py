@@ -12,6 +12,7 @@ async def init_pool() -> None:
             min_size=1,
             max_size=10,
             command_timeout=30,
+            ssl=False,
         )
 
 

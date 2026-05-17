@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from pathlib import Path
-from routes import pr, security, deploy
+from routes import pr, security, deploy, request
 
 app = FastAPI(title="JB Admin Portal", version="1.0.0")
 
@@ -17,6 +17,7 @@ app.add_middleware(
 app.include_router(pr.router,       prefix="/api/prs",      tags=["PR"])
 app.include_router(security.router, prefix="/api/security", tags=["Security"])
 app.include_router(deploy.router,   prefix="/api/deploy",   tags=["Deploy"])
+app.include_router(request.router,  prefix="/api/request",  tags=["Request"])
 
 
 @app.get("/api/health")

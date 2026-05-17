@@ -1,6 +1,14 @@
 pipeline {
     agent any
 
+    parameters {
+        booleanParam(
+            name: 'RUN_SECURITY_GATE',
+            defaultValue: false,
+            description: '배포 전 보안 게이트 실행 (Gitleaks + Trivy FS HIGH/CRITICAL 체크, ~2분)'
+        )
+    }
+
     environment {
         ENV_FILE       = "/var/jenkins_home/secrets/.env"
         STATE_FILE     = "/home/ubuntu/bg-state.txt"
@@ -8,6 +16,7 @@ pipeline {
         DOCKER_BUILDKIT = "1"
         APP_SERVER     = "ubuntu@158.180.65.135"
         PROMETHEUS_URL = "http://134.185.105.226:9091"
+        TRIVY_CACHE    = "/tmp/trivy-cache"
     }
 
     stages {
@@ -16,6 +25,56 @@ pipeline {
             steps {
                 checkout scm
                 echo "✅ 소스 체크아웃 완료: ${WORKSPACE}"
+            }
+        }
+
+        stage('보안 게이트') {
+            when { expression { return params.RUN_SECURITY_GATE } }
+            steps {
+                sh '''
+                    echo "=== 보안 게이트: 시크릿 + HIGH/CRITICAL 취약점 빠른 체크 ==="
+                    mkdir -p ${WORKSPACE}/security-gate ${TRIVY_CACHE}
+
+                    # [1] Gitleaks — 시크릿 스캔
+                    echo ">> Gitleaks 시크릿 스캔..."
+                    docker run --rm \
+                        -v ${WORKSPACE}:/path \
+                        zricethezav/gitleaks:latest detect \
+                        --source /path \
+                        --report-format json \
+                        --report-path /path/security-gate/gitleaks.json \
+                        --no-git 2>&1 | tail -5 || true
+
+                    SECRETS=0
+                    if [ -f "${WORKSPACE}/security-gate/gitleaks.json" ]; then
+                        SECRETS=$(python3 -c "
+import json
+with open('${WORKSPACE}/security-gate/gitleaks.json') as f:
+    d = json.load(f)
+print(len(d) if isinstance(d, list) else 0)
+" 2>/dev/null || echo 0)
+                    fi
+
+                    if [ "${SECRETS}" -gt 0 ]; then
+                        echo "⚠️  WARNING: ${SECRETS}개의 시크릿이 코드에 포함되어 있을 수 있습니다!"
+                    else
+                        echo "✅ 시크릿 없음"
+                    fi
+
+                    # [2] Trivy FS — HIGH/CRITICAL 취약점 체크 (보고만, 배포 차단 안 함)
+                    echo ">> Trivy 소스코드 취약점 스캔 (HIGH/CRITICAL)..."
+                    docker run --rm \
+                        -v ${WORKSPACE}:/workspace \
+                        -v ${TRIVY_CACHE}:/root/.cache/trivy \
+                        aquasec/trivy:latest fs \
+                        --scanners vuln,secret,misconfig \
+                        --severity HIGH,CRITICAL \
+                        --exit-code 0 \
+                        --format table \
+                        /workspace 2>&1 | tail -30 || true
+
+                    echo "✅ 보안 게이트 완료 (종합 점검은 Jenkinsfile.security 파이프라인 사용)"
+                '''
             }
         }
 

@@ -1,6 +1,7 @@
 from fastapi import APIRouter, HTTPException
 from datetime import datetime, timedelta, timezone
-from database import get_db
+import json
+from database import get_pool
 from models import SecurityReport
 
 router = APIRouter()
@@ -8,46 +9,49 @@ router = APIRouter()
 
 @router.get("/reports")
 async def list_reports(page: int = 1, limit: int = 10):
-    db = get_db()
     offset = (page - 1) * limit
-    result = (
-        db.table("security_reports")
-        .select("*")
-        .order("created_at", desc=True)
-        .range(offset, offset + limit - 1)
-        .execute()
-    )
-    return {"items": result.data, "page": page, "limit": limit}
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            "SELECT * FROM security_reports ORDER BY created_at DESC LIMIT $1 OFFSET $2",
+            limit, offset,
+        )
+    return {"items": [dict(r) for r in rows], "page": page, "limit": limit}
 
 
 @router.get("/reports/{report_id}")
 async def get_report(report_id: str):
-    db = get_db()
-    result = db.table("security_reports").select("*").eq("id", report_id).execute()
-    if not result.data:
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow("SELECT * FROM security_reports WHERE id = $1", report_id)
+    if not row:
         raise HTTPException(status_code=404, detail="Report not found")
-    return result.data[0]
+    return dict(row)
 
 
 @router.post("/reports", status_code=201)
 async def save_report(report: SecurityReport):
-    db = get_db()
-    result = db.table("security_reports").insert(report.model_dump()).execute()
-    return result.data[0]
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            """INSERT INTO security_reports (build_number, overall_status, tools, duration_min, triggered_by)
+               VALUES ($1, $2, $3::jsonb, $4, $5) RETURNING *""",
+            report.build_number, report.overall_status,
+            json.dumps(report.tools), report.duration_min, report.triggered_by,
+        )
+    return dict(row)
 
 
 @router.get("/summary")
 async def summary():
-    db = get_db()
-    since = (datetime.now(timezone.utc) - timedelta(days=7)).isoformat()
-    result = (
-        db.table("security_reports")
-        .select("*")
-        .gte("created_at", since)
-        .order("created_at", desc=True)
-        .execute()
-    )
-    rows = result.data
+    since = datetime.now(timezone.utc) - timedelta(days=7)
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            "SELECT * FROM security_reports WHERE created_at >= $1 ORDER BY created_at DESC",
+            since,
+        )
+    rows = [dict(r) for r in rows]
     total = len(rows)
     pass_count = sum(1 for r in rows if r["overall_status"] == "PASS")
     fail_count = sum(1 for r in rows if r["overall_status"] == "FAIL")

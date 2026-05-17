@@ -1,11 +1,28 @@
-from supabase import create_client, Client
+import asyncpg
 from config import settings
 
-_client: Client | None = None
+_pool: asyncpg.Pool | None = None
 
 
-def get_db() -> Client:
-    global _client
-    if _client is None:
-        _client = create_client(settings.supabase_url, settings.supabase_key)
-    return _client
+async def init_pool() -> None:
+    global _pool
+    if _pool is None:
+        _pool = await asyncpg.create_pool(
+            dsn=settings.db_dsn,
+            min_size=1,
+            max_size=10,
+            command_timeout=30,
+        )
+
+
+async def close_pool() -> None:
+    global _pool
+    if _pool is not None:
+        await _pool.close()
+        _pool = None
+
+
+def get_pool() -> asyncpg.Pool:
+    if _pool is None:
+        raise RuntimeError("DB pool not initialized")
+    return _pool

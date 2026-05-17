@@ -1,14 +1,28 @@
+from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pathlib import Path
+from database import init_pool, close_pool
 from routes import pr, security, deploy, request, reports
 
-app = FastAPI(title="JB Admin Portal", version="1.0.0")
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    await init_pool()
+    yield
+    await close_pool()
+
+
+app = FastAPI(title="JB Admin Portal", version="2.0.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["https://jbdatahub.com", "https://admin.jbdatahub.com", "http://localhost:5173"],
+    allow_origins=[
+        "https://jbdatahub.com",
+        "https://admin.jbdatahub.com",
+        "http://localhost:5173",
+    ],
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE"],
     allow_headers=["Content-Type", "Authorization"],

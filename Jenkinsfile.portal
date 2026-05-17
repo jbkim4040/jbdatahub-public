@@ -1,0 +1,28 @@
+pipeline {
+    agent any
+
+    environment {
+        MANAGER_HOST = '134.185.105.226'
+        MANAGER_KEY  = '/home/ubuntu/.ssh/id_ed25519_manager'
+    }
+
+    stages {
+        stage('Blue/Green Deploy') {
+            steps {
+                sh """
+                    ssh -o StrictHostKeyChecking=no -i ${MANAGER_KEY} ubuntu@${MANAGER_HOST} \
+                        '~/deploy-admin.sh' 2>&1
+                """
+            }
+        }
+    }
+
+    post {
+        success {
+            echo 'Admin Portal Blue/Green deploy succeeded.'
+        }
+        failure {
+            echo 'Deploy failed — previous slot still active.'
+        }
+    }
+}

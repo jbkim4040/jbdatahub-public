@@ -31,7 +31,7 @@ pipeline {
                 sh '''
                     ssh -o StrictHostKeyChecking=no $APP_SERVER \
                         "if [ -d /home/ubuntu/jb-workspace-deploy/.git ]; then
-                            cd /home/ubuntu/jb-workspace-deploy && git pull origin master
+                            cd /home/ubuntu/jb-workspace-deploy && git fetch origin && git checkout master && git reset --hard origin/master
                          else
                             git clone https://jbkim4040:$(grep ^GITHUB_TOKEN= $ENV_FILE | cut -d= -f2-)@github.com/jbkim4040/jb-workspace.git /home/ubuntu/jb-workspace-deploy
                          fi"

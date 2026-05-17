@@ -1,7 +1,9 @@
 import anthropic
 import httpx
 import json
+import logging
 from fastapi import APIRouter, HTTPException
+logger = logging.getLogger(__name__)
 from pydantic import BaseModel
 from typing import Literal
 from config import settings
@@ -133,7 +135,8 @@ async def preview_changes(req: RequestInput):
     raw = message.content[0].text.strip()
     try:
         changes = json.loads(raw)
-    except Exception:
+    except Exception as e:
+        logger.warning('JSON parse failed, fallback to regex: %s', e)
         import re
         m = re.search(r"\[.*\]", raw, re.DOTALL)
         changes = json.loads(m.group()) if m else []
@@ -180,7 +183,7 @@ async def apply_changes(req: ApplyInput):
         try:
             from routes.deploy import trigger_deploy
             await trigger_deploy()
-        except Exception:
-            pass
+        except Exception as e:
+            logger.error('apply_changes step failed: %s', e)
 
     return {"results": results, "deployed": req.auto_deploy}

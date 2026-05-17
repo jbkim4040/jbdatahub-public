@@ -124,6 +124,9 @@ public class DdlGeneratorService {
         String id = s.replaceAll("[^가-힣a-zA-Z0-9]", "_")
                 .replaceAll("_+", "_")
                 .replaceAll("^_|_$", "");
-        return id.isEmpty() ? null : "\"" + id + "\"";
+        if (id.isEmpty()) return null;
+        // C6 fix: 이중 안전망 — regex로 안전 문자만 통과시켰지만 quote-doubling으로 인젝션 완전 차단
+        String escaped = id.replace("\"", "\"\"");
+        return "\"" + escaped + "\"";
     }
 }

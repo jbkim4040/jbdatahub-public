@@ -5,7 +5,9 @@ import hmac
 import hashlib
 import json
 import anthropic
+import logging
 from datetime import datetime, timezone
+logger = logging.getLogger(__name__)
 
 from config import settings
 # from database import get_db  # replaced by get_pool
@@ -80,7 +82,9 @@ def save_review(pr_number: int, score: int, summary: str, full_review: str) -> N
 
 async def save_review_async(pr_number: int, pr_title: str, score: int, summary: str, full_review: str) -> None:
     import json
-    from datetime import datetime, timezone
+    import logging
+from datetime import datetime, timezone
+logger = logging.getLogger(__name__)
     from database import get_pool
     pool = get_pool()
     async with pool.acquire() as conn:
@@ -91,8 +95,8 @@ async def save_review_async(pr_number: int, pr_title: str, score: int, summary: 
                 pr_number, pr_title, full_review, "pending", score,
                 json.dumps([{"summary": summary, "ts": datetime.now(timezone.utc).isoformat()}]),
             )
-        except Exception:
-            pass
+        except Exception as e:
+            logger.error('save_review_async failed: %s', e)
 
 
 # ── Helper: Claude 리뷰 생성 ──────────────────────────────────────
@@ -278,8 +282,8 @@ async def github_webhook(request: Request, background_tasks: BackgroundTasks):
     async def _auto_review(n: int):
         try:
             await review_pr(n)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.error('save_review_async failed: %s', e)
 
     background_tasks.add_task(_auto_review, pr_number)
     return {"status": "accepted", "pr_number": pr_number}

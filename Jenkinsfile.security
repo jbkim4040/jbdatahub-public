@@ -43,8 +43,11 @@ pipeline {
                     env.HOST_WS = env.WORKSPACE.replace('/var/jenkins_home', '/home/ubuntu/jenkins_home')
                 }
                 sh '''
-                    mkdir -p ${REPORT_DIR}/images ${REPORT_DIR}/zap \
-                             ${HOST_WS}/.trivy-cache ${HOST_WS}/.owasp-dc-data
+                    # mkdir은 컨테이너 경로(WORKSPACE) 기준 — 호스트 경로로 생성 불가
+                    mkdir -p ${WORKSPACE}/security-reports/images \
+                             ${WORKSPACE}/security-reports/zap \
+                             ${WORKSPACE}/.trivy-cache \
+                             ${WORKSPACE}/.owasp-dc-data
                     echo "============================================"
                     echo " 보안 점검 시작: $(date '+%Y-%m-%d %H:%M:%S')"
                     echo " 대상 소스    : ${WORKSPACE}"

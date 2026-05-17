@@ -3,7 +3,7 @@ pipeline {
 
     environment {
         ENV_FILE       = "/var/jenkins_home/secrets/.env"
-        STATE_FILE     = "/var/jenkins_home/bg-state.txt"
+        STATE_FILE     = "/home/ubuntu/bg-state.txt"
         NETWORK        = "jb-workspace_app-network"
         DOCKER_BUILDKIT = "1"
         APP_SERVER     = "ubuntu@158.180.65.135"
@@ -77,7 +77,7 @@ pipeline {
                         $WORKSPACE/deploy.sh \
                         $APP_SERVER:/tmp/deploy.sh
                     ssh -o StrictHostKeyChecking=no $APP_SERVER \
-                        "chmod +x /tmp/deploy.sh && STATE_FILE=$STATE_FILE bash /tmp/deploy.sh"
+                        "chmod +x /tmp/deploy.sh && bash /tmp/deploy.sh"
                 '''
             }
         }

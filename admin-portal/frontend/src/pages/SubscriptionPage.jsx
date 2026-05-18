@@ -11,6 +11,8 @@ const STATUS_STYLE = {
   CANCELLED: 'bg-gray-100 text-gray-500',
 }
 
+import PortalLoginModal from './PortalLoginModal'
+
 function CookieModal({ onClose, onSaved }) {
   const [cookie, setCookie] = useState('')
   const [name, setName]     = useState('')
@@ -60,6 +62,7 @@ export default function SubscriptionPage() {
   const [loading, setLoading]   = useState(false)
   const [filter, setFilter]     = useState('')
   const [showCookie, setShowCookie] = useState(false)
+  const [showPortalLogin, setShowPortalLogin] = useState(false)
 
   const load = async () => {
     setLoading(true)
@@ -155,6 +158,25 @@ export default function SubscriptionPage() {
         </div>
       )}
 
+      <div style={{padding:'12px',background:'#eff6ff',border:'1px solid #bfdbfe',borderRadius:8,marginBottom:16}}>
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+          <div>
+            <strong style={{color:'#1e40af'}}>🔑 data.go.kr 자동 로그인</strong>
+            <div style={{fontSize:12,color:'#6b7280',marginTop:4}}>
+              ID/PW + CAPTCHA 한 번 입력하면 1시간 cookie 자동 갱신 → 신청 완전 자동
+            </div>
+          </div>
+          <button onClick={()=>setShowPortalLogin(true)} style={{padding:'8px 14px',background:'#2563eb',color:'#fff',border:'none',borderRadius:4,cursor:'pointer'}}>
+            로그인 시작
+          </button>
+        </div>
+      </div>
+      {showPortalLogin && (
+        <PortalLoginModal
+          onClose={()=>setShowPortalLogin(false)}
+          onSaved={()=>{alert('data.go.kr 로그인 성공 — 이제 자동 신청 가능')}}
+        />
+      )}
       {showCookie && (
         <CookieModal
           onClose={() => setShowCookie(false)}

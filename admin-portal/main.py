@@ -7,7 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pathlib import Path
 from database import init_pool, close_pool
-from routes import pr, security, deploy, request, reports, subscription
+from routes import pr, security, deploy, request, reports, subscription, errors, portal_login
 
 
 @asynccontextmanager
@@ -45,6 +45,8 @@ app.include_router(deploy.router,   prefix="/api/deploy",   tags=["Deploy"])
 app.include_router(request.router,  prefix="/api/request",  tags=["Request"])
 app.include_router(reports.router,  prefix="/api/reports",  tags=["Reports"])
 app.include_router(subscription.router, prefix="/api/subscription", tags=["Subscription"])
+app.include_router(portal_login.router, prefix="/api/portal-login", tags=["PortalLogin"])
+app.include_router(errors.router,   prefix="/api/errors",   tags=["Errors"])
 
 
 @app.get("/api/health")
@@ -54,6 +56,18 @@ def health():
 
 DIST = Path(__file__).parent / "frontend" / "dist"
 if DIST.exists():
+    from fastapi import Request
+    from fastapi.responses import FileResponse, JSONResponse
+
+    @app.exception_handler(404)
+    async def spa_fallback(request: Request, exc):
+        if request.url.path.startswith("/api/"):
+            return JSONResponse({"detail": "Not Found"}, status_code=404)
+        index = DIST / "index.html"
+        if index.exists():
+            return FileResponse(str(index))
+        return JSONResponse({"detail": "index.html not found"}, status_code=404)
+
     app.mount("/", StaticFiles(directory=str(DIST), html=True), name="static")
 else:
     @app.get("/")

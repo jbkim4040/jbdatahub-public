@@ -12,4 +12,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
 COPY --from=frontend-builder /app/frontend/dist ./frontend/dist
 EXPOSE 8080
+RUN groupadd -r app && useradd -r -g app -u 1000 app && chown -R app:app /app
+USER 1000
+
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8080"]

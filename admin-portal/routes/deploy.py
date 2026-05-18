@@ -68,7 +68,7 @@ async def trigger_security_scan():
         r = await client.post(
             f"{settings.jenkins_url}/job/{settings.jenkins_security_job}/buildWithParameters"
             "?SKIP_DEPENDENCY_CHECK=false&SKIP_DAST=false&FAIL_ON_HIGH=false"
-            f"&TARGET_URL=http://158.180.65.135",
+            f"&TARGET_URL={settings.target_url}",
             auth=(settings.jenkins_user, settings.jenkins_password),
             headers=crumb,
         )
@@ -80,9 +80,11 @@ async def trigger_security_scan():
 @router.get("/status")
 async def deployment_status():
     proc = await asyncio.create_subprocess_exec(
-        "ssh", "-o", "StrictHostKeyChecking=no",
-        "-i", "/home/ubuntu/.ssh/id_ed25519",
-        "ubuntu@158.180.65.135", "cat /home/ubuntu/bg-state.txt",
+        "ssh",
+        "-o", "StrictHostKeyChecking=accept-new",
+        "-o", "UserKnownHostsFile=/home/ubuntu/.ssh/known_hosts",
+        "-i", settings.deploy_ssh_key,
+        f"ubuntu@{settings.app_server_host}", "cat /home/ubuntu/bg-state.txt",
         stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
     )
     stdout, _ = await proc.communicate()

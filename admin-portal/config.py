@@ -8,6 +8,9 @@ class Settings(BaseSettings):
     jenkins_url: str = "http://localhost:9090"
     jenkins_user: str = "jb-datahub-admin"
     jenkins_password: str
+    app_server_host: str = "140.245.74.59"
+    target_url: str = "https://jbdatahub.com"
+    deploy_ssh_key: str = "/home/ubuntu/.ssh/id_ed25519"
     jenkins_job: str = "jb-workspace"
     jenkins_security_job: str = "jb-workspace-security"
 

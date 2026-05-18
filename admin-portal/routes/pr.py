@@ -259,14 +259,15 @@ async def github_webhook(request: Request, background_tasks: BackgroundTasks):
     """GitHub PR opened 이벤트 수신 → 자동 review 트리거"""
     payload_bytes = await request.body()
 
-    # 시그니처 검증 (webhook_secret 설정 시)
-    if settings.webhook_secret:
-        sig_header = request.headers.get("X-Hub-Signature-256", "")
-        expected = "sha256=" + hmac.new(
-            settings.webhook_secret.encode(), payload_bytes, hashlib.sha256
-        ).hexdigest()
-        if not hmac.compare_digest(sig_header, expected):
-            raise HTTPException(status_code=403, detail="Invalid signature")
+    # H7: webhook_secret 필수. 없으면 503 (의도적 fail-fast)
+    if not settings.webhook_secret:
+        raise HTTPException(status_code=503, detail="webhook_secret이 설정되지 않았습니다 (보안)")
+    sig_header = request.headers.get("X-Hub-Signature-256", "")
+    expected = "sha256=" + hmac.new(
+        settings.webhook_secret.encode(), payload_bytes, hashlib.sha256
+    ).hexdigest()
+    if not hmac.compare_digest(sig_header, expected):
+        raise HTTPException(status_code=403, detail="Invalid signature")
 
     event = request.headers.get("X-GitHub-Event", "")
     if event != "pull_request":

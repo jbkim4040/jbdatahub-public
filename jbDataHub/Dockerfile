@@ -32,6 +32,9 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=90s --retries=3 \
 # JVM 시작 시간 단축 플래그:
 #  -XX:TieredStopAtLevel=1 : C2 JIT 단계 생략 (startup ↑, peak 성능 미세 ↓)
 #  -Xss256k                : 스레드 스택 축소 (기본 1MB → 256KB, 메모리 절약)
+RUN groupadd -r app && useradd -r -g app -u 1000 app && chown -R app:app /app
+USER 1000
+
 ENTRYPOINT ["java", \
   "-XX:+UseContainerSupport", \
   "-XX:MaxRAMPercentage=75.0", \

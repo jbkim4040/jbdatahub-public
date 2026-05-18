@@ -54,7 +54,7 @@ public class SecurityConfig {
                     res.setStatus(jakarta.servlet.http.HttpServletResponse.SC_UNAUTHORIZED);
                     res.setContentType("application/json;charset=UTF-8");
                     res.getWriter().write("{\"error\":\"unauthorized\",\"message\":\"인증이 필요하거나 세션이 만료되었습니다.\"}");
-                }
+                })
             )
             .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);
 

@@ -1,4 +1,4 @@
-com.jb.datahub.auth.entity;
+package com.jb.datahub.auth.entity;
 
 import jakarta.persistence.*;
 import lombok.*;

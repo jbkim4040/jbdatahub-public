@@ -31,6 +31,7 @@ public class SecurityConfig {
     private String allowedOrigins;
 
     private final JwtFilter jwtFilter;
+    private final com.jb.datahub.auth.GuestReadOnlyFilter guestReadOnlyFilter;
 
     @Bean
     public PasswordEncoder passwordEncoder() {
@@ -47,8 +48,8 @@ public class SecurityConfig {
                 .requestMatchers("/api/auth/login", "/api/auth/refresh", "/api/auth/logout", "/api/health", "/actuator/**").permitAll()
                 .requestMatchers("/api/auth/me").authenticated()
                 .requestMatchers(HttpMethod.GET, "/api/public-data/**").permitAll()
-                .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").hasAnyRole("ADMIN", "SUPER_ADMIN")
-                .requestMatchers("/api/admin/**").hasAnyRole("ADMIN", "SUPER_ADMIN")
+                .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").hasAnyRole("ADMIN", "SUPER_ADMIN", "GUEST")
+                .requestMatchers("/api/admin/**").hasAnyRole("ADMIN", "SUPER_ADMIN", "GUEST")
                 .anyRequest().authenticated())
             .exceptionHandling(eh -> eh
                 .authenticationEntryPoint((req, res, e) -> {
@@ -57,7 +58,8 @@ public class SecurityConfig {
                     res.getWriter().write("{\"error\":\"unauthorized\",\"message\":\"인증이 필요하거나 세션이 만료되었습니다.\"}");
                 })
             )
-            .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);
+            .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class)
+            .addFilterAfter(guestReadOnlyFilter, JwtFilter.class);
 
         return http.build();
     }

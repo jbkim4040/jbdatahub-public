@@ -6,7 +6,10 @@ import hashlib
 import json
 import anthropic
 import logging
+import logging
 from datetime import datetime, timezone
+
+logger = logging.getLogger(__name__)
 logger = logging.getLogger(__name__)
 
 from config import settings
@@ -82,9 +85,7 @@ def save_review(pr_number: int, score: int, summary: str, full_review: str) -> N
 
 async def save_review_async(pr_number: int, pr_title: str, score: int, summary: str, full_review: str) -> None:
     import json
-    import logging
-from datetime import datetime, timezone
-logger = logging.getLogger(__name__)
+    from datetime import datetime, timezone
     from database import get_pool
     pool = get_pool()
     async with pool.acquire() as conn:

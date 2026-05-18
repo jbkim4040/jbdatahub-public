@@ -6,6 +6,7 @@ import SecurityReports from './pages/SecurityReports'
 import Deploy from './pages/Deploy'
 import RequestPage from './pages/RequestPage'
 import ReportsPage from './pages/ReportsPage'
+import SubscriptionPage from './pages/SubscriptionPage'
 
 export default function App() {
   return (
@@ -17,6 +18,7 @@ export default function App() {
         <Route path="deploy/*"   element={<Deploy />} />
         <Route path="request/*"  element={<RequestPage />} />
         <Route path="reports/*"  element={<ReportsPage />} />
+        <Route path="subscriptions/*" element={<SubscriptionPage />} />
       </Route>
     </Routes>
   )

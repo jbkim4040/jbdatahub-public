@@ -7,7 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pathlib import Path
 from database import init_pool, close_pool
-from routes import pr, security, deploy, request, reports
+from routes import pr, security, deploy, request, reports, subscription
 
 
 @asynccontextmanager
@@ -44,6 +44,7 @@ app.include_router(security.router, prefix="/api/security", tags=["Security"])
 app.include_router(deploy.router,   prefix="/api/deploy",   tags=["Deploy"])
 app.include_router(request.router,  prefix="/api/request",  tags=["Request"])
 app.include_router(reports.router,  prefix="/api/reports",  tags=["Reports"])
+app.include_router(subscription.router, prefix="/api/subscription", tags=["Subscription"])
 
 
 @app.get("/api/health")

@@ -1,5 +1,5 @@
-import { NavLink, Outlet } from 'react-router-dom'
-import { GitPullRequest, Shield, Rocket, LayoutDashboard, MessageSquarePlus, FileText } from 'lucide-react'
+import { Database, NavLink, Outlet } from 'react-router-dom'
+import { GitPullRequest, Shield, Rocket, LayoutDashboard, MessageSquarePlus, FileText } 
 
 const nav = [
   { to: '/',        icon: LayoutDashboard,    label: '대시보드' },
@@ -8,6 +8,7 @@ const nav = [
   { to: '/deploy',  icon: Rocket,             label: '배포 관리' },
   { to: '/request', icon: MessageSquarePlus,  label: '기능 요청' },
   { to: '/reports', icon: FileText,           label: '리포트' },
+  { to: '/subscriptions', icon: Database,    label: '공공API 신청' },
 ]
 
 export default function Layout() {

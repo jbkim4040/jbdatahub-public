@@ -16,7 +16,7 @@ http.interceptors.response.use(
   (res) => res,
   async (err) => {
     const original = err.config
-    if (err.response?.status === 401 && !original._retry) {
+    if ([401, 403].includes(err.response?.status) && !original._retry) {
       if (isRefreshing) {
         return new Promise((resolve, reject) => failedQueue.push({ resolve, reject }))
           .then(() => http(original))
@@ -44,3 +44,4 @@ http.interceptors.response.use(
 )
 
 export default http
+

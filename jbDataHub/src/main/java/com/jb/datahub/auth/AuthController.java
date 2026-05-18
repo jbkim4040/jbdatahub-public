@@ -29,7 +29,7 @@ public class AuthController {
 
     private static final String TOKEN_COOKIE = "jb_token";
     private static final String REFRESH_COOKIE = "jb_refresh";
-    private static final int    TOKEN_MAX_AGE   = 15 * 60;            // 15분
+    private static final int    TOKEN_MAX_AGE   = 60 * 60;           // 1시간
     private static final int    REFRESH_MAX_AGE = 7 * 24 * 60 * 60;   // 7일
 
     private final JwtUtil              jwtUtil;
@@ -126,3 +126,4 @@ public class AuthController {
                 .build();
     }
 }
+

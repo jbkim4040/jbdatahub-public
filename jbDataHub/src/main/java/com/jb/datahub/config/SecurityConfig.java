@@ -48,7 +48,13 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.GET, "/api/public-data/**").permitAll()
                 .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").hasAnyRole("ADMIN", "SUPER_ADMIN")
                 .requestMatchers("/api/admin/**").hasAnyRole("ADMIN", "SUPER_ADMIN")
-                .anyRequest().authenticated()
+                .anyRequest().authenticated())
+            .exceptionHandling(eh -> eh
+                .authenticationEntryPoint((req, res, e) -> {
+                    res.setStatus(jakarta.servlet.http.HttpServletResponse.SC_UNAUTHORIZED);
+                    res.setContentType("application/json;charset=UTF-8");
+                    res.getWriter().write("{\"error\":\"unauthorized\",\"message\":\"인증이 필요하거나 세션이 만료되었습니다.\"}");
+                }
             )
             .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);
 
@@ -68,3 +74,4 @@ public class SecurityConfig {
         return source;
     }
 }
+

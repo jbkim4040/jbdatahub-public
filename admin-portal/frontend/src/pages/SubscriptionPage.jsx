@@ -12,6 +12,7 @@ const STATUS_STYLE = {
 }
 
 import PortalLoginModal from './PortalLoginModal'
+import SubscribeModal from './SubscribeModal'
 
 function CookieModal({ onClose, onSaved }) {
   const [cookie, setCookie] = useState('')
@@ -63,6 +64,7 @@ export default function SubscriptionPage() {
   const [filter, setFilter]     = useState('')
   const [showCookie, setShowCookie] = useState(false)
   const [showPortalLogin, setShowPortalLogin] = useState(false)
+  const [showSubscribe, setShowSubscribe] = useState(false)
 
   const load = async () => {
     setLoading(true)
@@ -96,6 +98,10 @@ export default function SubscriptionPage() {
           <button onClick={refresh}
                   className="flex items-center gap-1 px-3 py-2 border rounded-lg text-sm hover:bg-gray-50">
             <RefreshCw size={14} /> 상태 새로고침
+          </button>
+          <button onClick={() => setShowSubscribe(true)}
+                  className="flex items-center gap-1 px-3 py-2 rounded-lg text-sm bg-indigo-600 text-white hover:bg-indigo-700">
+            + 새 신청
           </button>
         </div>
       </div>
@@ -158,19 +164,46 @@ export default function SubscriptionPage() {
         </div>
       )}
 
-      <div style={{padding:'12px',background:'#eff6ff',border:'1px solid #bfdbfe',borderRadius:8,marginBottom:16}}>
+      <div style={{padding:'12px',background: session?.has_session ? '#ecfdf5' : '#eff6ff', border:'1px solid ' + (session?.has_session ? '#a7f3d0' : '#bfdbfe'),borderRadius:8,marginBottom:16}}>
         <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
           <div>
-            <strong style={{color:'#1e40af'}}>🔑 data.go.kr 자동 로그인</strong>
-            <div style={{fontSize:12,color:'#6b7280',marginTop:4}}>
-              ID/PW + CAPTCHA 한 번 입력하면 1시간 cookie 자동 갱신 → 신청 완전 자동
-            </div>
+            {session?.has_session ? (
+              <>
+                <strong style={{color:'#065f46'}}>✓ data.go.kr 로그인됨</strong>
+                <div style={{fontSize:12,color:'#6b7280',marginTop:4}}>
+                  {session.user_name || '(미지정)'} · 만료: {session.expires_at ? new Date(session.expires_at).toLocaleString('ko-KR') : 'n/a'}
+                </div>
+              </>
+            ) : (
+              <>
+                <strong style={{color:'#1e40af'}}>🔑 data.go.kr 자동 로그인</strong>
+                <div style={{fontSize:12,color:'#6b7280',marginTop:4}}>
+                  ID/PW + CAPTCHA 한 번 입력하면 1시간 cookie 자동 갱신 → 신청 완전 자동
+                </div>
+              </>
+            )}
           </div>
-          <button onClick={()=>setShowPortalLogin(true)} style={{padding:'8px 14px',background:'#2563eb',color:'#fff',border:'none',borderRadius:4,cursor:'pointer'}}>
-            로그인 시작
-          </button>
+          {session?.has_session ? (
+            <button onClick={async ()=>{
+              if (!confirm('data.go.kr 세션을 로그아웃하시겠습니까?')) return
+              await api.post('/portal-login/logout')
+              load()
+            }} style={{padding:'8px 14px',background:'#6b7280',color:'#fff',border:'none',borderRadius:4,cursor:'pointer'}}>
+              로그아웃
+            </button>
+          ) : (
+            <button onClick={()=>setShowPortalLogin(true)} style={{padding:'8px 14px',background:'#2563eb',color:'#fff',border:'none',borderRadius:4,cursor:'pointer'}}>
+              로그인 시작
+            </button>
+          )}
         </div>
       </div>
+      {showSubscribe && (
+        <SubscribeModal
+          onClose={()=>setShowSubscribe(false)}
+          onCreated={()=>{load(); alert('신청 등록 완료 — 자동 제출 시작됨')}}
+        />
+      )}
       {showPortalLogin && (
         <PortalLoginModal
           onClose={()=>setShowPortalLogin(false)}

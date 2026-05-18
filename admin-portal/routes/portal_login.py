@@ -296,3 +296,11 @@ async def status():
         if d.get(k):
             d[k] = d[k].isoformat()
     return d
+
+@router.post("/logout")
+async def logout():
+    """data.go.kr 세션 cookie 무효화 — DB valid=false."""
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        n = await conn.execute("UPDATE data_portal_session SET valid=false WHERE valid=true")
+    return {"ok": True, "invalidated": n}

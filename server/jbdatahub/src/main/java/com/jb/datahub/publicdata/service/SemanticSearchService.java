@@ -25,7 +25,15 @@ public class SemanticSearchService {
     private static final String EMBED_URL = "http://localhost:8001";
 
     public PageResponseDto<PublicApiListDto> semanticSearch(String query, int page, int size) {
-        String vec = getEmbedding(query);
+        String vec;
+        try {
+            vec = getEmbedding(query);
+        } catch (Exception e) {
+            log.warn("embed_service unavailable: {}", e.getMessage());
+            return PageResponseDto.<PublicApiListDto>builder()
+                .content(java.util.Collections.emptyList()).page(page).size(size)
+                .totalElements(0L).totalPages(0).first(true).last(true).build();
+        }
         int offset  = page * size;
 
         List<PublicApiListDto> items = jdbcTemplate.query(
@@ -64,7 +72,8 @@ public class SemanticSearchService {
     }
 
     public List<SimilarApiDto> getSimilar(String listId) {
-        return jdbcTemplate.query(
+        try {
+            return jdbcTemplate.query(
             "SELECT s.similar_id, l.list_title, l.org_nm, l.new_category_nm, s.score" +
             " FROM api_similar s JOIN public_api_list l ON l.list_id = s.similar_id" +
             " WHERE s.list_id = ? ORDER BY s.score DESC LIMIT 10",
@@ -75,12 +84,17 @@ public class SemanticSearchService {
                 .categoryNm(rs.getString("new_category_nm"))
                 .score(rs.getDouble("score"))
                 .build(),
-            listId
-        );
+                listId
+            );
+        } catch (Exception e) {
+            log.warn("getSimilar fallback: {}", e.getMessage());
+            return java.util.Collections.emptyList();
+        }
     }
 
     public List<TopicDto> getTopics() {
-        return jdbcTemplate.query(
+        try {
+            return jdbcTemplate.query(
             "SELECT l.topic_id, l.topic_keywords, COUNT(t.list_id) AS item_count" +
             " FROM api_topic_label l JOIN api_topic t ON t.topic_id = l.topic_id" +
             " GROUP BY l.topic_id, l.topic_keywords ORDER BY item_count DESC",
@@ -89,7 +103,11 @@ public class SemanticSearchService {
                 .topicKeywords(rs.getString("topic_keywords"))
                 .itemCount(rs.getLong("item_count"))
                 .build()
-        );
+            );
+        } catch (Exception e) {
+            log.warn("getTopics fallback (테이블 미생성): {}", e.getMessage());
+            return java.util.Collections.emptyList();
+        }
     }
 
     public PageResponseDto<PublicApiListDto> getListByTopic(int topicId, int page, int size) {

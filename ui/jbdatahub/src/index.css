@@ -15,3 +15,11 @@ a {
   text-decoration: none;
   color: inherit;
 }
+
+
+/* 모바일 친화 글로벌 (2026-05-18) */
+@media (max-width: 768px) {
+  body { font-size: 16px; }  /* iOS Safari input 자동 줌 방지 */
+  input, select, textarea, button { font-size: 16px !important; }
+  button { min-height: 40px; }
+}

@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { Outlet, NavLink, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import styles from './Layout.module.css'
@@ -5,6 +6,7 @@ import styles from './Layout.module.css'
 export default function Layout() {
   const { auth, isAdmin, logout } = useAuth()
   const navigate = useNavigate()
+  const [menuOpen, setMenuOpen] = useState(false)
 
   const handleLogout = () => {
     logout()
@@ -15,7 +17,8 @@ export default function Layout() {
     <div className={styles.wrapper}>
       <header className={styles.header}>
         <NavLink to="/" className={styles.logo}>jbDataHub</NavLink>
-        <nav className={styles.nav}>
+        <button className={styles.menuToggle} onClick={() => setMenuOpen(v=>!v)} aria-label="메뉴 열기">☰</button>
+        <nav className={`${styles.nav} ${menuOpen ? styles.navOpen : ''}`} onClick={() => setMenuOpen(false)}>
           <NavLink to="/" end className={({ isActive }) => isActive ? styles.active : ''}>홈</NavLink>
           <NavLink to="/list" className={({ isActive }) => isActive ? styles.active : ''}>목록 조회</NavLink>
           {isAdmin && (

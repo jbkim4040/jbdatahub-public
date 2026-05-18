@@ -77,10 +77,15 @@ public class UserService {
         if (user.getUsername().equals(requestingUsername)) {
             throw new IllegalArgumentException("자기 자신은 삭제할 수 없습니다.");
         }
+        if (user.getRole().equals(requestingRole)) {
+            throw new IllegalArgumentException("같은 권한(" + requestingRole + ")의 계정은 삭제할 수 없습니다.");
+        }
         checkCanManage(user.getRole(), requestingRole);
 
-        // 삭제 전 토큰 즉시 무효화
+        // 삭제 전 토큰 즉시 무효화 (DB + memory)
         refreshTokenService.revokeByUsername(user.getUsername());
+        user.setTokensRevokedAt(java.time.Instant.now());
+        userRepository.save(user);
         userTokenRevocationStore.revoke(user.getUsername());
         userRepository.delete(user);
     }
@@ -92,8 +97,14 @@ public class UserService {
         if (user.getUsername().equals(requestingUsername)) {
             throw new IllegalArgumentException("자기 자신에게 강제 로그아웃을 적용할 수 없습니다.");
         }
+        if (user.getRole().equals(requestingRole)) {
+            throw new IllegalArgumentException("같은 권한(" + requestingRole + ")의 계정에 강제 로그아웃을 적용할 수 없습니다.");
+        }
         checkCanManage(user.getRole(), requestingRole);
         refreshTokenService.revokeByUsername(user.getUsername());
+        // DB 영속화 — Blue/Green 컨테이너 간 공유 가능
+        user.setTokensRevokedAt(java.time.Instant.now());
+        userRepository.save(user);
         userTokenRevocationStore.revoke(user.getUsername());
     }
 

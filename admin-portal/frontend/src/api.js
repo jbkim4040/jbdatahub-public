@@ -35,3 +35,5 @@ export const reportsApi = {
   pdfUrl: (id)             => `/api/reports/${id}/pdf`,
   docxUrl:(id)             => `/api/reports/${id}/docx`,
 }
+
+export default api

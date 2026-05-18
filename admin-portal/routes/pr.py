@@ -4,7 +4,6 @@ import httpx
 import hmac
 import hashlib
 import json
-import anthropic
 import logging
 import logging
 from datetime import datetime, timezone
@@ -102,9 +101,6 @@ async def save_review_async(pr_number: int, pr_title: str, score: int, summary: 
 
 # ── Helper: Claude 리뷰 생성 ──────────────────────────────────────
 
-def call_claude_review(diff: str, pr_title: str, pr_body: str) -> tuple[int, str, str]:
-    """Claude로 diff 분석 → (score, summary, full_review)"""
-    client = anthropic.Anthropic(api_key=settings.claude_api_key)
 
     system_prompt = (
         "당신은 시니어 소프트웨어 엔지니어입니다. "
@@ -200,7 +196,6 @@ async def get_pr(pr_number: int):
     }
 
 
-@router.post("/{pr_number}/review")
 async def review_pr(pr_number: int):
     """Claude로 diff 분석 → PR 코멘트 등록 + DB 저장"""
     repo = settings.github_repo
@@ -211,11 +206,19 @@ async def review_pr(pr_number: int):
 
     diff = await gh_get(f"/repos/{repo}/pulls/{pr_number}", headers=DIFF_HEADERS)
 
-    score, summary, full_review = call_claude_review(
-        diff=diff,
-        pr_title=pr["title"],
-        pr_body=pr.get("body", ""),
-    )
+    try:
+        score, summary, full_review = call_claude_review(
+            diff=diff,
+            pr_title=pr["title"],
+            pr_body=pr.get("body", ""),
+        )
+    except TypeError as e:
+        if "authentication method" in str(e):
+            raise HTTPException(status_code=503, detail="CLAUDE_API_KEY 미설정")
+        raise HTTPException(status_code=500, detail=f"Claude API 오류: {e}")
+    except Exception as e:
+        logger.error("Claude review failed: %s", e)
+        raise HTTPException(status_code=502, detail=f"Claude API 호출 실패: {e}")
 
     # GitHub PR 코멘트 등록
     comment_body = (
@@ -281,11 +284,5 @@ async def github_webhook(request: Request, background_tasks: BackgroundTasks):
 
     pr_number = payload["pull_request"]["number"]
 
-    async def _auto_review(n: int):
-        try:
-            await review_pr(n)
-        except Exception as e:
-            logger.error('save_review_async failed: %s', e)
 
-    background_tasks.add_task(_auto_review, pr_number)
-    return {"status": "accepted", "pr_number": pr_number}
+    return {"status": "accepted (review disabled)", "pr_number": pr_number}

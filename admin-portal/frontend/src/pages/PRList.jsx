@@ -7,7 +7,6 @@ export default function PRList() {
   const [prs, setPrs] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
-  const [reviewScores, setReviewScores] = useState({}) // pr_number → score
 
   const fetchPrs = useCallback(async () => {
     setLoading(true)
@@ -26,8 +25,6 @@ export default function PRList() {
   const fetchReviewScore = useCallback(async (prNumber) => {
     try {
       const res = await prsApi.get(prNumber)
-      const reviews = res.data.reviews || []
-      if (reviews.length > 0) {
         setReviewScores((prev) => ({ ...prev, [prNumber]: reviews[0].score }))
       }
     } catch (_) {
@@ -41,14 +38,11 @@ export default function PRList() {
 
   useEffect(() => {
     prs.forEach((pr) => {
-      if (reviewScores[pr.number] === undefined) {
-        fetchReviewScore(pr.number)
-      }
+
     })
   }, [prs]) // eslint-disable-line react-hooks/exhaustive-deps
 
   async function handleReview(prNumber) {
-    const res = await prsApi.review(prNumber)
     const result = res.data
     setReviewScores((prev) => ({ ...prev, [prNumber]: result.score }))
     return result
@@ -115,7 +109,7 @@ export default function PRList() {
           {prs.map((pr) => (
             <PRCard
               key={pr.number}
-              pr={{ ...pr, latestScore: reviewScores[pr.number] }}
+              pr={{ ...pr }}
               onReview={handleReview}
               onMerge={handleMerge}
             />

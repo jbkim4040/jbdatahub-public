@@ -68,6 +68,10 @@ public class JwtUtil {
         return getClaims(token).get("role", String.class);
     }
 
+    public Date getExpiration(String token) {
+        return getClaims(token).getExpiration();
+    }
+
     public Instant getIssuedAt(String token) {
         Date iat = getClaims(token).getIssuedAt();
         return iat != null ? iat.toInstant() : Instant.EPOCH;

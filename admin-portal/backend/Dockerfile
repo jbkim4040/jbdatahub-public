@@ -16,7 +16,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libasound2 fonts-noto-cjk curl \
  && rm -rf /var/lib/apt/lists/*
 
-COPY requirements.txt .
+COPY backend/requirements.txt .
 RUN --mount=type=cache,target=/root/.cache/pip pip install -r requirements.txt
 
 # Playwright Chromium 다운로드 (ARM 호환)
@@ -26,7 +26,7 @@ RUN playwright install chromium
 RUN groupadd -r app && useradd -r -g app -u 1000 app && chown -R app:app /app /opt/playwright
 USER 1000
 
-COPY --chown=app:app . .
+COPY --chown=app:app backend/ .
 COPY --from=frontend-builder --chown=app:app /app/frontend/dist ./frontend/dist
 EXPOSE 8080
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8080"]

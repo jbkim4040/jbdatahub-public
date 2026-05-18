@@ -47,6 +47,20 @@ function SortTh({ field, sort, onSort, children, className }) {
 function OpenApiTab({ stats }) {
   const [data, setData]           = useState(null)
   const [search, setSearch]       = useState('')
+  const [subscribedMap, setSubscribedMap]   = useState({})  // list_id → status
+
+  // 사용자 신청 목록 로드 (등록 여부 표시용)
+  useEffect(() => {
+    let cancelled = false
+    fetch('/api/public-data/my-subscriptions', { credentials: 'include' })
+      .then(r => r.ok ? r.json() : { items: [] })
+      .then(d => { if (!cancelled) {
+        const m = {}; (d.items || []).forEach(it => { m[it.list_id] = it.status })
+        setSubscribedMap(m)
+      }})
+      .catch(()=>{})
+    return () => { cancelled = true }
+  }, [])
   const [query, setQuery]         = useState('')
   const [page, setPage]           = useState(0)
   const [loading, setLoading]     = useState(false)
@@ -278,26 +292,32 @@ function OpenApiTab({ stats }) {
                       <td className={styles.num}>{row.requestCnt?.toLocaleString()}</td>
                       <td>{row.updatedAt}</td>
                       <td style={{textAlign:"center"}} onClick={(e)=>e.stopPropagation()}>
-                        <button
-                          style={{padding:'4px 10px',fontSize:11,background:'#2563eb',color:'#fff',border:'none',borderRadius:4,cursor:'pointer'}}
-                          onClick={async (e) => {
-                            e.stopPropagation()
-                            if (!confirm(`"${row.listTitle}" 자동 신청을 등록하시겠습니까?`)) return
-                            try {
-                              const res = await fetch(`/api/public-data/${row.listId}/subscribe`, {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/json' },
-                                credentials: 'include',
-                                body: JSON.stringify({}),
-                              })
-                              if (!res.ok) {
-                                const t = await res.text()
-                                alert('실패: ' + t.slice(0, 200))
-                                return
-                              }
-                              alert('신청 등록 완료 — admin.jbdatahub.com/subscriptions에서 진행 상태 확인')
-                            } catch (err) { alert('오류: ' + err.message) }
-                          }}>신청</button>
+                        {(() => {
+                          const s = subscribedMap[row.listId]
+                          if (s === 'APPROVED')  return <span style={{fontSize:11,color:'#15803d',fontWeight:600}}>🔑 승인</span>
+                          if (s === 'SUBMITTED') return <span style={{fontSize:11,color:'#2563eb',fontWeight:600}}>✓ 제출됨</span>
+                          if (s === 'PENDING')   return <span style={{fontSize:11,color:'#92400e',fontWeight:600}}>⏳ 진행중</span>
+                          return (
+                            <button
+                              style={{padding:'4px 10px',fontSize:11,background:'#2563eb',color:'#fff',border:'none',borderRadius:4,cursor:'pointer'}}
+                              onClick={async (e) => {
+                                e.stopPropagation()
+                                if (!confirm(`"${row.listTitle}" 자동 신청을 등록하시겠습니까?`)) return
+                                try {
+                                  const res = await fetch(`/api/public-data/${row.listId}/subscribe`, {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    credentials: 'include',
+                                    body: JSON.stringify({}),
+                                  })
+                                  if (res.status === 409) { alert('이미 신청한 데이터셋입니다.'); setSubscribedMap(prev => ({...prev, [row.listId]: 'PENDING'})); return }
+                                  if (!res.ok) { const t = await res.text(); alert('실패: ' + t.slice(0, 200)); return }
+                                  alert('신청 등록 완료 — admin.jbdatahub.com/subscriptions에서 진행 상태 확인')
+                                  setSubscribedMap(prev => ({...prev, [row.listId]: 'PENDING'}))
+                                } catch (err) { alert('오류: ' + err.message) }
+                              }}>신청</button>
+                          )
+                        })()}
                       </td>
                     </tr>
                   ))

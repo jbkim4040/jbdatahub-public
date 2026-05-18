@@ -153,6 +153,12 @@ function OpenApiTab({ stats }) {
   }
 
   const copyDdl = (text) => navigator.clipboard.writeText(text)
+  const copyToClipboard = (text, label) => {
+    navigator.clipboard.writeText(text)
+      .then(() => console.log(`복사됨: ${label}`))
+      .catch(() => {})
+  }
+
 
   const categoryData = stats?.countByCategory ?? []
   const apiTypeData  = stats?.countByApiType
@@ -283,8 +289,8 @@ function OpenApiTab({ stats }) {
                   ? <tr><td colSpan={8} className={styles.empty}>검색 결과가 없습니다.</td></tr>
                   : data.content.map((row) => (
                     <tr key={row.listId} className={styles.clickableRow} onClick={() => handleRowClick(row)} title="클릭하여 상세 보기">
-                      <td className={styles.mono}>{row.listId}</td>
-                      <td className={styles.titleCell} title={row.listTitle}>{row.listTitle}</td>
+                      <td className={styles.mono} onClick={(e) => { e.stopPropagation(); copyToClipboard(row.listId, "listId"); }} title="클릭 시 복사" style={{cursor:"copy"}}>{row.listId}</td>
+                      <td className={styles.titleCell} title="클릭 시 복사" onClick={(e) => { e.stopPropagation(); copyToClipboard(row.listTitle, "listTitle"); }} style={{cursor:"copy"}}>{row.listTitle}</td>
                       <td>{row.orgNm}</td>
                       <td>{row.newCategoryNm}</td>
                       <td><span className={`${styles.badge} ${styles[row.apiType?.toLowerCase()]}`}>{row.apiType}</span></td>
@@ -393,15 +399,7 @@ function OpenApiTab({ stats }) {
                       <span className={styles.opToggle}>{openedOps.has(op.operationSeq) ? '▲' : '▼'}</span>
                     </div>
                     {openedOps.has(op.operationSeq) && (
-                      op.generatedDdl ? (
-                        <div className={styles.ddlWrap}>
-                          <button className={styles.copyBtn} onClick={() => copyDdl(op.generatedDdl)}>복사</button>
-                          <pre className={styles.ddlCode}>{op.generatedDdl}</pre>
-                        </div>
-                      ) : (
-                        <p className={styles.noDdl}>DDL이 아직 생성되지 않았습니다. 관리자가 DDL 전체 생성을 실행해 주세요.</p>
-                      )
-                    )}
+                      null
                   </div>
                 ))}
               </>

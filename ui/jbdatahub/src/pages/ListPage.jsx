@@ -398,8 +398,6 @@ function OpenApiTab({ stats }) {
                       {op.registerStatus && <span className={styles.opStatus}>{op.registerStatus}</span>}
                       <span className={styles.opToggle}>{openedOps.has(op.operationSeq) ? '▲' : '▼'}</span>
                     </div>
-                    {openedOps.has(op.operationSeq) && (
-                      null
                   </div>
                 ))}
               </>

@@ -199,38 +199,39 @@ async def _submit_subscription(sub_id: str):
 
     try:
         async with httpx.AsyncClient(timeout=30, follow_redirects=True) as client:
-            # ── (a) detail_pk 후보 결정 ──
+            # ── (a) redirectDevAcountRequestForm.do — list_id로 신청 폼 직행 ──
+            # data.go.kr이 자동으로 적절한 detail_pk로 redirect함
             override_detail_pk = raw_req.get("detail_pk")
             if override_detail_pk:
-                candidates = [override_detail_pk]
+                form_url = f"{DATA_PORTAL_BASE}/iim/api/selectDevAcountRequestForm.do?publicDataDetailPk={override_detail_pk}"
             else:
-                # 상세 페이지에서 모든 detail_pk 추출
-                r = await client.get(
-                    f"{DATA_PORTAL_BASE}/data/{sub['list_id']}/openapi.do",
-                    headers=base_headers,
-                )
-                candidates = list(dict.fromkeys(re.findall(r'uddi:[a-f0-9-]+_\d+', r.text)))
-                if not candidates:
-                    raise RuntimeError(f"detail_pk not found in /data/{sub['list_id']}/openapi.do")
+                form_url = f"{DATA_PORTAL_BASE}/tcs/dss/redirectDevAcountRequestForm.do?publicDataPk={sub['list_id']}&isBusinessApply=false"
 
-            # ── (b) 각 detail_pk 시도해서 oprtinSeqNo 있는 폼 찾기 ──
-            detail_pk = None
-            form_url = None
-            oprtin_seqs = []
-            tried = []
-            for cand in candidates:
-                url = f"{DATA_PORTAL_BASE}/iim/api/selectDevAcountRequestForm.do?publicDataDetailPk={cand}"
-                fr = await client.get(url, headers=base_headers)
-                seqs = list(dict.fromkeys(re.findall(r'oprtinSeqNo[^>]*value="(\d+)"', fr.text)))
-                tried.append({"detail_pk": cand, "seq_count": len(seqs)})
-                if seqs:
-                    detail_pk = cand
-                    form_url = url
-                    oprtin_seqs = seqs
-                    break
+            fr = await client.get(form_url, headers=base_headers)
+            final_url = str(fr.url)
+            logger.info(f"[{sub_id}] redirect from {form_url} -> {final_url}")
 
+            # final URL 또는 body에서 detail_pk
+            m = re.search(r'publicDataDetailPk=(uddi:[a-f0-9-]+_\d+)', final_url)
+            if m:
+                detail_pk = m.group(1)
+            else:
+                m = re.search(r'uddi:[a-f0-9-]+_\d+', fr.text)
+                detail_pk = m.group() if m else None
+            if not detail_pk:
+                raise RuntimeError(f"detail_pk not extractable. final_url: {final_url}")
+
+            # ── (b) oprtinSeqNo 추출 ──
+            oprtin_seqs = list(dict.fromkeys(re.findall(r'oprtinSeqNo[^>]*value="(\d+)"', fr.text)))
             if not oprtin_seqs:
-                raise RuntimeError(f"oprtinSeqNo not found. tried: {tried} — 모든 detail_pk가 이미 신청됨 또는 페이지 구조 변경")
+                # 폼 페이지가 안 보이면 form_url로 한 번 더 시도
+                fr2 = await client.get(
+                    f"{DATA_PORTAL_BASE}/iim/api/selectDevAcountRequestForm.do?publicDataDetailPk={detail_pk}",
+                    headers=base_headers
+                )
+                oprtin_seqs = list(dict.fromkeys(re.findall(r'oprtinSeqNo[^>]*value="(\d+)"', fr2.text)))
+                if not oprtin_seqs:
+                    raise RuntimeError(f"oprtinSeqNo not found. detail_pk={detail_pk}, body_size={len(fr.text)}, final_url={final_url}")
 
             # ── (c) 실제 신청 POST ──
             data = {

@@ -81,7 +81,7 @@ async def session_status():
     pool = get_pool()
     async with pool.acquire() as conn:
         row = await conn.fetchrow(
-            "SELECT label, user_name, created_at, expires_at, last_used, valid FROM data_portal_session ORDER BY created_at DESC LIMIT 1"
+            "SELECT label, user_name, created_at, expires_at, last_used, valid FROM data_portal_session WHERE valid=true ORDER BY created_at DESC LIMIT 1"
         )
     if not row:
         return {"has_session": False}

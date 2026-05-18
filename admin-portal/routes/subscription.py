@@ -115,53 +115,55 @@ async def _get_session_cookie() -> str:
 # ────────────────────────────────────────────────────────────
 @router.post("/request", status_code=201)
 async def request_subscription(req: SubscriptionRequest, bg: BackgroundTasks):
-    # 중복 체크 — 같은 user + list_id가 활성 상태면 차단
     pool = get_pool()
-    if req.requested_by:
-        async with pool.acquire() as conn:
-            existing = await conn.fetchrow(
-                """SELECT id, status, requested_at, api_key FROM api_subscriptions
-                   WHERE requested_by=$1 AND list_id=$2
-                     AND status IN ('PENDING','SUBMITTED','APPROVED')
-                   ORDER BY requested_at DESC LIMIT 1""",
-                req.requested_by, req.list_id,
-            )
-            if existing:
-                raise HTTPException(
-                    status_code=409,
-                    detail={
-                        "code": "already_requested",
-                        "message": f"이미 신청한 데이터셋입니다. (status={existing['status']})",
-                        "existing_id": str(existing['id']),
-                        "status": existing['status'],
-                        "api_key": existing.get('api_key'),
-                    },
-                )
-        # 비활성 상태(ERROR/REJECTED) 기존 row 있으면 UPDATE (재시도) — 새 INSERT 안 함
-        if req.requested_by:
-            inactive = await conn.fetchrow(
-                """SELECT id FROM api_subscriptions
-                   WHERE requested_by=$1 AND list_id=$2
-                     AND status NOT IN ('PENDING','SUBMITTED','APPROVED')
-                   ORDER BY requested_at DESC LIMIT 1""",
-                req.requested_by, req.list_id,
-            )
-            if inactive:
-                await conn.execute(
-                    """UPDATE api_subscriptions SET
-                          status='PENDING', error_message=NULL,
-                          retry_count=retry_count+1,
-                          requested_at=now(),
-                          usage_purpose=$2,
-                          raw_request=$3::jsonb
-                       WHERE id=$1::uuid""",
-                    inactive['id'], req.usage_purpose,
-                    json.dumps({"purpose_code": req.purpose_code, "daily_use_expect": req.daily_use_expect, "detail_pk": req.detail_pk}),
-                )
-                sub_id_reused = str(inactive['id'])
-                bg.add_task(_submit_subscription, sub_id_reused)
-                return {"id": sub_id_reused, "status": "PENDING", "reused": True}
     async with pool.acquire() as conn:
+        # 1) 활성 상태(PENDING/SUBMITTED/APPROVED) 같은 list_id 있으면 409
+        existing = await conn.fetchrow(
+            """SELECT id, status, requested_at, api_key FROM api_subscriptions
+               WHERE list_id=$1
+                 AND status IN ('PENDING','SUBMITTED','APPROVED')
+               ORDER BY requested_at DESC LIMIT 1""",
+            req.list_id,
+        )
+        if existing:
+            raise HTTPException(
+                status_code=409,
+                detail={
+                    "code": "already_requested",
+                    "message": f"이미 신청한 데이터셋입니다. (status={existing['status']})",
+                    "existing_id": str(existing['id']),
+                    "status": existing['status'],
+                    "api_key": existing.get('api_key'),
+                },
+            )
+
+        # 2) 비활성(ERROR/REJECTED) 같은 list_id 있으면 UPDATE 재사용 (새 INSERT 안 함)
+        inactive = await conn.fetchrow(
+            """SELECT id FROM api_subscriptions
+               WHERE list_id=$1
+                 AND status NOT IN ('PENDING','SUBMITTED','APPROVED')
+               ORDER BY requested_at DESC LIMIT 1""",
+            req.list_id,
+        )
+        if inactive:
+            await conn.execute(
+                """UPDATE api_subscriptions SET
+                      status='PENDING', error_message=NULL,
+                      retry_count=retry_count+1,
+                      requested_at=now(),
+                      usage_purpose=$2,
+                      raw_request=$3::jsonb,
+                      requested_by=COALESCE($4, requested_by)
+                   WHERE id=$1::uuid""",
+                inactive['id'], req.usage_purpose,
+                json.dumps({"purpose_code": req.purpose_code, "daily_use_expect": req.daily_use_expect, "detail_pk": req.detail_pk}),
+                req.requested_by,
+            )
+            sub_id_reused = str(inactive['id'])
+            bg.add_task(_submit_subscription, sub_id_reused)
+            return {"id": sub_id_reused, "status": "PENDING", "reused": True}
+
+        # 3) 신규 INSERT
         row = await conn.fetchrow(
             """INSERT INTO api_subscriptions (list_id, usage_purpose, status, raw_request, requested_by)
                VALUES ($1, $2, 'PENDING', $3::jsonb, $4) RETURNING id""",
@@ -172,6 +174,7 @@ async def request_subscription(req: SubscriptionRequest, bg: BackgroundTasks):
         sub_id = str(row["id"])
     bg.add_task(_submit_subscription, sub_id)
     return {"id": sub_id, "status": "PENDING"}
+
 
 
 @router.get("/list")

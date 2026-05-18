@@ -1,6 +1,16 @@
-"""공공데이터포털 (data.go.kr) API 사용신청 자동화."""
+"""공공데이터포털 (data.go.kr) API 사용신청 자동화.
+
+흐름:
+  1. 사용자가 브라우저로 data.go.kr 로그인 후 cookie 등록
+  2. POST /request — 큐에 추가, 백그라운드 worker가 자동 제출
+     a. 상세 페이지 GET → publicDataDetailPk(uddi) 추출
+     b. 신청 폼 페이지 GET → oprtinAuthorList(operation seq) 추출
+     c. POST /iim/api/saveDevAcountRequest.do — 실제 신청
+  3. 마이페이지 polling — 승인/거절 추적, API 키 추출
+"""
 import json
 import logging
+import re
 from datetime import datetime, timezone
 from typing import Literal, Optional
 
@@ -14,22 +24,32 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 DATA_PORTAL_BASE = "https://www.data.go.kr"
-USER_AGENT = "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_0) AppleWebKit/537.36 jb-datahub/1.0"
+USER_AGENT = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36"
+
+# 활용목적 코드 (data.go.kr 분류)
+PURPOSE_CODES = {
+    "WEB":      "PROS01",  # 웹사이트
+    "APP":      "PROS02",  # 앱개발
+    "RESEARCH": "PROS03",  # 연구
+    "OTHER":    "PROS04",  # 기타
+}
 
 
 # ────────────────────────────────────────────────────────────
 # Schemas
 # ────────────────────────────────────────────────────────────
 class SessionUpdate(BaseModel):
-    cookie_jar: str             # 브라우저에서 복사한 cookie (예: "JSESSIONID=...; SCOUTER=...")
+    cookie_jar: str
     user_name: Optional[str] = None
     label: str = "default"
 
 
 class SubscriptionRequest(BaseModel):
-    list_id: str                # public_api_list.list_id
+    list_id: str
     operation_seq: Optional[int] = None
-    usage_purpose: str = "jb-workspace 통합 데이터 허브 운영"
+    usage_purpose: str = "jb-workspace 통합 데이터 허브 운영 - 공공데이터 통합 검색 및 분석"
+    purpose_code: str = "WEB"
+    daily_use_expect: int = 1000
 
 
 # ────────────────────────────────────────────────────────────
@@ -37,20 +57,17 @@ class SubscriptionRequest(BaseModel):
 # ────────────────────────────────────────────────────────────
 @router.post("/session")
 async def save_session(session: SessionUpdate):
-    """브라우저에서 추출한 data.go.kr 세션 쿠키 저장."""
     pool = get_pool()
     async with pool.acquire() as conn:
         await conn.execute(
-            """
-            INSERT INTO data_portal_session (label, cookie_jar, user_name, expires_at, valid)
-            VALUES ($1, $2, $3, now() + interval '30 days', true)
-            ON CONFLICT (label) DO UPDATE
-              SET cookie_jar = EXCLUDED.cookie_jar,
-                  user_name  = EXCLUDED.user_name,
-                  expires_at = EXCLUDED.expires_at,
-                  valid      = true,
-                  created_at = now()
-            """,
+            """INSERT INTO data_portal_session (label, cookie_jar, user_name, expires_at, valid)
+               VALUES ($1, $2, $3, now() + interval '30 days', true)
+               ON CONFLICT (label) DO UPDATE
+                 SET cookie_jar = EXCLUDED.cookie_jar,
+                     user_name  = EXCLUDED.user_name,
+                     expires_at = EXCLUDED.expires_at,
+                     valid      = true,
+                     created_at = now()""",
             session.label, session.cookie_jar, session.user_name,
         )
     return {"saved": True, "label": session.label}
@@ -65,8 +82,7 @@ async def session_status():
         )
     if not row:
         return {"has_session": False}
-    d = dict(row)
-    return {"has_session": True, **d}
+    return {"has_session": True, **dict(row)}
 
 
 async def _get_session_cookie() -> str:
@@ -76,19 +92,17 @@ async def _get_session_cookie() -> str:
             "SELECT cookie_jar FROM data_portal_session WHERE valid = true ORDER BY created_at DESC LIMIT 1"
         )
     if not row:
-        raise HTTPException(status_code=422, detail="저장된 세션이 없습니다. /api/subscription/session 으로 cookie 등록 필요")
+        raise HTTPException(status_code=422, detail="저장된 세션이 없습니다.")
     return row["cookie_jar"]
 
 
 # ────────────────────────────────────────────────────────────
-# 신청 큐 + 상태 조회
+# 신청 큐
 # ────────────────────────────────────────────────────────────
 @router.post("/request", status_code=201)
 async def request_subscription(req: SubscriptionRequest, bg: BackgroundTasks):
-    """신청 큐에 추가. 백그라운드 worker가 처리."""
     pool = get_pool()
     async with pool.acquire() as conn:
-        # 중복 신청 방지
         existing = await conn.fetchrow(
             "SELECT id, status FROM api_subscriptions WHERE list_id=$1 AND status IN ('PENDING','SUBMITTED','APPROVED')",
             req.list_id,
@@ -97,13 +111,12 @@ async def request_subscription(req: SubscriptionRequest, bg: BackgroundTasks):
             return {"already_exists": True, "id": str(existing["id"]), "status": existing["status"]}
 
         row = await conn.fetchrow(
-            """INSERT INTO api_subscriptions (list_id, operation_seq, usage_purpose, status)
-               VALUES ($1, $2, $3, 'PENDING') RETURNING id""",
-            req.list_id, req.operation_seq, req.usage_purpose,
+            """INSERT INTO api_subscriptions (list_id, usage_purpose, status, raw_request)
+               VALUES ($1, $2, 'PENDING', $3::jsonb) RETURNING id""",
+            req.list_id, req.usage_purpose,
+            json.dumps({"purpose_code": req.purpose_code, "daily_use_expect": req.daily_use_expect}),
         )
         sub_id = str(row["id"])
-
-    # 백그라운드로 자동 제출 시도
     bg.add_task(_submit_subscription, sub_id)
     return {"id": sub_id, "status": "PENDING"}
 
@@ -117,8 +130,7 @@ async def list_subscriptions(page: int = 1, limit: int = 50, status: Optional[st
             rows = await conn.fetch(
                 """SELECT s.id, s.list_id, l.list_title, l.org_nm, s.status,
                           s.requested_at, s.submitted_at, s.approved_at, s.api_key, s.error_message
-                   FROM api_subscriptions s
-                   LEFT JOIN public_api_list l ON s.list_id = l.list_id
+                   FROM api_subscriptions s LEFT JOIN public_api_list l ON s.list_id = l.list_id
                    WHERE s.status = $1
                    ORDER BY s.requested_at DESC LIMIT $2 OFFSET $3""",
                 status, limit, offset,
@@ -127,8 +139,7 @@ async def list_subscriptions(page: int = 1, limit: int = 50, status: Optional[st
             rows = await conn.fetch(
                 """SELECT s.id, s.list_id, l.list_title, l.org_nm, s.status,
                           s.requested_at, s.submitted_at, s.approved_at, s.api_key, s.error_message
-                   FROM api_subscriptions s
-                   LEFT JOIN public_api_list l ON s.list_id = l.list_id
+                   FROM api_subscriptions s LEFT JOIN public_api_list l ON s.list_id = l.list_id
                    ORDER BY s.requested_at DESC LIMIT $1 OFFSET $2""",
                 limit, offset,
             )
@@ -146,85 +157,135 @@ async def get_subscription(sub_id: str):
     return d
 
 
-@router.post("/refresh-status")
-async def refresh_all_status(bg: BackgroundTasks):
-    """SUBMITTED 상태 신청들의 승인 여부 재조회 (data.go.kr 폴링)."""
-    bg.add_task(_poll_pending_subscriptions)
-    return {"queued": True}
+@router.post("/retry/{sub_id}")
+async def retry_submission(sub_id: str, bg: BackgroundTasks):
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(
+            "UPDATE api_subscriptions SET status='PENDING', error_message=NULL WHERE id=$1::uuid",
+            sub_id
+        )
+    bg.add_task(_submit_subscription, sub_id)
+    return {"retried": True, "id": sub_id}
 
 
 # ────────────────────────────────────────────────────────────
-# 자동 제출 worker (백그라운드)
+# 자동 제출 worker
 # ────────────────────────────────────────────────────────────
 async def _submit_subscription(sub_id: str):
-    """data.go.kr에 신청서 자동 제출.
-    
-    실제 흐름은 data.go.kr UI 분석 후 구체화 필요. 현재는 PoC 스켈레톤:
-      1. cookie 로드
-      2. 신청 페이지 GET → CSRF token 추출
-      3. 신청서 POST (사용목적, 활용분야 등)
-      4. 응답에서 신청 ID 추출
-      5. DB 업데이트
-    """
     pool = get_pool()
     try:
         cookie = await _get_session_cookie()
     except HTTPException as e:
-        logger.warning(f"세션 없음 — 신청 {sub_id} 보류: {e.detail}")
         async with pool.acquire() as conn:
             await conn.execute(
                 "UPDATE api_subscriptions SET status='ERROR', error_message=$2 WHERE id=$1::uuid",
-                sub_id, "no_session"
+                sub_id, e.detail
             )
         return
 
     async with pool.acquire() as conn:
         sub = await conn.fetchrow("SELECT * FROM api_subscriptions WHERE id=$1::uuid", sub_id)
-        if not sub:
-            return
+        if not sub: return
+        raw_req = json.loads(sub["raw_request"]) if isinstance(sub["raw_request"], str) else (sub["raw_request"] or {})
+        purpose_code = PURPOSE_CODES.get(raw_req.get("purpose_code", "WEB"), "PROS01")
+        daily_use = raw_req.get("daily_use_expect", 1000)
 
-    headers = {
+    base_headers = {
         "User-Agent": USER_AGENT,
         "Cookie": cookie,
-        "Referer": f"{DATA_PORTAL_BASE}/data/{sub['list_id']}/openapi.do",
     }
 
     try:
         async with httpx.AsyncClient(timeout=30, follow_redirects=True) as client:
-            # ── PoC: 신청 페이지 접근 가능한지 확인 ──
+            # ── (a) 상세 페이지 → publicDataDetailPk(uddi) 추출 ──
             r = await client.get(
-                f"{DATA_PORTAL_BASE}/iim/api/selectAPIAcountView.do",
-                params={"publicDataPk": sub["list_id"]},
-                headers=headers,
+                f"{DATA_PORTAL_BASE}/data/{sub['list_id']}/openapi.do",
+                headers=base_headers,
             )
-            ok = 200 <= r.status_code < 400
+            m = re.search(r'uddi:[a-f0-9-]+_\d+', r.text)
+            if not m:
+                raise RuntimeError(f"detail_pk not found in /data/{sub['list_id']}/openapi.do")
+            detail_pk = m.group()
+
+            # ── (b) 신청 폼 페이지 → oprtinSeqNo 목록 추출 ──
+            form_url = f"{DATA_PORTAL_BASE}/iim/api/selectDevAcountRequestForm.do?publicDataDetailPk={detail_pk}"
+            fr = await client.get(form_url, headers=base_headers)
+            oprtin_seqs = re.findall(r'oprtinSeqNo[^>]*value="(\d+)"', fr.text)
+            oprtin_seqs = list(dict.fromkeys(oprtin_seqs))  # dedup, preserve order
+            if not oprtin_seqs:
+                raise RuntimeError("oprtinSeqNo not found — 이미 신청했거나 페이지 구조 변경")
+
+            # ── (c) 실제 신청 POST ──
+            data = {
+                "publicDataPk": "",
+                "publicDataDetailPk": detail_pk,
+                "testStepAtmcConfmAt": "Y",
+                "atachFileYn": "N",
+                "atchFileId": "",
+                "prcuseReqstSeqNo": "",
+                "sysTy": "20",
+                "businessApply": "false",
+                "bfePrcuseReqstSeqNo": "",
+                "gbn": "",
+                "prcusePrpos": purpose_code,
+                "prcusePurps": sub["usage_purpose"],
+                "sysIp": "",
+                "sysDc": "",
+                "useScopeAgreAt": "Y",
+            }
+            for i, seq in enumerate(oprtin_seqs):
+                data[f"oprtinAuthorList[{i}].oprtinSeqNo"] = seq
+                data[f"oprtinAuthorList[{i}].dilyUseExpectCo"] = str(daily_use)
+
+            submit_headers = {
+                **base_headers,
+                "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
+                "X-Requested-With": "XMLHttpRequest",
+                "Origin": DATA_PORTAL_BASE,
+                "Referer": form_url,
+                "Accept": "application/json, text/javascript, */*; q=0.01",
+            }
+            pr = await client.post(
+                f"{DATA_PORTAL_BASE}/iim/api/saveDevAcountRequest.do",
+                data=data, headers=submit_headers,
+            )
+
+            # 응답 파싱
+            try:
+                resp_json = pr.json()
+            except Exception:
+                resp_json = {"raw_text": pr.text[:500]}
+
+            ok = 200 <= pr.status_code < 300
             status = "SUBMITTED" if ok else "ERROR"
-            error_msg = None if ok else f"HTTP {r.status_code}"
+            error_msg = None if ok else f"HTTP {pr.status_code}: {pr.text[:200]}"
 
         async with pool.acquire() as conn:
             await conn.execute(
                 """UPDATE api_subscriptions
-                   SET status=$2, submitted_at=now(), raw_response=$3::jsonb, error_message=$4,
+                   SET status=$2, submitted_at=now(),
+                       portal_apply_id=$3,
+                       raw_response=$4::jsonb,
+                       error_message=$5,
                        retry_count = retry_count + 1
                    WHERE id=$1::uuid""",
                 sub_id, status,
-                json.dumps({"http_status": r.status_code, "url": str(r.url), "body_len": len(r.text)}),
-                error_msg,
+                str(resp_json.get("prcuseReqstSeqNo") or resp_json.get("reqstSeqNo") or ""),
+                json.dumps(resp_json), error_msg,
             )
-            await conn.execute(
-                "UPDATE data_portal_session SET last_used=now() WHERE valid=true"
-            )
-        logger.info(f"신청 {sub_id} → {status}")
+            await conn.execute("UPDATE data_portal_session SET last_used=now() WHERE valid=true")
+        logger.info(f"신청 {sub_id} → {status} ({len(oprtin_seqs)} operations)")
     except Exception as e:
-        logger.error(f"신청 {sub_id} 실패: {e}")
+        logger.exception(f"신청 {sub_id} 실패")
         async with pool.acquire() as conn:
             await conn.execute(
-                "UPDATE api_subscriptions SET status='ERROR', error_message=$2 WHERE id=$1::uuid",
+                "UPDATE api_subscriptions SET status='ERROR', error_message=$2, retry_count=retry_count+1 WHERE id=$1::uuid",
                 sub_id, str(e)[:500]
             )
 
 
-async def _poll_pending_subscriptions():
-    """SUBMITTED 상태 신청들의 승인 여부 확인."""
-    # PoC: 추후 구현. 마이페이지 신청 현황 페이지 크롤링
-    logger.info("status polling: not yet implemented (Phase 3)")
+@router.post("/refresh-status")
+async def refresh_all_status(bg: BackgroundTasks):
+    """Phase 4: SUBMITTED → APPROVED 매핑 (마이페이지 polling)."""
+    return {"todo": "Phase 4 — 마이페이지 polling 구현 예정"}

@@ -128,3 +128,21 @@
 .statusTag { padding: 2px 9px; border-radius: 20px; font-size: .8rem; font-weight: 600; }
 .tagDone    { background: #dcfce7; color: #166534; }
 .tagStopped { background: #fee2e2; color: #991b1b; }
+
+/* ── 수집 재개 버튼 ── */
+.btnResume {
+  margin-top: .8rem; padding: .45rem 1.2rem; background: #27ae60; color: #fff;
+  border: none; border-radius: 6px; font-size: .88rem; cursor: pointer;
+  transition: background .15s;
+}
+.btnResume:hover:not(:disabled) { background: #1e8449; }
+.btnResume:disabled { opacity: .5; cursor: not-allowed; }
+
+/* ── DDL 생성 버튼 ── */
+.btnDdl {
+  padding: .5rem 1.4rem; background: #5a4fcf; color: #fff;
+  border: none; border-radius: 6px; font-size: .9rem; cursor: pointer;
+  transition: background .15s;
+}
+.btnDdl:hover:not(:disabled) { background: #4338ca; }
+.btnDdl:disabled { opacity: .5; cursor: not-allowed; }

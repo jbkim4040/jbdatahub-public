@@ -3,6 +3,7 @@ import {
   collectAll, collectPage,
   collectDataset, collectFileData, collectStandardData,
   stopCollect, getCollectStatus, getCollectHistory,
+  generateAllDdl, resumeCollect,
 } from '../api/publicApi'
 import styles from './CollectPage.module.css'
 
@@ -23,7 +24,6 @@ const TYPE_LABELS = {
 const fmt = (n) => n?.toLocaleString() ?? '-'
 const fmtDate = (iso) => {
   if (!iso) return null
-  // 서버는 UTC LocalDateTime → 'Z' 없이 전송됨. 'Z' 추가로 KST 자동 변환
   const d = new Date(iso.endsWith('Z') ? iso : iso + 'Z')
   return `${d.getFullYear()}.${String(d.getMonth()+1).padStart(2,'0')}.${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`
 }
@@ -35,14 +35,16 @@ const fmtDuration = (secs) => {
 }
 
 export default function CollectPage() {
-  const [status, setStatus]         = useState(null)
-  const [history, setHistory]       = useState([])
-  const [pageInput, setPageInput]   = useState('')
-  const [pageResult, setPageResult] = useState(null)
-  const [pageError, setPageError]   = useState(null)
+  const [status, setStatus]           = useState(null)
+  const [history, setHistory]         = useState([])
+  const [pageInput, setPageInput]     = useState('')
+  const [pageResult, setPageResult]   = useState(null)
+  const [pageError, setPageError]     = useState(null)
   const [pageLoading, setPageLoading] = useState(false)
-  const [stopping, setStopping]     = useState(false)
-  const [startError, setStartError] = useState(null)
+  const [stopping, setStopping]       = useState(false)
+  const [startError, setStartError]   = useState(null)
+  const [ddlLoading, setDdlLoading]   = useState(false)
+  const [ddlMsg, setDdlMsg]           = useState(null)
   const pollRef = useRef(null)
 
   const fetchStatus = useCallback(async () => {
@@ -87,6 +89,17 @@ export default function CollectPage() {
 
   const handleStop = async () => { setStopping(true); try { await stopCollect() } catch { /* ignore */ } }
 
+  const handleResume = async () => {
+    setStartError(null)
+    try {
+      await resumeCollect(); await fetchStatus(); startPolling()
+    } catch (e) {
+      const code = e.response?.status
+      if (code === 409) setStartError('이미 수집이 진행 중입니다.')
+      else setStartError(e.response?.data?.message ?? '수집 재개 실패')
+    }
+  }
+
   const handlePageCollect = async () => {
     const p = parseInt(pageInput)
     if (!p || p < 1) return alert('1 이상의 페이지 번호를 입력하세요.')
@@ -94,6 +107,18 @@ export default function CollectPage() {
     try { const res = await collectPage(p); setPageResult(res.data) }
     catch (e) { setPageError(e.response?.data?.message ?? '오류가 발생했습니다.') }
     finally { setPageLoading(false) }
+  }
+
+  const handleGenerateDdl = async () => {
+    setDdlLoading(true); setDdlMsg(null)
+    try {
+      await generateAllDdl()
+      setDdlMsg({ type: 'ok', text: 'DDL 생성이 시작되었습니다. 완료 후 목록 조회 → API 상세에서 확인하세요.' })
+    } catch (e) {
+      setDdlMsg({ type: 'err', text: e.response?.data?.message ?? 'DDL 생성 요청 실패' })
+    } finally {
+      setDdlLoading(false)
+    }
   }
 
   const isRunning  = status?.status === 'RUNNING'
@@ -178,6 +203,12 @@ export default function CollectPage() {
             <div className={styles.stat}><span className={styles.statLabel}>저장 완료</span><span className={styles.statValue}>{fmt(status.savedCount)}</span></div>
             <div className={styles.stat}><span className={styles.statLabel}>전체 건수</span><span className={styles.statValue}>{status.totalCount > 0 ? fmt(status.totalCount) : '-'}</span></div>
             <div className={styles.stat}><span className={styles.statLabel}>진행률</span><span className={styles.statValue}>{status.totalCount > 0 ? `${pct}%` : '집계 중'}</span></div>
+            {status.elapsedSeconds != null && (
+              <div className={styles.stat}><span className={styles.statLabel}>경과 시간</span><span className={styles.statValue}>{fmtDuration(status.elapsedSeconds)}</span></div>
+            )}
+            {status.etaSeconds != null && (
+              <div className={styles.stat}><span className={styles.statLabel}>예상 잔여</span><span className={styles.statValue}>{fmtDuration(status.etaSeconds)}</span></div>
+            )}
           </div>
           {status.totalCount > 0 && (
             <div className={styles.barWrap}>
@@ -198,6 +229,11 @@ export default function CollectPage() {
             {status.totalCount > 0 && <li>전체 건수: <strong>{fmt(status.totalCount)}</strong></li>}
             {status.currentPage > 0 && <li>마지막 페이지: <strong>{status.currentPage}</strong></li>}
           </ul>
+          {status.status === 'STOPPED' && (
+            <button className={styles.btnResume} onClick={handleResume} disabled={isRunning}>
+              ▶ 이어서 수집
+            </button>
+          )}
         </div>
       )}
 
@@ -220,6 +256,22 @@ export default function CollectPage() {
           </div>
         )}
         {pageError && <div className={styles.errorBox}>{pageError}</div>}
+      </div>
+
+      <div className={styles.divider} />
+
+      {/* DDL 전체 생성 */}
+      <div className={styles.section}>
+        <h2>DDL 전체 생성</h2>
+        <p>수집된 모든 OpenAPI 오퍼레이션의 CREATE TABLE DDL을 생성합니다. 수집 완료 후 실행하세요.</p>
+        <button className={styles.btnDdl} onClick={handleGenerateDdl} disabled={ddlLoading || isRunning}>
+          {ddlLoading ? '요청 중...' : '⚙ DDL 전체 생성'}
+        </button>
+        {ddlMsg && (
+          <div className={`${styles.inlineResult} ${ddlMsg.type === 'ok' ? styles.resultBox : styles.errorBox}`}>
+            {ddlMsg.text}
+          </div>
+        )}
       </div>
 
       <div className={styles.divider} />

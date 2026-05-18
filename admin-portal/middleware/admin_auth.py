@@ -11,6 +11,7 @@ ALLOWED_ROLES = {"ADMIN", "SUPER_ADMIN"}
 
 # 인증 우회: 정적, 헬스, 그리고 UI 라우트 (SPA가 직접 처리)
 SKIP_PATHS = {"/api/health"}
+SKIP_API_PREFIXES = ("/api/portal-login/",)  # 카카오/CAPTCHA 로그인은 미인증 접근 (data.go.kr 인증 흐름)
 SKIP_PREFIXES = ("/assets/", "/favicon", "/index.html")
 
 
@@ -20,7 +21,7 @@ async def admin_auth_middleware(request: Request, call_next):
     # UI(HTML)는 자유 통과 — API만 보호
     if not path.startswith("/api/"):
         return await call_next(request)
-    if path in SKIP_PATHS or any(path.startswith(p) for p in SKIP_PREFIXES):
+    if path in SKIP_PATHS or any(path.startswith(p) for p in SKIP_PREFIXES) or any(path.startswith(p) for p in SKIP_API_PREFIXES):
         return await call_next(request)
 
     token = request.cookies.get("jb_token") or ""

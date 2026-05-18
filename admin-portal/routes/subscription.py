@@ -137,6 +137,30 @@ async def request_subscription(req: SubscriptionRequest, bg: BackgroundTasks):
                         "api_key": existing.get('api_key'),
                     },
                 )
+        # 비활성 상태(ERROR/REJECTED) 기존 row 있으면 UPDATE (재시도) — 새 INSERT 안 함
+        if req.requested_by:
+            inactive = await conn.fetchrow(
+                """SELECT id FROM api_subscriptions
+                   WHERE requested_by=$1 AND list_id=$2
+                     AND status NOT IN ('PENDING','SUBMITTED','APPROVED')
+                   ORDER BY requested_at DESC LIMIT 1""",
+                req.requested_by, req.list_id,
+            )
+            if inactive:
+                await conn.execute(
+                    """UPDATE api_subscriptions SET
+                          status='PENDING', error_message=NULL,
+                          retry_count=retry_count+1,
+                          requested_at=now(),
+                          usage_purpose=$2,
+                          raw_request=$3::jsonb
+                       WHERE id=$1::uuid""",
+                    inactive['id'], req.usage_purpose,
+                    json.dumps({"purpose_code": req.purpose_code, "daily_use_expect": req.daily_use_expect, "detail_pk": req.detail_pk}),
+                )
+                sub_id_reused = str(inactive['id'])
+                bg.add_task(_submit_subscription, sub_id_reused)
+                return {"id": sub_id_reused, "status": "PENDING", "reused": True}
     async with pool.acquire() as conn:
         row = await conn.fetchrow(
             """INSERT INTO api_subscriptions (list_id, usage_purpose, status, raw_request, requested_by)
@@ -413,9 +437,20 @@ async def _submit_via_playwright(sub_id: str):
                 args=["--no-sandbox", "--disable-dev-shm-usage", "--disable-gpu"]
             )
             context = await browser.new_context(
-                user_agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36",
+                user_agent="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
                 locale="ko-KR",
             )
+            # 페이지 로드 가속 — 이미지/폰트/미디어/광고 차단
+            async def _block_heavy(route):
+                rt = route.request.resource_type
+                url = route.request.url
+                if rt in ("image", "font", "media", "stylesheet"):
+                    await route.abort()
+                elif any(x in url for x in ["google-analytics", "googletagmanager", "doubleclick", "facebook.com", "naver.com/analytics"]):
+                    await route.abort()
+                else:
+                    await route.continue_()
+            await context.route("**/*", _block_heavy)
             # cookie 주입 (두 도메인)
             pw_cookies = []
             for name, val in cookies_dict.items():
@@ -466,18 +501,43 @@ async def _submit_via_playwright(sub_id: str):
                         if m: break
                 if not m:
                     # 마지막 fallback — 데이터셋 상세 페이지 직접 진입해서 추출
-                    try:
-                        detail_url = f"https://www.data.go.kr/data/{sub['list_id']}/openapi.do"
-                        await form_page.goto(detail_url, wait_until="domcontentloaded", timeout=20000)
-                        html = await form_page.content()
-                        m = re.search(r'(uddi:[a-f0-9-]+_\d+)', html)
-                    except Exception:
-                        pass
+                    import asyncio as _asyncio
+                    detail_url = f"https://www.data.go.kr/data/{sub['list_id']}/openapi.do"
+                    for attempt in range(3):
+                        try:
+                            await form_page.goto(detail_url, wait_until="domcontentloaded", timeout=25000)
+                            html = await form_page.content()
+                            m = re.search(r'(uddi:[a-f0-9-]+_\d+)', html)
+                            if m: break
+                        except Exception as e:
+                            logger.warning(f"detail page goto 시도 {attempt+1}/3 실패: {e}")
+                            if attempt < 2:
+                                await _asyncio.sleep(2 * (attempt + 1))
                 if not m:
                     raise RuntimeError(f"detail_pk not found anywhere — URL: {form_url}")
 
-                # 4) 사용목적 입력
-                await form_page.fill('textarea[name="prcusePurps"]', sub["usage_purpose"])
+                # 4) 사용목적 입력 — selector 후보 시도
+                purpose_filled = False
+                for sel in [
+                    'textarea[name="prcusePurps"]',
+                    'textarea[name="useNm"]',
+                    'textarea[name="purpose"]',
+                    'textarea[id*="prcuse"]',
+                    'textarea[id*="purpose"]',
+                    'textarea',  # 최종 fallback
+                ]:
+                    el = await form_page.query_selector(sel)
+                    if el:
+                        try:
+                            await el.fill(sub["usage_purpose"])
+                            purpose_filled = True
+                            break
+                        except Exception:
+                            continue
+                if not purpose_filled:
+                    # 페이지 디버그 정보 포함해서 에러
+                    html_snip = (await form_page.content())[:500]
+                    raise RuntimeError(f"purpose textarea not found. URL: {form_page.url}, HTML snippet: {html_snip}")
 
                 # 5) 활용목적 라디오 (PROS01=웹)
                 purpose_code = PURPOSE_CODES.get(raw_req.get("purpose_code", "WEB"), "PROS01")

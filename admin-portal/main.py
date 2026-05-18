@@ -39,6 +39,9 @@ app.add_middleware(
     allow_headers=["Content-Type", "Authorization"],
 )
 
+from middleware.admin_auth import admin_auth_middleware
+app.middleware("http")(admin_auth_middleware)
+
 app.include_router(pr.router,       prefix="/api/prs",      tags=["PR"])
 app.include_router(security.router, prefix="/api/security", tags=["Security"])
 app.include_router(deploy.router,   prefix="/api/deploy",   tags=["Deploy"])

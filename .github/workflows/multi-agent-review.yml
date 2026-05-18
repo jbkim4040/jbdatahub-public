@@ -83,31 +83,30 @@ jobs:
           fi
 
   decide:
-    name: 🎯 Orchestrator — 과반수 결정
+    name: Multi-Agent PR Review
     runs-on: ubuntu-latest
     needs: [security, style, performance, test]
     if: always()
     steps:
-      - name: 결과 집계 + 머지
+      - name: 결과 집계 + status check
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # 각 needs 결과 (success / failure / cancelled)
           declare -A R
           R[security]="${{ needs.security.result }}"
           R[style]="${{ needs.style.result }}"
           R[performance]="${{ needs.performance.result }}"
           R[test]="${{ needs.test.result }}"
           approve=0
-          total=4
           for agent in security style performance test; do
             if [ "${R[$agent]}" = "success" ]; then approve=$((approve+1)); fi
           done
-          echo "approve=$approve / $total"
           PR=${{ github.event.pull_request.number }}
+          echo "approve=$approve / 4"
           if [ $approve -ge 2 ]; then
-            gh pr comment $PR --body "✅ Multi-Agent: $approve / $total APPROVE → 자동 머지 진행"
-            gh pr merge $PR --squash --auto || true
+            gh pr comment $PR --body "✅ Multi-Agent: $approve/4 APPROVE (security=${R[security]}, style=${R[style]}, perf=${R[performance]}, test=${R[test]}) — merge 가능"
+            exit 0  # 머지는 admin/사람이 결정 (Branch Protection이 통과 확인)
           else
-            gh pr comment $PR --body "🛑 Multi-Agent: $approve / $total — 과반수 미달, 머지 보류"
+            gh pr comment $PR --body "🛑 Multi-Agent: $approve/4 — 과반수 미달 (security=${R[security]}, style=${R[style]}, perf=${R[performance]}, test=${R[test]})"
+            exit 1  # status check fail → Branch Protection이 머지 차단
           fi

@@ -6,41 +6,71 @@
 
 ## 아키텍처 (2026-05-18 기준)
 
-3대의 Oracle Cloud Ampere A1 서버로 역할 분리.
+3대의 Oracle Cloud Ampere A1 ARM 서버로 역할 분리.
 
 ```
                 ┌─────────────────────────────────────────────┐
-                │  Cloudflare (DNS only, SSL passthrough)     │
+                │  Cloudflare (DNS only, gray cloud)          │
+                │  jbdatahub.com / www / admin / jenkins /    │
+                │  grafana / prometheus.jbdatahub.com         │
                 └──────────────────┬──────────────────────────┘
                                    │
         ┌──────────────────────────┼──────────────────────────┐
         ▼                          ▼                          ▼
-  jbdatahub.com           admin.jbdatahub.com    jenkins / grafana / prometheus
-   www.jbdatahub.com               │                .jbdatahub.com
-        │                          │                          │
-┌───────┴─────────┐     ┌──────────┴────────┐     ┌──────────┴──────────┐
-│   WAS 서버      │     │  Admin Portal     │     │   CI / 모니터링      │
-│ 140.245.74.59   │     │ (CI 서버 동거)    │     │ 168.107.20.90       │
-│ Ampere A1 ARM   │     │                   │     │ Ampere A1 ARM       │
-│                 │     │                   │     │                     │
-│ • nginx 80/443  │     │ • FastAPI         │     │ • Jenkins (Docker)  │
-│ • Spring Boot   │     │ • React Vite      │     │ • Prometheus        │
-│   Blue/Green    │     │ • asyncpg → DB    │     │ • Grafana + Loki    │
-│ • React UI      │     │ • Playwright      │     │ • Promtail + AlertM │
-│ • Let's Encrypt │     │ • nginx-ssl 443   │     │ • embed_service     │
-└────────┬────────┘     └──────────┬────────┘     └──────────┬──────────┘
-         │                         │                         │
-         └───────────────┬─────────┴─────────────┬───────────┘
-                         ▼                       ▼
-                ┌─────────────────────────────────────┐
-                │   DB 서버 (152.69.232.44)           │
-                │   Ampere A1 ARM · 1 OCPU · 8 GB     │
-                │   PostgreSQL 16 + pgvector 0.6.0    │
-                │   shared_buffers 1.5G / cache 3G    │
-                └─────────────────────────────────────┘
+┌────────────────┐    ┌──────────────────────┐    ┌────────────────┐
+│  WAS 서버       │    │  CI/모니터링 서버      │    │  DB 서버        │
+│ 140.245.74.59  │    │  168.107.20.90        │    │ 152.69.232.44  │
+│ 2 OCPU / 5 GB  │    │  2 OCPU / 1+8 GB swap │    │ 1 OCPU / 8 GB  │
+└────────┬───────┘    └──────────┬───────────┘    └────────┬───────┘
+         │                       │                         │
+         └────────────┬──────────┴──────────┬──────────────┘
+                      ▼                     ▼
+                   사용자                  운영자
 ```
 
----
+### 서버별 컨테이너/서비스
+
+**WAS 서버 (140.245.74.59 · 내부 10.0.0.148)**
+
+| 컨테이너 | 포트 | 역할 |
+|---|---|---|
+| `nginx` | 80, 443 | Let's Encrypt SSL · CSP · HSTS · reverse proxy |
+| `jbdatahub-blue/green` | 8080 → 8081 | Spring Boot 3.5 · Java 21 · JPA · Blue/Green 무중단 |
+| `jbdatahubui` | 3000 | React 18 · Vite · Recharts |
+| `promtail` | — | Loki 로그 전송 |
+
+**CI/모니터링 서버 (168.107.20.90 · 내부 10.0.0.156)**
+
+| 컨테이너 | 포트 | 역할 |
+|---|---|---|
+| `nginx-ssl` | 443 (host network) | Let's Encrypt SAN 5도메인 |
+| `jenkins` | 127.0.0.1:19090 | CI/CD (DinD 격리, docker.sock 마운트 제거) |
+| `dind` | 2376 (TLS) | Docker daemon 격리 (privileged) |
+| `admin-portal-blue` | 127.0.0.1:18080 | FastAPI · asyncpg · Playwright Chromium |
+| `prometheus` · `grafana` · `loki` · `alertmanager` · `promtail` | — | 모니터링 스택 |
+
+**DB 서버 (152.69.232.44 · 내부 10.0.0.188)**
+
+- PostgreSQL 16.13 (호스트 직접 설치, 도커 아님)
+- pgvector 0.6.0 · pg_trgm · pgcrypto 확장
+- `shared_buffers=1.5G` / `effective_cache_size=3G` / `max_connections=100`
+- 테이블 15+개 (users, refresh_tokens, public_api_*, api_subscriptions, error_alerts, …)
+- `promtail` (host log 수집)
+
+### 도메인 / 엔드포인트
+
+| 도메인 | 용도 | 비고 |
+|---|---|---|
+| `jbdatahub.com` / `www.jbdatahub.com` | 메인 UI (React) | WAS 서버 |
+| `admin.jbdatahub.com` | Admin Portal (ADMIN/SUPER_ADMIN 전용) | CI 서버 |
+| `jenkins.jbdatahub.com` | Jenkins CI/CD | CI 서버 (basic auth) |
+| `grafana.jbdatahub.com` | 통합 모니터링 + 로그 대시보드 | CI 서버 |
+| `prometheus.jbdatahub.com` | 메트릭 (basic auth) | CI 서버 |
+
+전 도메인 Let's Encrypt SAN 인증서 사용, Cloudflare는 DNS only (gray cloud).
+
+> 상세 보안정책: [노션 — 서버 구조 & 보안정책](https://www.notion.so/364e4db2e57481d6a20ff16be212772f)
+
 
 ## 도메인 / 엔드포인트
 

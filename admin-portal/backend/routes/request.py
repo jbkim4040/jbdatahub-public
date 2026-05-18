@@ -1,189 +1,116 @@
-import anthropic
-import httpx
-import json
-import logging
+"""기능 요구사항 저장 — Claude API 의존성 제거 (단순 CRUD)."""
 from fastapi import APIRouter, HTTPException
-logger = logging.getLogger(__name__)
 from pydantic import BaseModel
-from typing import Literal
-from config import settings
+from typing import Optional, Literal
+from datetime import datetime
+from database import get_pool
 
 router = APIRouter()
 
-GITHUB_API = "https://api.github.com"
 
-def _gh_headers():
-    return {
-        "Authorization": f"token {settings.github_token}",
-        "Accept": "application/vnd.github.v3+json",
-    }
-
-AREA_FILES = {
-    "frontend": [
-        "admin-portal/frontend/src/App.jsx",
-        "admin-portal/frontend/src/Layout.jsx",
-        "admin-portal/frontend/src/pages/Dashboard.jsx",
-        "admin-portal/frontend/src/pages/Deploy.jsx",
-        "admin-portal/frontend/src/pages/PRList.jsx",
-        "admin-portal/frontend/src/pages/SecurityReports.jsx",
-        "admin-portal/frontend/src/api.js",
-    ],
-    "backend": [
-        "admin-portal/main.py",
-        "admin-portal/routes/pr.py",
-        "admin-portal/routes/security.py",
-        "admin-portal/routes/deploy.py",
-        "admin-portal/config.py",
-        "admin-portal/models.py",
-    ],
-    "infra": [
-        "admin-portal/Dockerfile",
-        "Jenkinsfile",
-        "Jenkinsfile.security",
-    ],
-}
-
-
-class RequestInput(BaseModel):
+class RequestIn(BaseModel):
+    title: str
     description: str
-    request_type: Literal["추가", "수정", "삭제"]
-    target_area: Literal["frontend", "backend", "infra", "both"]
-    auto_deploy: bool = False
+    request_type: Literal["추가", "수정", "삭제", "버그"] = "추가"
+    target_area: Optional[str] = None
+    priority: Literal["urgent", "high", "normal", "low"] = "normal"
+    created_by: Optional[str] = None
 
 
-class ChangeItem(BaseModel):
-    path: str
-    action: Literal["create", "update", "delete"]
-    content: str = ""
-    description: str = ""
+class RequestUpdate(BaseModel):
+    status: Optional[Literal["pending", "in_progress", "done", "rejected"]] = None
+    priority: Optional[Literal["urgent", "high", "normal", "low"]] = None
+    claude_pr_url: Optional[str] = None
+    notes: Optional[str] = None
 
 
-class ApplyInput(BaseModel):
-    changes: list[ChangeItem]
-    commit_message: str
-    auto_deploy: bool = False
-
-
-async def _fetch_file(path: str) -> dict | None:
-    async with httpx.AsyncClient(timeout=10) as client:
-        r = await client.get(
-            f"{GITHUB_API}/repos/{settings.github_repo}/contents/{path}",
-            headers=_gh_headers(),
-        )
-    if r.status_code != 200:
-        return None
-    import base64 as b64
-    data = r.json()
-    return {
-        "path": path,
-        "sha": data["sha"],
-        "content": b64.b64decode(data["content"]).decode(errors="replace"),
-    }
-
-
-async def _get_file_sha(path: str) -> str | None:
-    async with httpx.AsyncClient(timeout=10) as client:
-        r = await client.get(
-            f"{GITHUB_API}/repos/{settings.github_repo}/contents/{path}",
-            headers=_gh_headers(),
-        )
-    if r.status_code != 200:
-        return None
-    return r.json().get("sha")
-
-
-@router.post("/preview")
-async def preview_changes(req: RequestInput):
-    if not settings.claude_api_key:
-        raise HTTPException(
-            status_code=422,
-            detail="CLAUDE_API_KEY가 설정되지 않았습니다. 서버 .env에 키를 추가해 주세요."
-        )
-
-    areas = ["frontend", "backend"] if req.target_area == "both" else [req.target_area]
-    paths: list[str] = []
-    for area in areas:
-        paths.extend(AREA_FILES.get(area, []))
-
-    import asyncio
-    results = await asyncio.gather(*[_fetch_file(p) for p in paths], return_exceptions=True)
-    files = [r for r in results if isinstance(r, dict)]
-
-    files_text = "\n\n".join(
-        f"=== {f['path']} ===\n{f['content'][:2500]}" for f in files
-    )
-
-    client = anthropic.Anthropic(api_key=settings.claude_api_key)
-    system = (
-        "You are an expert software engineer working on a FastAPI + React (Vite + Tailwind) admin portal. "
-        "Given the current source files and the user request, produce a JSON array of file changes. "
-        "Each item: {path, action (create|update|delete), content (full new file content for create/update, empty string for delete), description (Korean, 1 sentence)}. "
-        "IMPORTANT: Return ONLY a valid JSON array. No markdown, no explanation."
-    )
-    user_msg = (
-        f"요청 유형: {req.request_type}\n"
-        f"요청 내용: {req.description}\n\n"
-        f"현재 소스 파일:\n{files_text}"
-    )
-
-    message = client.messages.create(
-        model="claude-opus-4-7",
-        max_tokens=8192,
-        system=system,
-        messages=[{"role": "user", "content": user_msg}],
-    )
-    raw = message.content[0].text.strip()
-    try:
-        changes = json.loads(raw)
-    except Exception as e:
-        logger.warning('JSON parse failed, fallback to regex: %s', e)
-        import re
-        m = re.search(r"\[.*\]", raw, re.DOTALL)
-        changes = json.loads(m.group()) if m else []
-
-    return {"changes": changes, "summary": f"{len(changes)}개 파일 변경 예정"}
-
-
-@router.post("/apply")
-async def apply_changes(req: ApplyInput):
-    import base64 as b64
-    results = []
-    async with httpx.AsyncClient(timeout=15) as client:
-        for change in req.changes:
-            payload: dict = {
-                "message": req.commit_message,
-                "branch": "master",
-            }
-            if change.action in ("create", "update"):
-                payload["content"] = b64.b64encode(change.content.encode()).decode()
-                if change.action == "update":
-                    sha = await _get_file_sha(change.path)
-                    if sha:
-                        payload["sha"] = sha
-            elif change.action == "delete":
-                sha = await _get_file_sha(change.path)
-                if not sha:
-                    results.append({"path": change.path, "status": "not_found"})
-                    continue
-                payload["sha"] = sha
-
-            method = "delete" if change.action == "delete" else "put"
-            r = await getattr(client, method)(
-                f"{GITHUB_API}/repos/{settings.github_repo}/contents/{change.path}",
-                headers=_gh_headers(),
-                json=payload,
+@router.get("")
+async def list_requests(status: Optional[str] = None, limit: int = 50):
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        if status:
+            rows = await conn.fetch(
+                """SELECT * FROM feature_requests WHERE status=$1
+                   ORDER BY
+                     CASE priority WHEN 'urgent' THEN 1 WHEN 'high' THEN 2 WHEN 'normal' THEN 3 ELSE 4 END,
+                     created_at DESC
+                   LIMIT $2""",
+                status, limit,
             )
-            results.append({
-                "path": change.path,
-                "status": "ok" if r.status_code in (200, 201) else "error",
-                "code": r.status_code,
-            })
+        else:
+            rows = await conn.fetch(
+                """SELECT * FROM feature_requests
+                   ORDER BY
+                     CASE status WHEN 'pending' THEN 1 WHEN 'in_progress' THEN 2 ELSE 3 END,
+                     CASE priority WHEN 'urgent' THEN 1 WHEN 'high' THEN 2 WHEN 'normal' THEN 3 ELSE 4 END,
+                     created_at DESC
+                   LIMIT $1""",
+                limit,
+            )
+    items = []
+    for r in rows:
+        d = dict(r)
+        for k in ("created_at", "updated_at"):
+            if d.get(k):
+                d[k] = d[k].isoformat()
+        items.append(d)
+    return {"items": items, "total": len(items)}
 
-    if req.auto_deploy:
-        try:
-            from routes.deploy import trigger_deploy
-            await trigger_deploy()
-        except Exception as e:
-            logger.error('apply_changes step failed: %s', e)
 
-    return {"results": results, "deployed": req.auto_deploy}
+@router.post("", status_code=201)
+async def create_request(req: RequestIn):
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            """INSERT INTO feature_requests
+                 (title, description, request_type, target_area, priority, created_by)
+               VALUES ($1, $2, $3, $4, $5, $6)
+               RETURNING id, created_at""",
+            req.title, req.description, req.request_type,
+            req.target_area, req.priority, req.created_by,
+        )
+    return {"id": row["id"], "created_at": row["created_at"].isoformat(), "status": "pending"}
+
+
+@router.patch("/{req_id}")
+async def update_request(req_id: int, body: RequestUpdate):
+    fields = []
+    params = []
+    if body.status is not None:
+        params.append(body.status); fields.append(f"status=${len(params)}")
+    if body.priority is not None:
+        params.append(body.priority); fields.append(f"priority=${len(params)}")
+    if body.claude_pr_url is not None:
+        params.append(body.claude_pr_url); fields.append(f"claude_pr_url=${len(params)}")
+    if body.notes is not None:
+        params.append(body.notes); fields.append(f"notes=${len(params)}")
+    if not fields:
+        raise HTTPException(400, "변경할 필드가 없습니다")
+    fields.append("updated_at=NOW()")
+    params.append(req_id)
+
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(
+            f"UPDATE feature_requests SET {', '.join(fields)} WHERE id=${len(params)}",
+            *params,
+        )
+    return {"updated": True}
+
+
+@router.delete("/{req_id}", status_code=204)
+async def delete_request(req_id: int):
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute("DELETE FROM feature_requests WHERE id=$1", req_id)
+    return None
+
+
+@router.get("/stats")
+async def stats():
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            "SELECT status, COUNT(*) AS cnt FROM feature_requests GROUP BY status"
+        )
+    return {"buckets": [dict(r) for r in rows]}

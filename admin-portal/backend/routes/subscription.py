@@ -534,6 +534,15 @@ async def _submit_via_playwright(sub_id: str):
                         # 활용신청 버튼 클릭이 cookie/세션 만료로 인한 무동작 — 명확한 에러
                         raise RuntimeError(f"활용신청 폼으로 이동 못 함 (세션 만료 추정). URL: {form_page.url}")
 
+                # 3.9) form/textarea 동적 로딩 대기 (networkidle + wait_for_selector)
+                try:
+                    await form_page.wait_for_selector('textarea, form input[name="prcusePurps"]', timeout=20000)
+                except Exception as wait_e:
+                    # 로그인 페이지로 redirect됐을 가능성
+                    cur_url = form_page.url
+                    body_len = len(await form_page.content())
+                    raise RuntimeError(f"form 로딩 실패 (세션 만료 추정). URL={cur_url}, body_len={body_len}")
+
                 # 4) 사용목적 입력 — selector 후보 시도
                 purpose_filled = False
                 for sel in [

@@ -261,6 +261,7 @@ function OpenApiTab({ stats }) {
                   <SortTh field="isCharged" sort={sort} onSort={handleSort}>비용</SortTh>
                   <SortTh field="requestCnt" sort={sort} onSort={handleSort} className={styles.num}>활용수</SortTh>
                   <SortTh field="updatedAt" sort={sort} onSort={handleSort}>수정일</SortTh>
+                  <th style={{width:90,textAlign:"center"}}>신청</th>
                 </tr>
               </thead>
               <tbody>
@@ -276,6 +277,28 @@ function OpenApiTab({ stats }) {
                       <td>{row.isCharged}</td>
                       <td className={styles.num}>{row.requestCnt?.toLocaleString()}</td>
                       <td>{row.updatedAt}</td>
+                      <td style={{textAlign:"center"}} onClick={(e)=>e.stopPropagation()}>
+                        <button
+                          style={{padding:'4px 10px',fontSize:11,background:'#2563eb',color:'#fff',border:'none',borderRadius:4,cursor:'pointer'}}
+                          onClick={async (e) => {
+                            e.stopPropagation()
+                            if (!confirm(`"${row.listTitle}" 자동 신청을 등록하시겠습니까?`)) return
+                            try {
+                              const res = await fetch(`/api/public-data/${row.listId}/subscribe`, {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                credentials: 'include',
+                                body: JSON.stringify({}),
+                              })
+                              if (!res.ok) {
+                                const t = await res.text()
+                                alert('실패: ' + t.slice(0, 200))
+                                return
+                              }
+                              alert('신청 등록 완료 — admin.jbdatahub.com/subscriptions에서 진행 상태 확인')
+                            } catch (err) { alert('오류: ' + err.message) }
+                          }}>신청</button>
+                      </td>
                     </tr>
                   ))
                 }

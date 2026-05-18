@@ -46,8 +46,8 @@ pipeline {
                             returnStdout: true
                         ).trim()
                         echo "변경 파일:\n${changed}"
-                        env.BUILD_SERVER = changed.split('\n').any { it.startsWith('jbDataHub/') } ? 'true' : 'false'
-                        env.BUILD_UI = changed.split('\n').any { it.startsWith('jbDataHubUI/') } ? 'true' : 'false'
+                        env.BUILD_SERVER = changed.split('\n').any { it.startsWith('server/jbdatahub/') } ? 'true' : 'false'
+                        env.BUILD_UI = changed.split('\n').any { it.startsWith('ui/jbdatahub/') } ? 'true' : 'false'
                         // infra 변경(Jenkinsfile, nginx, docker-compose)이면 안전상 둘 다 빌드
                         if (changed.split('\n').any { it.startsWith('nginx/') || it == 'Jenkinsfile' || it == 'docker-compose.yml' || it.startsWith('deploy') }) {
                             env.BUILD_SERVER = 'true'
@@ -154,7 +154,7 @@ print(len(d) if isinstance(d, list) else 0)
             steps {
                 sh '''
                     ssh -o StrictHostKeyChecking=no $APP_SERVER \
-                        "docker build -t jbdatahubui:latest /home/ubuntu/jb-workspace-deploy/jbDataHubUI && \
+                        "docker build -t jbdatahubui:latest /home/ubuntu/jb-workspace-deploy/ui/jbdatahub && \
                          docker stop jbdatahubui 2>/dev/null || true && \
                          docker rm   jbdatahubui 2>/dev/null || true && \
                          docker run -d \

@@ -22,7 +22,7 @@ docker stop jbdatahub 2>/dev/null || true
 docker rm   jbdatahub 2>/dev/null || true
 
 # ── 3. Inactive 컨테이너 빌드 & 시작 ────────────────────────────────
-docker build -t jbdatahub-backend:latest $WORKSPACE_DIR/jbDataHub
+docker build -t jbdatahub-backend:latest $WORKSPACE_DIR/server/jbdatahub
 docker stop jbdatahub-${INACTIVE} 2>/dev/null || true
 docker rm   jbdatahub-${INACTIVE} 2>/dev/null || true
 docker run -d \

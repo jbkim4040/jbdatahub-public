@@ -160,7 +160,7 @@ except Exception as e:
                         --config "p/spring-security" \
                         --config "p/secrets" \
                         --json \
-                        /workspace/jbDataHub/src \
+                        /workspace/server/jbdatahub/src \
                         > ${REPORT_DIR}/semgrep.json 2>&1 || true
 
                     python3 -c "
@@ -198,7 +198,7 @@ except Exception as e:
                     mkdir -p ${REPORT_DIR}/dependency-check
 
                     docker run --rm \
-                        -v ${HOST_WS}/jbDataHub:/src:ro \
+                        -v ${HOST_WS}/server/jbdatahub:/src:ro \
                         -v ${HOST_WS}/security-reports/dependency-check:/report \
                         -v ${HOST_WS}/.owasp-dc-data:/usr/share/dependency-check/data \
                         owasp/dependency-check:latest \
@@ -239,13 +239,13 @@ else:
                 sh '''
                     echo ">>> npm audit: 프론트엔드 패키지 취약점 탐지"
 
-                    if [ ! -f "${WORKSPACE}/jbDataHubUI/package.json" ]; then
+                    if [ ! -f "${WORKSPACE}/ui/jbdatahub/package.json" ]; then
                         echo "  package.json 없음 — 건너뜀"
                         exit 0
                     fi
 
                     docker run --rm \
-                        -v ${HOST_WS}/jbDataHubUI:/app \
+                        -v ${HOST_WS}/ui/jbdatahub:/app \
                         -w /app \
                         node:20-alpine \
                         sh -c "npm install --prefer-offline --silent 2>/dev/null; npm audit --json 2>/dev/null; exit 0" \

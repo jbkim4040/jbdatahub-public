@@ -16,7 +16,7 @@ services:
 
   jbdatahubui:
     build:
-      context: ./jbDataHubUI
+      context: ./ui/jbdatahub
       dockerfile: Dockerfile
     container_name: jbdatahubui
     restart: unless-stopped
@@ -25,7 +25,7 @@ services:
 
   jbdatahub-blue:
     build:
-      context: ./jbDataHub
+      context: ./server/jbdatahub
       dockerfile: Dockerfile
     container_name: jbdatahub-blue
     restart: unless-stopped
@@ -38,7 +38,7 @@ services:
 
   jbdatahub-green:
     build:
-      context: ./jbDataHub
+      context: ./server/jbdatahub
       dockerfile: Dockerfile
     container_name: jbdatahub-green
     restart: unless-stopped

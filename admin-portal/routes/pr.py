@@ -153,7 +153,7 @@ def call_claude_review(diff: str, pr_title: str, pr_body: str) -> tuple[int, str
 
 # ── Routes ────────────────────────────────────────────────────────
 
-@router.get("/prs")
+@router.get("")
 async def list_prs():
     """GitHub open PR 목록 반환"""
     repo = settings.github_repo
@@ -177,7 +177,7 @@ async def list_prs():
     return {"prs": prs, "total": len(prs)}
 
 
-@router.get("/prs/{pr_number}")
+@router.get("/{pr_number}")
 async def get_pr(pr_number: int):
     """PR 상세 + diff + DB 리뷰 이력"""
     repo = settings.github_repo
@@ -200,7 +200,7 @@ async def get_pr(pr_number: int):
     }
 
 
-@router.post("/prs/{pr_number}/review")
+@router.post("/{pr_number}/review")
 async def review_pr(pr_number: int):
     """Claude로 diff 분석 → PR 코멘트 등록 + DB 저장"""
     repo = settings.github_repo
@@ -236,7 +236,7 @@ async def review_pr(pr_number: int):
     }
 
 
-@router.post("/prs/{pr_number}/merge")
+@router.post("/{pr_number}/merge")
 async def merge_pr(pr_number: int):
     """PR squash merge"""
     repo = settings.github_repo

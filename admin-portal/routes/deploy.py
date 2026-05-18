@@ -79,16 +79,21 @@ async def trigger_security_scan():
 
 @router.get("/status")
 async def deployment_status():
-    proc = await asyncio.create_subprocess_exec(
-        "ssh",
-        "-o", "StrictHostKeyChecking=accept-new",
-        "-o", "UserKnownHostsFile=/home/ubuntu/.ssh/known_hosts",
-        "-i", settings.deploy_ssh_key,
-        f"ubuntu@{settings.app_server_host}", "cat /home/ubuntu/bg-state.txt",
-        stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
-    )
-    stdout, _ = await proc.communicate()
-    active_slot = stdout.decode().strip() or "unknown"
+    # 컨테이너 내부에서 SSH 불가 — 별도 endpoint로 받거나 unknown
+    active_slot = "unknown"
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            "ssh",
+            "-o", "StrictHostKeyChecking=accept-new",
+            "-o", "UserKnownHostsFile=/home/ubuntu/.ssh/known_hosts",
+            "-i", settings.deploy_ssh_key,
+            f"ubuntu@{settings.app_server_host}", "cat /home/ubuntu/bg-state.txt",
+            stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
+        )
+        stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=3)
+        active_slot = stdout.decode().strip() or "unknown"
+    except Exception:
+        pass  # SSH 불가 시 unknown
 
     async with httpx.AsyncClient(timeout=10) as client:
         r = await client.get(

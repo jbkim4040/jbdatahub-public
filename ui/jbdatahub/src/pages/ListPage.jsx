@@ -316,11 +316,11 @@ function OpenApiTab({ stats }) {
                                     credentials: 'include',
                                     body: JSON.stringify({}),
                                   })
-                                  if (res.status === 409) { alert('이미 신청한 데이터셋입니다.'); setSubscribedMap(prev => ({...prev, [row.listId]: 'PENDING'})); return }
-                                  if (!res.ok) { const t = await res.text(); alert('실패: ' + t.slice(0, 200)); return }
-                                  alert('신청 등록 완료 — admin.jbdatahub.com/subscriptions에서 진행 상태 확인')
+                                  if (res.status === 409) { window.toast?.warn('이미 신청한 데이터셋입니다'); setSubscribedMap(prev => ({...prev, [row.listId]: 'PENDING'})); return }
+                                  if (!res.ok) { const t = await res.text(); window.toast?.error('실패: ' + t.slice(0, 200)); return }
+                                  window.toast?.success('신청 등록 완료 — admin.jbdatahub.com/subscriptions에서 진행 상태 확인')
                                   setSubscribedMap(prev => ({...prev, [row.listId]: 'PENDING'}))
-                                } catch (err) { alert('오류: ' + err.message) }
+                                } catch (err) { window.toast?.error('오류: ' + err.message) }
                               }}>신청</button>
                           )
                         })()}

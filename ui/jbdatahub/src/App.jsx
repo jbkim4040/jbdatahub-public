@@ -1,5 +1,6 @@
 import { Routes, Route } from 'react-router-dom'
 import { AuthProvider } from './context/AuthContext'
+import { ToastProvider } from './components/Toast'
 import Layout from './components/Layout'
 import ProtectedRoute from './components/ProtectedRoute'
 import HomePage from './pages/HomePage'
@@ -11,7 +12,8 @@ import SchedulerPage from './pages/SchedulerPage'
 
 export default function App() {
   return (
-    <AuthProvider>
+    <ToastProvider>
+      <AuthProvider>
       <Routes>
         <Route path="/" element={<Layout />}>
           <Route index element={<HomePage />} />
@@ -44,5 +46,6 @@ export default function App() {
         </Route>
       </Routes>
     </AuthProvider>
+    </ToastProvider>
   )
 }

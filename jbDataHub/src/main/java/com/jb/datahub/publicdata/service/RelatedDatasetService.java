@@ -3,7 +3,6 @@ package com.jb.datahub.publicdata.service;
 import com.jb.datahub.publicdata.dto.RelatedDatasetDto;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.cache.annotation.Cacheable;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
@@ -38,7 +37,6 @@ public class RelatedDatasetService {
         LIMIT ?
         """;
 
-    @Cacheable(value = "relatedDatasets", key = "#q + ':' + #limit")
     public List<RelatedDatasetDto> related(String q, int limit) {
         return jdbcTemplate.query(
             SQL,

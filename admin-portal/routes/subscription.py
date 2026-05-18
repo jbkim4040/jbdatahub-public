@@ -52,6 +52,7 @@ class SubscriptionRequest(BaseModel):
     usage_purpose: str = "jb-workspace 통합 데이터 허브 운영 - 공공데이터 통합 검색 및 분석"
     purpose_code: str = "WEB"
     daily_use_expect: int = 1000
+    requested_by: str | None = None  # 사용자 식별 (jbDataHub username)
 
 
 # ────────────────────────────────────────────────────────────
@@ -114,20 +115,35 @@ async def _get_session_cookie() -> str:
 # ────────────────────────────────────────────────────────────
 @router.post("/request", status_code=201)
 async def request_subscription(req: SubscriptionRequest, bg: BackgroundTasks):
+    # 중복 체크 — 같은 user + list_id가 활성 상태면 차단
     pool = get_pool()
+    if req.requested_by:
+        async with pool.acquire() as conn:
+            existing = await conn.fetchrow(
+                """SELECT id, status, requested_at, api_key FROM api_subscriptions
+                   WHERE requested_by=$1 AND list_id=$2
+                     AND status IN ('PENDING','SUBMITTED','APPROVED')
+                   ORDER BY requested_at DESC LIMIT 1""",
+                req.requested_by, req.list_id,
+            )
+            if existing:
+                raise HTTPException(
+                    status_code=409,
+                    detail={
+                        "code": "already_requested",
+                        "message": f"이미 신청한 데이터셋입니다. (status={existing['status']})",
+                        "existing_id": str(existing['id']),
+                        "status": existing['status'],
+                        "api_key": existing.get('api_key'),
+                    },
+                )
     async with pool.acquire() as conn:
-        existing = await conn.fetchrow(
-            "SELECT id, status FROM api_subscriptions WHERE list_id=$1 AND status IN ('PENDING','SUBMITTED','APPROVED')",
-            req.list_id,
-        )
-        if existing:
-            return {"already_exists": True, "id": str(existing["id"]), "status": existing["status"]}
-
         row = await conn.fetchrow(
-            """INSERT INTO api_subscriptions (list_id, usage_purpose, status, raw_request)
-               VALUES ($1, $2, 'PENDING', $3::jsonb) RETURNING id""",
+            """INSERT INTO api_subscriptions (list_id, usage_purpose, status, raw_request, requested_by)
+               VALUES ($1, $2, 'PENDING', $3::jsonb, $4) RETURNING id""",
             req.list_id, req.usage_purpose,
             json.dumps({"purpose_code": req.purpose_code, "daily_use_expect": req.daily_use_expect, "detail_pk": req.detail_pk}),
+            req.requested_by,
         )
         sub_id = str(row["id"])
     bg.add_task(_submit_subscription, sub_id)
@@ -135,7 +151,7 @@ async def request_subscription(req: SubscriptionRequest, bg: BackgroundTasks):
 
 
 @router.get("/list")
-async def list_subscriptions(page: int = 1, limit: int = 50, status: Optional[str] = None):
+async def list_subscriptions(page: int = 1, limit: int = 50, status: Optional[str] = None, requested_by: Optional[str] = None):
     offset = (page - 1) * limit
     pool = get_pool()
     async with pool.acquire() as conn:
@@ -417,17 +433,48 @@ async def _submit_via_playwright(sub_id: str):
                     wait_until="domcontentloaded", timeout=30000
                 )
 
-                # 2) 활용신청 버튼 클릭 → 새 탭/페이지
-                async with context.expect_page(timeout=15000) as new_page_info:
-                    await page.click('button:has-text("활용신청"), a:has-text("활용신청")', timeout=10000)
-                form_page = await new_page_info.value
+                # 2) 활용신청 버튼 클릭 → 새 탭 또는 same-page navigation
+                form_page = page  # default
+                try:
+                    async with context.expect_page(timeout=8000) as new_page_info:
+                        await page.click('button:has-text("활용신청"), a:has-text("활용신청")', timeout=10000)
+                    form_page = await new_page_info.value
+                except Exception:
+                    # 새 탭 안 열림 → same-page navigation 가정
+                    try:
+                        async with page.expect_navigation(timeout=15000):
+                            await page.click('button:has-text("활용신청"), a:has-text("활용신청")', timeout=10000)
+                    except Exception:
+                        # 이미 click은 시도됨 — 그냥 현재 페이지 사용
+                        pass
+                    form_page = page
                 await form_page.wait_for_load_state("domcontentloaded", timeout=30000)
 
-                # 3) URL에서 detail_pk 추출
+                # 3) URL 또는 페이지 HTML에서 detail_pk 추출
                 form_url = form_page.url
                 m = re.search(r'publicDataDetailPk=(uddi:[a-f0-9-]+_\d+)', form_url)
                 if not m:
-                    raise RuntimeError(f"detail_pk not found in form URL: {form_url}")
+                    html = await form_page.content()
+                    # hidden input, form action, json data 등에서 detail_pk 탐색
+                    for pat in [
+                        r'name=["\']publicDataDetailPk["\'][^>]*value=["\'](uddi:[a-f0-9-]+_\d+)',
+                        r'value=["\'](uddi:[a-f0-9-]+_\d+)["\'][^>]*name=["\']publicDataDetailPk',
+                        r'publicDataDetailPk["\'\s:=]+["\'](uddi:[a-f0-9-]+_\d+)',
+                        r'(uddi:[a-f0-9-]+_\d+)',
+                    ]:
+                        m = re.search(pat, html)
+                        if m: break
+                if not m:
+                    # 마지막 fallback — 데이터셋 상세 페이지 직접 진입해서 추출
+                    try:
+                        detail_url = f"https://www.data.go.kr/data/{sub['list_id']}/openapi.do"
+                        await form_page.goto(detail_url, wait_until="domcontentloaded", timeout=20000)
+                        html = await form_page.content()
+                        m = re.search(r'(uddi:[a-f0-9-]+_\d+)', html)
+                    except Exception:
+                        pass
+                if not m:
+                    raise RuntimeError(f"detail_pk not found anywhere — URL: {form_url}")
 
                 # 4) 사용목적 입력
                 await form_page.fill('textarea[name="prcusePurps"]', sub["usage_purpose"])
@@ -481,3 +528,17 @@ async def _submit_via_playwright(sub_id: str):
                 "UPDATE api_subscriptions SET status='ERROR', error_message=$2, retry_count=retry_count+1 WHERE id=$1::uuid",
                 sub_id, f"playwright: {str(e)[:400]}"
             )
+
+
+@router.get("/user-subscribed-ids")
+async def user_subscribed_ids(requested_by: str):
+    """사용자의 활성 신청 list_id set 반환 (UI 중복 체크용)."""
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            """SELECT DISTINCT list_id, status FROM api_subscriptions
+               WHERE requested_by=$1
+                 AND status IN ('PENDING','SUBMITTED','APPROVED')""",
+            requested_by,
+        )
+    return {"items": [dict(r) for r in rows]}

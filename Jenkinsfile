@@ -7,6 +7,11 @@ pipeline {
             defaultValue: false,
             description: '배포 전 보안 게이트 실행 (Gitleaks + Trivy FS HIGH/CRITICAL 체크, ~2분)'
         )
+        booleanParam(
+            name: 'FORCE_ALL',
+            defaultValue: false,
+            description: '경로 감지 무시하고 전체 빌드 (server + UI 모두)'
+        )
     }
 
     environment {
@@ -25,6 +30,38 @@ pipeline {
             steps {
                 checkout scm
                 echo "✅ 소스 체크아웃 완료: ${WORKSPACE}"
+            }
+        }
+
+        stage('변경 경로 감지') {
+            steps {
+                script {
+                    if (params.FORCE_ALL) {
+                        env.BUILD_SERVER = 'true'
+                        env.BUILD_UI = 'true'
+                        echo "🔁 FORCE_ALL=true — server + UI 모두 빌드"
+                    } else {
+                        def changed = sh(
+                            script: "git log -1 --name-only --pretty=format: HEAD | grep -v '^\$' | sort -u",
+                            returnStdout: true
+                        ).trim()
+                        echo "변경 파일:\n${changed}"
+                        env.BUILD_SERVER = changed.split('\n').any { it.startsWith('jbDataHub/') } ? 'true' : 'false'
+                        env.BUILD_UI = changed.split('\n').any { it.startsWith('jbDataHubUI/') } ? 'true' : 'false'
+                        // infra 변경(Jenkinsfile, nginx, docker-compose)이면 안전상 둘 다 빌드
+                        if (changed.split('\n').any { it.startsWith('nginx/') || it == 'Jenkinsfile' || it == 'docker-compose.yml' || it.startsWith('deploy') }) {
+                            env.BUILD_SERVER = 'true'
+                            env.BUILD_UI = 'true'
+                            echo "⚙️ infra 변경 감지 → server + UI 모두 빌드"
+                        }
+                        // 둘 다 false면 안전상 server만 빌드
+                        if (env.BUILD_SERVER == 'false' && env.BUILD_UI == 'false') {
+                            env.BUILD_SERVER = 'true'
+                            echo "ℹ️ jbDataHub/jbDataHubUI 변경 없음 → server만 빌드 (기본)"
+                        }
+                    }
+                    echo "📦 BUILD_SERVER=${env.BUILD_SERVER}  BUILD_UI=${env.BUILD_UI}"
+                }
             }
         }
 
@@ -113,6 +150,7 @@ print(len(d) if isinstance(d, list) else 0)
         }
 
         stage('UI 빌드') {
+            when { expression { return env.BUILD_UI == 'true' } }
             steps {
                 sh '''
                     ssh -o StrictHostKeyChecking=no $APP_SERVER \
@@ -132,6 +170,7 @@ print(len(d) if isinstance(d, list) else 0)
         }
 
         stage('Blue/Green 백엔드 배포') {
+            when { expression { return env.BUILD_SERVER == 'true' } }
             steps {
                 sh '''
                     # deploy.sh 를 Server 1에 전송 후 실행

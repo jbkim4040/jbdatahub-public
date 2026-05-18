@@ -205,7 +205,21 @@ async def _submit_subscription(sub_id: str):
         daily_use = raw_req.get("daily_use_expect", 1000)
 
     cookies_dict = _parse_cookie_jar(cookie)
-    base_headers = {"User-Agent": USER_AGENT}
+    base_headers = {
+        "User-Agent": USER_AGENT,
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+        "Accept-Language": "ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7",
+        "Accept-Encoding": "gzip, deflate, br",
+        "Sec-Fetch-Dest": "document",
+        "Sec-Fetch-Mode": "navigate",
+        "Sec-Fetch-Site": "same-origin",
+        "sec-ch-ua": '"Chromium";v="148", "Google Chrome";v="148", "Not/A)Brand";v="99"',
+        "sec-ch-ua-mobile": "?0",
+        "sec-ch-ua-platform": '"macOS"',
+    }
+    # XSRF 이중 검증 (Spring Security): cookie + header 둘 다 같아야 통과
+    if cookies_dict.get("XSRF-TOKEN"):
+        base_headers["X-XSRF-TOKEN"] = cookies_dict["XSRF-TOKEN"]
 
     import asyncio
 
@@ -296,6 +310,8 @@ async def _submit_subscription(sub_id: str):
                 "Referer": form_url,
                 "Accept": "application/json, text/javascript, */*; q=0.01",
             }
+            if cookies_dict.get("XSRF-TOKEN"):
+                submit_headers["X-XSRF-TOKEN"] = cookies_dict["XSRF-TOKEN"]
             pr = await client.post(
                 f"{DATA_PORTAL_BASE}/iim/api/saveDevAcountRequest.do",
                 data=data, headers=submit_headers,

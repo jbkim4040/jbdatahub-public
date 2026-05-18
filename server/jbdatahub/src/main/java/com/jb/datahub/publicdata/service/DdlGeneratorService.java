@@ -41,7 +41,7 @@ public class DdlGeneratorService {
         sb.append("-- ").append(op.getOperationNm())
           .append(" (operation_seq: ").append(op.getOperationSeq()).append(")\n");
         sb.append("CREATE TABLE IF NOT EXISTS ").append(tableName).append(" (\n");
-        sb.append("    id           BIGSERIAL PRIMARY KEY,\n");
+        sb.append("    _row_id       BIGSERIAL PRIMARY KEY,\n");
         sb.append("    collected_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()");
         for (String col : cols) {
             sb.append(",\n    ").append(col).append(" TEXT");
@@ -77,7 +77,7 @@ public class DdlGeneratorService {
 
     private String buildTableName(PublicApiOperation op) {
         String listId = op.getPublicApiList().getListId().replaceAll("[^a-zA-Z0-9]", "_");
-        return "api_" + listId + "_" + op.getOperationSeq();
+        return "api_data.\"api_" + listId + "_" + op.getOperationSeq() + "\"";
     }
 
     private List<String> extractColumns(PublicApiOperation op) {

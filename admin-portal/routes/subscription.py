@@ -15,6 +15,7 @@ from datetime import datetime, timezone
 from typing import Literal, Optional
 
 import httpx
+from http.cookies import SimpleCookie
 from fastapi import APIRouter, BackgroundTasks, HTTPException
 from pydantic import BaseModel
 
@@ -84,6 +85,17 @@ async def session_status():
     if not row:
         return {"has_session": False}
     return {"has_session": True, **dict(row)}
+
+
+def _parse_cookie_jar(cookie_str: str) -> dict[str, str]:
+    """name=value; name=value 형식 → dict (도메인 무관, httpx가 모든 도메인에 자동 적용)"""
+    result = {}
+    for part in cookie_str.split(';'):
+        part = part.strip()
+        if '=' in part:
+            k, _, v = part.partition('=')
+            result[k.strip()] = v.strip()
+    return result
 
 
 async def _get_session_cookie() -> str:
@@ -192,13 +204,17 @@ async def _submit_subscription(sub_id: str):
         purpose_code = PURPOSE_CODES.get(raw_req.get("purpose_code", "WEB"), "PROS01")
         daily_use = raw_req.get("daily_use_expect", 1000)
 
-    base_headers = {
-        "User-Agent": USER_AGENT,
-        "Cookie": cookie,
-    }
+    cookies_dict = _parse_cookie_jar(cookie)
+    base_headers = {"User-Agent": USER_AGENT}
 
     try:
-        async with httpx.AsyncClient(timeout=30, follow_redirects=True) as client:
+        # cookies 매개변수로 전달 → httpx가 모든 도메인에 자동 적용 (SSO redirect 시에도)
+        async with httpx.AsyncClient(
+            timeout=30,
+            follow_redirects=True,
+            cookies=cookies_dict,
+            headers=base_headers,
+        ) as client:
             # ── (a) redirectDevAcountRequestForm.do — list_id로 신청 폼 직행 ──
             # data.go.kr이 자동으로 적절한 detail_pk로 redirect함
             override_detail_pk = raw_req.get("detail_pk")
@@ -207,7 +223,7 @@ async def _submit_subscription(sub_id: str):
             else:
                 form_url = f"{DATA_PORTAL_BASE}/tcs/dss/redirectDevAcountRequestForm.do?publicDataPk={sub['list_id']}&isBusinessApply=false"
 
-            fr = await client.get(form_url, headers=base_headers)
+            fr = await client.get(form_url)
             final_url = str(fr.url)
             logger.info(f"[{sub_id}] redirect from {form_url} -> {final_url}")
 
@@ -226,8 +242,7 @@ async def _submit_subscription(sub_id: str):
             if not oprtin_seqs:
                 # 폼 페이지가 안 보이면 form_url로 한 번 더 시도
                 fr2 = await client.get(
-                    f"{DATA_PORTAL_BASE}/iim/api/selectDevAcountRequestForm.do?publicDataDetailPk={detail_pk}",
-                    headers=base_headers
+                    f"{DATA_PORTAL_BASE}/iim/api/selectDevAcountRequestForm.do?publicDataDetailPk={detail_pk}"
                 )
                 oprtin_seqs = list(dict.fromkeys(re.findall(r'oprtinSeqNo[^>]*value="(\d+)"', fr2.text)))
                 if not oprtin_seqs:
@@ -256,7 +271,6 @@ async def _submit_subscription(sub_id: str):
                 data[f"oprtinAuthorList[{i}].dilyUseExpectCo"] = str(daily_use)
 
             submit_headers = {
-                **base_headers,
                 "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
                 "X-Requested-With": "XMLHttpRequest",
                 "Origin": DATA_PORTAL_BASE,

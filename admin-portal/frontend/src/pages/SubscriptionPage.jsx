@@ -29,9 +29,10 @@ function CookieModal({ onClose, onSaved }) {
           <Cookie size={18} /> data.go.kr 세션 등록
         </h2>
         <ol className="text-sm text-gray-600 mb-4 space-y-1 list-decimal pl-5">
-          <li>https://www.data.go.kr 에 카카오/네이버로 로그인</li>
-          <li>F12 → Application → Cookies → www.data.go.kr 모든 cookie 복사</li>
-          <li>아래에 `이름1=값1; 이름2=값2; ...` 형식으로 붙여넣기</li>
+          <li>https://www.data.go.kr 카카오/네이버 로그인</li>
+          <li>F12 → <b>Network</b> 탭 → F5 새로고침 → 첫 요청 클릭 → Headers → <b>Request Headers</b> → <code>Cookie:</code> 값 통째 복사</li>
+          <li>그리고 F12 → <b>Application</b> → Cookies → <code>https://auth.data.go.kr</code> 도메인도 cookie 복사하여 <code>;</code>로 이어붙이기 (SSO redirect용)</li>
+          <li>최종 형식: <code>JSESSIONID=...; SCOUTER=...; OZSESSION=...;</code> (두 도메인 모두 포함)</li>
         </ol>
         <form onSubmit={submit} className="space-y-3">
           <input type="text" placeholder="data.go.kr 사용자명 (참고용)"

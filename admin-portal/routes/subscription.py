@@ -186,6 +186,14 @@ async def retry_submission(sub_id: str, bg: BackgroundTasks):
 # 자동 제출 worker
 # ────────────────────────────────────────────────────────────
 async def _submit_subscription(sub_id: str):
+    """Playwright 우선 시도, 실패 시 httpx fallback."""
+    import os
+    if os.environ.get("DATA_PORTAL_USE_PLAYWRIGHT", "true").lower() == "true":
+        return await _submit_via_playwright(sub_id)
+    return await _submit_via_httpx(sub_id)
+
+
+async def _submit_via_httpx(sub_id: str):
     pool = get_pool()
     try:
         cookie = await _get_session_cookie()
@@ -355,3 +363,121 @@ async def _submit_subscription(sub_id: str):
 async def refresh_all_status(bg: BackgroundTasks):
     """Phase 4: SUBMITTED → APPROVED 매핑 (마이페이지 polling)."""
     return {"todo": "Phase 4 — 마이페이지 polling 구현 예정"}
+
+
+# ────────────────────────────────────────────────────────────
+# Playwright 기반 신청 (SSO 우회)
+# ────────────────────────────────────────────────────────────
+async def _submit_via_playwright(sub_id: str):
+    """Chromium headless로 실제 브라우저 흐름 모방."""
+    from playwright.async_api import async_playwright
+    
+    pool = get_pool()
+    try:
+        cookie = await _get_session_cookie()
+    except HTTPException as e:
+        async with pool.acquire() as conn:
+            await conn.execute(
+                "UPDATE api_subscriptions SET status='ERROR', error_message=$2 WHERE id=$1::uuid",
+                sub_id, e.detail
+            )
+        return
+
+    cookies_dict = _parse_cookie_jar(cookie)
+
+    async with pool.acquire() as conn:
+        sub = await conn.fetchrow("SELECT * FROM api_subscriptions WHERE id=$1::uuid", sub_id)
+        if not sub: return
+        raw_req = json.loads(sub["raw_request"]) if isinstance(sub["raw_request"], str) else (sub["raw_request"] or {})
+
+    try:
+        async with async_playwright() as p:
+            browser = await p.chromium.launch(
+                headless=True,
+                args=["--no-sandbox", "--disable-dev-shm-usage", "--disable-gpu"]
+            )
+            context = await browser.new_context(
+                user_agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36",
+                locale="ko-KR",
+            )
+            # cookie 주입 (두 도메인)
+            pw_cookies = []
+            for name, val in cookies_dict.items():
+                for domain in ["www.data.go.kr", ".data.go.kr"]:
+                    pw_cookies.append({
+                        "name": name, "value": val, "domain": domain, "path": "/",
+                    })
+            await context.add_cookies(pw_cookies)
+
+            page = await context.new_page()
+            try:
+                # 1) 상세 페이지
+                await page.goto(
+                    f"{DATA_PORTAL_BASE}/data/{sub['list_id']}/openapi.do",
+                    wait_until="domcontentloaded", timeout=30000
+                )
+
+                # 2) 활용신청 버튼 클릭 → 새 탭/페이지
+                async with context.expect_page(timeout=15000) as new_page_info:
+                    await page.click('button:has-text("활용신청"), a:has-text("활용신청")', timeout=10000)
+                form_page = await new_page_info.value
+                await form_page.wait_for_load_state("domcontentloaded", timeout=30000)
+
+                # 3) URL에서 detail_pk 추출
+                form_url = form_page.url
+                m = re.search(r'publicDataDetailPk=(uddi:[a-f0-9-]+_\d+)', form_url)
+                if not m:
+                    raise RuntimeError(f"detail_pk not found in form URL: {form_url}")
+
+                # 4) 사용목적 입력
+                await form_page.fill('textarea[name="prcusePurps"]', sub["usage_purpose"])
+
+                # 5) 활용목적 라디오 (PROS01=웹)
+                purpose_code = PURPOSE_CODES.get(raw_req.get("purpose_code", "WEB"), "PROS01")
+                await form_page.check(f'input[name="prcusePrpos"][value="{purpose_code}"]')
+
+                # 6) 동의 체크박스
+                await form_page.check('input[name="useScopeAgreAt"]')
+
+                # 7) 일일 예상 사용량
+                daily = raw_req.get("daily_use_expect", 1000)
+                inputs = await form_page.query_selector_all('input[name*="dilyUseExpectCo"]')
+                for inp in inputs:
+                    await inp.fill(str(daily))
+
+                # 8) 신청 버튼 클릭
+                async with form_page.expect_response(
+                    lambda r: "saveDevAcountRequest" in r.url and r.status < 400,
+                    timeout=30000
+                ) as resp_info:
+                    await form_page.click('button:has-text("신청"), button:has-text("동의")')
+                response = await resp_info.value
+                resp_body = await response.text()
+
+                try:
+                    resp_json = json.loads(resp_body)
+                except Exception:
+                    resp_json = {"raw": resp_body[:500]}
+
+                async with pool.acquire() as conn:
+                    await conn.execute(
+                        """UPDATE api_subscriptions
+                           SET status='SUBMITTED', submitted_at=now(),
+                               portal_apply_id=$2,
+                               raw_response=$3::jsonb,
+                               retry_count = retry_count + 1
+                           WHERE id=$1::uuid""",
+                        sub_id,
+                        str(resp_json.get("prcuseReqstSeqNo") or ""),
+                        json.dumps(resp_json),
+                    )
+                logger.info(f"[{sub_id}] Playwright 신청 성공")
+            finally:
+                await browser.close()
+    except Exception as e:
+        logger.exception(f"[{sub_id}] Playwright 실패")
+        async with pool.acquire() as conn:
+            await conn.execute(
+                "UPDATE api_subscriptions SET status='ERROR', error_message=$2, retry_count=retry_count+1 WHERE id=$1::uuid",
+                sub_id, f"playwright: {str(e)[:400]}"
+            )

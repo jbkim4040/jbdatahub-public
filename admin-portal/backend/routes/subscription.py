@@ -473,6 +473,7 @@ async def _submit_via_playwright(sub_id: str):
 
                 # 2) 활용신청 버튼 클릭 → 새 탭 또는 same-page navigation
                 form_page = page  # default
+                page_url_before = page.url
                 try:
                     async with context.expect_page(timeout=8000) as new_page_info:
                         await page.click('button:has-text("활용신청"), a:has-text("활용신청")', timeout=10000)
@@ -518,6 +519,20 @@ async def _submit_via_playwright(sub_id: str):
                                 await _asyncio.sleep(2 * (attempt + 1))
                 if not m:
                     raise RuntimeError(f"detail_pk not found anywhere — URL: {form_url}")
+
+                # 3.5) URL이 그대로면 신청 폼으로 직접 이동 시도
+                if form_page.url == page_url_before or '/openapi.do' in form_page.url:
+                    detail_pk_match = re.search(r'(uddi:[a-f0-9-]+_\d+)', html if 'html' in dir() else (await form_page.content()))
+                    if detail_pk_match:
+                        apply_url = f"https://www.data.go.kr/iim/api/selectAcountAplyView.do?publicDataDetailPk={detail_pk_match.group(1)}"
+                        logger.info(f"활용신청 폼 직접 진입: {apply_url}")
+                        try:
+                            await form_page.goto(apply_url, wait_until="domcontentloaded", timeout=20000)
+                        except Exception as e:
+                            logger.warning(f"직접 진입 실패: {e}")
+                    else:
+                        # 활용신청 버튼 클릭이 cookie/세션 만료로 인한 무동작 — 명확한 에러
+                        raise RuntimeError(f"활용신청 폼으로 이동 못 함 (세션 만료 추정). URL: {form_page.url}")
 
                 # 4) 사용목적 입력 — selector 후보 시도
                 purpose_filled = False

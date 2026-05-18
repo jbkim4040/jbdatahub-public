@@ -21,6 +21,9 @@ public class SubscribeService {
     @Value("${admin.portal.url:https://admin.jbdatahub.com}")
     private String adminPortalUrl;
 
+    @Value("${admin.portal.internal-token:jb-internal-svc-token-2026}")
+    private String internalToken;
+
     private final RestTemplate restTemplate = new RestTemplate();
 
     public Map<String, Object> requestSubscription(String listId, Map<String, Object> body, String user) {
@@ -33,11 +36,12 @@ public class SubscribeService {
 
         try {
             @SuppressWarnings("unchecked")
-            Map<String, Object> resp = restTemplate.postForObject(
+            Map<String, Object> resp = restTemplate.exchange(
                     adminPortalUrl + "/api/subscription/request",
-                    payload,
+                    org.springframework.http.HttpMethod.POST,
+                    new org.springframework.http.HttpEntity<>(payload, internalHeaders()),
                     Map.class
-            );
+            ).getBody();
             return resp != null ? resp : Map.of("ok", true);
         } catch (HttpClientErrorException e) {
             // 409 (이미 신청)는 그대로 전파
@@ -57,13 +61,22 @@ public class SubscribeService {
         }
     }
 
+    private org.springframework.http.HttpHeaders internalHeaders() {
+        org.springframework.http.HttpHeaders h = new org.springframework.http.HttpHeaders();
+        h.set("X-Internal-Token", internalToken);
+        h.setContentType(org.springframework.http.MediaType.APPLICATION_JSON);
+        return h;
+    }
+
     @SuppressWarnings("unchecked")
     public Map<String, Object> getUserSubscribedIds(String user) {
         try {
-            Map<String, Object> resp = restTemplate.getForObject(
+            Map<String, Object> resp = restTemplate.exchange(
                     adminPortalUrl + "/api/subscription/user-subscribed-ids?requested_by=" + user,
+                    org.springframework.http.HttpMethod.GET,
+                    new org.springframework.http.HttpEntity<>(internalHeaders()),
                     Map.class
-            );
+            ).getBody();
             return resp != null ? resp : Map.of("items", java.util.List.of());
         } catch (Exception e) {
             log.warn("my-subscriptions 조회 실패: {}", e.getMessage());

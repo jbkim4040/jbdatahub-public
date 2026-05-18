@@ -7,6 +7,7 @@ from fastapi.responses import JSONResponse
 logger = logging.getLogger(__name__)
 
 JBDATAHUB_URL = "https://jbdatahub.com"
+INTERNAL_TOKEN = "jb-internal-svc-token-2026"  # WAS ↔ admin-portal
 ALLOWED_ROLES = {"ADMIN", "SUPER_ADMIN", "GUEST"}
 MUTATION_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
 
@@ -23,6 +24,10 @@ async def admin_auth_middleware(request: Request, call_next):
     if not path.startswith("/api/"):
         return await call_next(request)
     if path in SKIP_PATHS or any(path.startswith(p) for p in SKIP_PREFIXES) or any(path.startswith(p) for p in SKIP_API_PREFIXES):
+        return await call_next(request)
+
+    # 서버간 호출 (WAS → admin-portal)
+    if request.headers.get("x-internal-token") == INTERNAL_TOKEN:
         return await call_next(request)
 
     token = request.cookies.get("jb_token") or ""

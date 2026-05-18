@@ -153,6 +153,13 @@ export default function SubscriptionPage() {
           ))}
         </div>
       )}
+
+      {showCookie && (
+        <CookieModal
+          onClose={() => setShowCookie(false)}
+          onSaved={() => { setShowCookie(false); load(); }}
+        />
+      )}
     </div>
   )
 }

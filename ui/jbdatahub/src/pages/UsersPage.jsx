@@ -153,6 +153,7 @@ export default function UsersPage() {
                 <th>역할</th>
                 <th>상태</th>
                 <th>생성일</th>
+              <th>최근 접속</th>
                 <th>작업</th>
               </tr>
             </thead>
@@ -181,6 +182,7 @@ export default function UsersPage() {
                     </button>
                   </td>
                   <td>{u.createdAt ? u.createdAt.slice(0, 10) : '-'}</td>
+              <td>{u.lastLoginAt ? new Date(u.lastLoginAt).toLocaleString("ko-KR") : "-"}</td>
                   <td className={styles.actions}>
                     <button
                       className={styles.pwBtn}

@@ -25,6 +25,9 @@ public class User {
     @Column(name = "tokens_revoked_at")
     private Instant tokensRevokedAt;
 
+    @Column(name = "last_login_at")
+    private LocalDateTime lastLoginAt;
+
     @Column(nullable = false)
     private String password; // BCrypt
 

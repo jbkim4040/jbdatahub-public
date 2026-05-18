@@ -45,6 +45,8 @@ public class AuthController {
                 || !passwordEncoder.matches(request.getPassword(), user.getPassword())) {
             return ResponseEntity.status(401).body("아이디 또는 비밀번호가 올바르지 않습니다.");
         }
+        user.setLastLoginAt(java.time.LocalDateTime.now());
+        userRepository.save(user);
         String token = jwtUtil.generateToken(user.getUsername(), user.getRole());
         RefreshToken rt = refreshTokenService.create(user.getUsername());
 

@@ -81,6 +81,21 @@ public class AuthController {
                 .orElse(ResponseEntity.status(401).body("유효하지 않은 리프레시 토큰입니다."));
     }
 
+
+    @GetMapping("/me")
+    public ResponseEntity<?> me() {
+        var auth = org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null || !auth.isAuthenticated() || "anonymousUser".equals(auth.getName())) {
+            return ResponseEntity.status(401).body(java.util.Map.of("error", "unauthenticated"));
+        }
+        String role = auth.getAuthorities().stream()
+                .map(Object::toString)
+                .filter(a -> a.startsWith("ROLE_"))
+                .map(a -> a.substring(5))
+                .findFirst().orElse("USER");
+        return ResponseEntity.ok(java.util.Map.of("username", auth.getName(), "role", role));
+    }
+
     @PostMapping("/logout")
     @Operation(summary = "로그아웃 (cookie 제거 + refresh token 무효화)")
     public ResponseEntity<Void> logout(@RequestBody(required = false) RefreshRequestDto request,
@@ -108,6 +123,7 @@ public class AuthController {
 
     private ResponseCookie authCookie(String name, String value, int maxAge, String path) {
         return ResponseCookie.from(name, value)
+                .domain(".jbdatahub.com")  // 서브도메인 공유 (admin.jbdatahub.com)
                 .httpOnly(true)
                 .secure(true)
                 .sameSite("Lax")
@@ -118,6 +134,7 @@ public class AuthController {
 
     private ResponseCookie expireCookie(String name, String path) {
         return ResponseCookie.from(name, "")
+                .domain(".jbdatahub.com")
                 .httpOnly(true)
                 .secure(true)
                 .sameSite("Lax")

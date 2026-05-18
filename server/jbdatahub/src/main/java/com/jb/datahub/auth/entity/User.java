@@ -1,9 +1,10 @@
-package com.jb.datahub.auth.entity;
+com.jb.datahub.auth.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
 
 import java.time.LocalDateTime;
+import java.time.Instant;
 
 @Entity
 @Table(name = "users")
@@ -20,6 +21,9 @@ public class User {
 
     @Column(unique = true, nullable = false, length = 50)
     private String username;
+
+    @Column(name = "tokens_revoked_at")
+    private Instant tokensRevokedAt;
 
     @Column(nullable = false)
     private String password; // BCrypt

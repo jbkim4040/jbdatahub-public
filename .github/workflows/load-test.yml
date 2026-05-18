@@ -1,0 +1,70 @@
+name: Load Test (k6)
+on:
+  workflow_dispatch:
+    inputs:
+      scenario:
+        description: '시나리오'
+        required: true
+        default: 'smoke'
+        type: choice
+        options: [smoke, baseline, stress, spike]
+      base_url:
+        description: 'Base URL'
+        required: false
+        default: 'https://jbdatahub.com'
+  schedule:
+    - cron: '0 17 * * *'  # 매일 02:00 KST baseline
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  load-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup k6
+        run: |
+          curl -L https://github.com/grafana/k6/releases/download/v0.50.0/k6-v0.50.0-linux-amd64.tar.gz | tar xz
+          sudo mv k6-*/k6 /usr/local/bin/
+
+      - name: Run k6
+        id: k6
+        env:
+          BASE_URL: ${{ github.event.inputs.base_url || 'https://jbdatahub.com' }}
+        run: |
+          SCENARIO="${{ github.event.inputs.scenario || 'baseline' }}"
+          echo "🎯 시나리오: $SCENARIO  대상: $BASE_URL"
+          mkdir -p results
+          k6 run --summary-export=results/summary.json --out json=results/raw.json \
+            infra/k6/${SCENARIO}.js | tee results/output.txt
+          # Summary 메트릭 추출
+          python3 -c "
+          import json
+          d = json.load(open('results/summary.json'))
+          m = d['metrics']
+          print(f\"::set-output name=p95::{m['http_req_duration']['values']['p(95)']:.0f}\")
+          print(f\"::set-output name=p99::{m['http_req_duration']['values']['p(99)']:.0f}\")
+          print(f\"::set-output name=fail_rate::{m['http_req_failed']['values']['rate']*100:.2f}\")
+          print(f\"::set-output name=rps::{m['http_reqs']['values']['rate']:.1f}\")
+          print(f\"::set-output name=count::{int(m['http_reqs']['values']['count'])}\")
+          " || true
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: k6-results-${{ github.event.inputs.scenario || 'baseline' }}
+          path: results/
+
+      - name: Create issue on failure
+        if: failure() && github.event_name == 'schedule'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh issue create \
+            --title "🔴 Load test 실패 ($(date '+%Y-%m-%d'))" \
+            --body "k6 baseline threshold 위반. results/output.txt 참고." \
+            --label "load-test,alert" || true

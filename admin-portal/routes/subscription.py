@@ -542,3 +542,87 @@ async def user_subscribed_ids(requested_by: str):
             requested_by,
         )
     return {"items": [dict(r) for r in rows]}
+
+
+@router.get("/grouped")
+async def list_grouped(limit: int = 100, status: Optional[str] = None, requested_by: Optional[str] = None):
+    """list_id 기준 그룹 + 시도 이력 (최신 status가 status 필터에 맞는 그룹만)."""
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        # 그룹별 latest 시도 + 전체 시도 카운트
+        sql = """
+        WITH latest AS (
+          SELECT DISTINCT ON (s.list_id)
+                 s.list_id, s.id, s.status, s.requested_at, s.submitted_at, s.approved_at,
+                 s.error_message, s.api_key, s.retry_count, s.requested_by,
+                 l.list_title, l.org_nm, l.new_category_nm
+          FROM api_subscriptions s
+          LEFT JOIN public_api_list l ON l.list_id = s.list_id
+          {WHERE_USER}
+          ORDER BY s.list_id, s.requested_at DESC
+        ),
+        counts AS (
+          SELECT list_id, COUNT(*) AS total_attempts,
+                 SUM(CASE WHEN status='ERROR' THEN 1 ELSE 0 END) AS error_count
+          FROM api_subscriptions
+          {WHERE_USER_COUNTS}
+          GROUP BY list_id
+        )
+        SELECT latest.*, counts.total_attempts, counts.error_count
+        FROM latest LEFT JOIN counts USING (list_id)
+        {WHERE_STATUS}
+        ORDER BY latest.requested_at DESC LIMIT $LIMIT_PLACEHOLDER
+        """
+        where_user = ""
+        where_user_counts = ""
+        params = []
+        if requested_by:
+            params.append(requested_by)
+            where_user = f"WHERE s.requested_by = ${len(params)}"
+            where_user_counts = f"WHERE requested_by = ${len(params)}"
+        sql = sql.replace("{WHERE_USER}", where_user).replace("{WHERE_USER_COUNTS}", where_user_counts)
+
+        where_status = ""
+        if status:
+            params.append(status)
+            where_status = f"WHERE latest.status = ${len(params)}"
+        sql = sql.replace("{WHERE_STATUS}", where_status)
+
+        params.append(limit)
+        sql = sql.replace("$LIMIT_PLACEHOLDER", f"${len(params)}")
+
+        rows = await conn.fetch(sql, *params)
+
+    items = []
+    for r in rows:
+        d = dict(r)
+        d["id"] = str(d["id"])
+        for k in ("requested_at","submitted_at","approved_at"):
+            if d.get(k): d[k] = d[k].isoformat()
+        items.append(d)
+    return {"items": items}
+
+
+@router.get("/{list_id}/attempts")
+async def list_attempts(list_id: str, requested_by: Optional[str] = None):
+    """특정 list_id의 모든 시도 이력 (최신순)."""
+    pool = get_pool()
+    where = "WHERE list_id=$1"
+    params = [list_id]
+    if requested_by:
+        params.append(requested_by)
+        where += f" AND requested_by=${len(params)}"
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            f"""SELECT id, status, requested_at, submitted_at, error_message, retry_count
+                FROM api_subscriptions {where}
+                ORDER BY requested_at DESC""",
+            *params,
+        )
+    out = []
+    for r in rows:
+        d = dict(r); d["id"] = str(d["id"])
+        for k in ("requested_at","submitted_at"):
+            if d.get(k): d[k] = d[k].isoformat()
+        out.append(d)
+    return {"items": out}

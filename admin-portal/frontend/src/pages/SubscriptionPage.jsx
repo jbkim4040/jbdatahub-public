@@ -65,6 +65,30 @@ export default function SubscriptionPage() {
   const [showCookie, setShowCookie] = useState(false)
   const [showPortalLogin, setShowPortalLogin] = useState(false)
   const [showSubscribe, setShowSubscribe] = useState(false)
+  const [expandedRows, setExpandedRows] = useState({})  // list_id → bool
+  const [attemptsMap, setAttemptsMap] = useState({})    // list_id → attempts[]
+  const [retrying, setRetrying] = useState({})
+
+  const toggleHistory = async (listId) => {
+    setExpandedRows(prev => ({ ...prev, [listId]: !prev[listId] }))
+    if (!attemptsMap[listId]) {
+      try {
+        const { data } = await api.get(`/subscription/${listId}/attempts`)
+        setAttemptsMap(prev => ({ ...prev, [listId]: data.items || [] }))
+      } catch (e) {}
+    }
+  }
+
+  const retry = async (sub_id, list_id) => {
+    setRetrying(prev => ({ ...prev, [list_id]: true }))
+    try {
+      await api.post(`/subscription/retry/${sub_id}`)
+      setTimeout(() => { load(); setRetrying(prev => ({ ...prev, [list_id]: false })) }, 1500)
+    } catch (e) {
+      alert('재신청 실패: ' + (e?.response?.data?.detail || e.message))
+      setRetrying(prev => ({ ...prev, [list_id]: false }))
+    }
+  }
 
   const load = async () => {
     setLoading(true)
@@ -91,9 +115,9 @@ export default function SubscriptionPage() {
           <h1 className="text-2xl font-bold text-gray-900">공공데이터 신청 관리</h1>
         </div>
         <div className="flex items-center gap-2">
-          <button onClick={() => setShowCookie(true)}
+          <button onClick={() => setShowPortalLogin(true)}
                   className="flex items-center gap-1 px-3 py-2 border rounded-lg text-sm hover:bg-gray-50">
-            <Cookie size={14} /> 세션 등록
+            <Cookie size={14} /> 로그인
           </button>
           <button onClick={refresh}
                   className="flex items-center gap-1 px-3 py-2 border rounded-lg text-sm hover:bg-gray-50">
@@ -141,24 +165,56 @@ export default function SubscriptionPage() {
       ) : (
         <div className="space-y-2">
           {items.map(it => (
-            <div key={it.id} className="flex items-center gap-4 bg-white border rounded-xl px-5 py-4">
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 mb-1">
-                  <span className="font-semibold text-gray-900 truncate">{it.list_title || it.list_id}</span>
-                  <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${STATUS_STYLE[it.status]}`}>
-                    {it.status}
-                  </span>
-                </div>
-                <p className="text-xs text-gray-500">
-                  {it.org_nm && `${it.org_nm} · `}list_id: {it.list_id} · 요청: {new Date(it.requested_at).toLocaleString('ko-KR')}
-                </p>
-                {it.api_key && <p className="text-xs text-green-700 font-mono mt-1">🔑 {it.api_key}</p>}
-                {it.error_message && (
-                  <p className="text-xs text-red-600 mt-1 flex items-center gap-1">
-                    <AlertCircle size={12} /> {it.error_message}
+            <div key={it.list_id} className="bg-white border rounded-xl px-5 py-4">
+              <div className="flex items-center gap-3">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="font-semibold text-gray-900 truncate">{it.list_title || it.list_id}</span>
+                    <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${STATUS_STYLE[it.status]}`}>
+                      {it.status}
+                    </span>
+                    {it.total_attempts > 1 && (
+                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-gray-100 text-gray-600">
+                        시도 {it.total_attempts}회
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-xs text-gray-500">
+                    {it.org_nm && `${it.org_nm} · `}list_id: {it.list_id} · 최근 시도: {new Date(it.requested_at).toLocaleString('ko-KR')}
                   </p>
-                )}
+                  {it.api_key && <p className="text-xs text-green-700 font-mono mt-1">🔑 {it.api_key}</p>}
+                  {it.error_message && (
+                    <p className="text-xs text-red-600 mt-1 flex items-center gap-1">
+                      <AlertCircle size={12} /> {it.error_message}
+                    </p>
+                  )}
+                </div>
+                <div className="flex items-center gap-2">
+                  {it.status === 'ERROR' && (
+                    <button onClick={() => retry(it.id, it.list_id)} disabled={retrying[it.list_id]}
+                            className="px-3 py-1.5 text-xs bg-orange-500 text-white rounded hover:bg-orange-600 disabled:opacity-50">
+                      {retrying[it.list_id] ? '재시도 중…' : '↻ 재신청'}
+                    </button>
+                  )}
+                  {it.total_attempts > 1 && (
+                    <button onClick={() => toggleHistory(it.list_id)}
+                            className="px-3 py-1.5 text-xs border border-gray-300 text-gray-600 rounded hover:bg-gray-50">
+                      {expandedRows[it.list_id] ? '▲ 이력 숨기기' : `▼ 이력 (${it.total_attempts})`}
+                    </button>
+                  )}
+                </div>
               </div>
+              {expandedRows[it.list_id] && attemptsMap[it.list_id] && (
+                <div className="mt-3 pt-3 border-t border-gray-100 space-y-1">
+                  {attemptsMap[it.list_id].map(a => (
+                    <div key={a.id} className="flex items-start gap-3 text-xs px-2 py-1.5 bg-gray-50 rounded">
+                      <span className="text-gray-400 whitespace-nowrap">{new Date(a.requested_at).toLocaleString('ko-KR')}</span>
+                      <span className={`px-1.5 py-0.5 rounded-full font-medium text-[10px] ${STATUS_STYLE[a.status]}`}>{a.status}</span>
+                      {a.error_message && <span className="text-red-600 flex-1 truncate" title={a.error_message}>{a.error_message}</span>}
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           ))}
         </div>

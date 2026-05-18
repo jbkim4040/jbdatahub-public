@@ -46,6 +46,7 @@ class SessionUpdate(BaseModel):
 
 class SubscriptionRequest(BaseModel):
     list_id: str
+    detail_pk: Optional[str] = None       # 명시하면 그것 사용, 없으면 페이지 첫 번째
     operation_seq: Optional[int] = None
     usage_purpose: str = "jb-workspace 통합 데이터 허브 운영 - 공공데이터 통합 검색 및 분석"
     purpose_code: str = "WEB"
@@ -114,7 +115,7 @@ async def request_subscription(req: SubscriptionRequest, bg: BackgroundTasks):
             """INSERT INTO api_subscriptions (list_id, usage_purpose, status, raw_request)
                VALUES ($1, $2, 'PENDING', $3::jsonb) RETURNING id""",
             req.list_id, req.usage_purpose,
-            json.dumps({"purpose_code": req.purpose_code, "daily_use_expect": req.daily_use_expect}),
+            json.dumps({"purpose_code": req.purpose_code, "daily_use_expect": req.daily_use_expect, "detail_pk": req.detail_pk}),
         )
         sub_id = str(row["id"])
     bg.add_task(_submit_subscription, sub_id)
@@ -198,23 +199,38 @@ async def _submit_subscription(sub_id: str):
 
     try:
         async with httpx.AsyncClient(timeout=30, follow_redirects=True) as client:
-            # ── (a) 상세 페이지 → publicDataDetailPk(uddi) 추출 ──
-            r = await client.get(
-                f"{DATA_PORTAL_BASE}/data/{sub['list_id']}/openapi.do",
-                headers=base_headers,
-            )
-            m = re.search(r'uddi:[a-f0-9-]+_\d+', r.text)
-            if not m:
-                raise RuntimeError(f"detail_pk not found in /data/{sub['list_id']}/openapi.do")
-            detail_pk = m.group()
+            # ── (a) detail_pk 후보 결정 ──
+            override_detail_pk = raw_req.get("detail_pk")
+            if override_detail_pk:
+                candidates = [override_detail_pk]
+            else:
+                # 상세 페이지에서 모든 detail_pk 추출
+                r = await client.get(
+                    f"{DATA_PORTAL_BASE}/data/{sub['list_id']}/openapi.do",
+                    headers=base_headers,
+                )
+                candidates = list(dict.fromkeys(re.findall(r'uddi:[a-f0-9-]+_\d+', r.text)))
+                if not candidates:
+                    raise RuntimeError(f"detail_pk not found in /data/{sub['list_id']}/openapi.do")
 
-            # ── (b) 신청 폼 페이지 → oprtinSeqNo 목록 추출 ──
-            form_url = f"{DATA_PORTAL_BASE}/iim/api/selectDevAcountRequestForm.do?publicDataDetailPk={detail_pk}"
-            fr = await client.get(form_url, headers=base_headers)
-            oprtin_seqs = re.findall(r'oprtinSeqNo[^>]*value="(\d+)"', fr.text)
-            oprtin_seqs = list(dict.fromkeys(oprtin_seqs))  # dedup, preserve order
+            # ── (b) 각 detail_pk 시도해서 oprtinSeqNo 있는 폼 찾기 ──
+            detail_pk = None
+            form_url = None
+            oprtin_seqs = []
+            tried = []
+            for cand in candidates:
+                url = f"{DATA_PORTAL_BASE}/iim/api/selectDevAcountRequestForm.do?publicDataDetailPk={cand}"
+                fr = await client.get(url, headers=base_headers)
+                seqs = list(dict.fromkeys(re.findall(r'oprtinSeqNo[^>]*value="(\d+)"', fr.text)))
+                tried.append({"detail_pk": cand, "seq_count": len(seqs)})
+                if seqs:
+                    detail_pk = cand
+                    form_url = url
+                    oprtin_seqs = seqs
+                    break
+
             if not oprtin_seqs:
-                raise RuntimeError("oprtinSeqNo not found — 이미 신청했거나 페이지 구조 변경")
+                raise RuntimeError(f"oprtinSeqNo not found. tried: {tried} — 모든 detail_pk가 이미 신청됨 또는 페이지 구조 변경")
 
             # ── (c) 실제 신청 POST ──
             data = {

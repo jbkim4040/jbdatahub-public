@@ -7,6 +7,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Arrays;
 import java.util.List;
@@ -51,6 +52,7 @@ public class DdlGeneratorService {
 
     /** 모든 operation 의 DDL 을 생성하여 DB 에 저장 (비동기) */
     @Async
+    @Transactional
     public void generateAndSaveAll() {
         log.info("[DDL] 전체 DDL 생성 시작");
         List<PublicApiOperation> all = operationRepository.findAll();

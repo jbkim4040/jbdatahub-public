@@ -46,7 +46,7 @@ public class PublicApiQueryService {
                 : Sort.by(field).descending();
     }
 
-    @Cacheable("listCountAll")
+    @Cacheable("api:listCountAll")
     public long countAllLists() {
         return repository.countAll();
     }
@@ -65,7 +65,7 @@ public class PublicApiQueryService {
         return PageResponseDto.from(pg.map(PublicApiListDto::from));
     }
 
-    @Cacheable("stats")
+    @Cacheable("api:stats")
     public StatsDto getStats() {
         long total = repository.count();
 
@@ -105,7 +105,7 @@ public class PublicApiQueryService {
                 .build();
     }
 
-    @Cacheable(value = "dataItemStats", key = "#sourceType")
+    @Cacheable(value = "api:dataItemStats", key = "#sourceType")
     public DataItemStatsDto getDataItemStats(String sourceType) {
         long total = dataItemRepository.countBySourceType(sourceType);
         Pageable top10 = PageRequest.of(0, 10);
@@ -137,12 +137,12 @@ public class PublicApiQueryService {
                 .build();
     }
 
-    @Cacheable(value = "itemCount", key = "#sourceType")
+    @Cacheable(value = "api:itemCount", key = "#sourceType")
     public long countBySourceType(String sourceType) {
         return dataItemRepository.countOnlyBySourceType(sourceType);
     }
 
-    @Cacheable(value = "itemCountAll")
+    @Cacheable(value = "api:itemCountAll")
     public long countAllItems() {
         return dataItemRepository.countAll();
     }

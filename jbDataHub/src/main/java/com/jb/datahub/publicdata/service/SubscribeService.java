@@ -23,11 +23,11 @@ public class SubscribeService {
 
     private final RestTemplate restTemplate = new RestTemplate();
 
-    public Map<String, Object> requestSubscription(String listId, Map<String, Object> body) {
+    public Map<String, Object> requestSubscription(String listId, Map<String, Object> body, String user) {
         Map<String, Object> payload = new HashMap<>(body == null ? Map.of() : body);
         payload.put("list_id", listId);
-        payload.putIfAbsent("usage_purpose",
-                "jb-workspace 사용자 신청 — 공공데이터 통합 검색 및 분석");
+        payload.put("requested_by", user);
+        payload.putIfAbsent("usage_purpose", "jb-workspace 사용자 신청 — 통합 검색/분석 (" + user + ")");
         payload.putIfAbsent("purpose_code", "WEB");
         payload.putIfAbsent("daily_use_expect", 1000);
 
@@ -40,6 +40,11 @@ public class SubscribeService {
             );
             return resp != null ? resp : Map.of("ok", true);
         } catch (HttpClientErrorException e) {
+            // 409 (이미 신청)는 그대로 전파
+            if (e.getStatusCode() == HttpStatus.CONFLICT) {
+                throw new ResponseStatusException(HttpStatus.CONFLICT,
+                        "이미 신청한 데이터셋입니다.");
+            }
             log.error("admin-portal 신청 실패: {} {}", e.getStatusCode(), e.getResponseBodyAsString());
             throw new ResponseStatusException(
                     HttpStatus.valueOf(e.getStatusCode().value()),
@@ -49,6 +54,20 @@ public class SubscribeService {
             log.error("admin-portal 연결 실패", e);
             throw new ResponseStatusException(HttpStatus.BAD_GATEWAY,
                     "admin-portal 연결 실패: " + e.getMessage());
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> getUserSubscribedIds(String user) {
+        try {
+            Map<String, Object> resp = restTemplate.getForObject(
+                    adminPortalUrl + "/api/subscription/user-subscribed-ids?requested_by=" + user,
+                    Map.class
+            );
+            return resp != null ? resp : Map.of("items", java.util.List.of());
+        } catch (Exception e) {
+            log.warn("my-subscriptions 조회 실패: {}", e.getMessage());
+            return Map.of("items", java.util.List.of());
         }
     }
 }

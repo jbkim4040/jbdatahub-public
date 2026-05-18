@@ -7,6 +7,7 @@ import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, PieChart, Pie, Legend
 } from 'recharts'
 import styles from './ListPage.module.css'
+import RelatedDatasets from '../components/RelatedDatasets'
 
 const COLORS = ['#1e3a5f', '#3b7dd8', '#e67e22', '#27ae60', '#8e44ad',
                  '#2980b9', '#e74c3c', '#16a085', '#f39c12', '#7f8c8d']
@@ -220,6 +221,7 @@ function OpenApiTab({ stats }) {
       )}
 
       {/* 검색 */}
+      <RelatedDatasets query={query} onSelect={(it) => { setSearch(it.listTitle); setQuery(it.listTitle); loadList(0, it.listTitle, sort, null, semanticMode) }} />
       <form className={styles.searchRow} onSubmit={handleSearch}>
         <input className={styles.searchInput} placeholder="목록명 검색..."
           value={search} onChange={(e) => setSearch(e.target.value)} />
@@ -553,3 +555,4 @@ export default function ListPage() {
     </div>
   )
 }
+

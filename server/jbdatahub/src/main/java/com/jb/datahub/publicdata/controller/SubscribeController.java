@@ -29,7 +29,14 @@ public class SubscribeController {
             Principal principal
     ) {
         String user = principal != null ? principal.getName() : "anonymous";
-        return ResponseEntity.ok(subscribeService.requestSubscription(listId, body, user));
+        try {
+            return ResponseEntity.ok(subscribeService.requestSubscription(listId, body, user));
+        } catch (org.springframework.web.server.ResponseStatusException e) {
+            java.util.Map<String,Object> err = new java.util.HashMap<>();
+            err.put("error", e.getReason() != null ? e.getReason() : "error");
+            err.put("status", e.getStatusCode().value());
+            return ResponseEntity.status(e.getStatusCode()).body(err);
+        }
     }
 
     @GetMapping("/my-subscriptions")
@@ -37,6 +44,10 @@ public class SubscribeController {
     @Operation(summary = "현재 사용자의 신청 목록 (활성 status)")
     public ResponseEntity<Map<String, Object>> mySubscriptions(Principal principal) {
         String user = principal != null ? principal.getName() : "anonymous";
-        return ResponseEntity.ok(subscribeService.getUserSubscribedIds(user));
+        try {
+            return ResponseEntity.ok(subscribeService.getUserSubscribedIds(user));
+        } catch (org.springframework.web.server.ResponseStatusException e) {
+            return ResponseEntity.status(e.getStatusCode()).body(java.util.Map.of("items", java.util.List.of()));
+        }
     }
 }

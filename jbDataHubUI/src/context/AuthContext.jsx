@@ -1,33 +1,32 @@
 import { createContext, useContext, useState, useCallback } from 'react'
 import { logout as logoutApi } from '../api/authApi'
 
+const STORAGE_KEY = 'jb_user'
+
 const defaultValue = { auth: null, isAdmin: false, login: () => {}, logout: () => {} }
 const AuthContext = createContext(defaultValue)
 
-export function AuthProvider({ children }) {
-  const [auth, setAuth] = useState(() => {
-    const token    = localStorage.getItem('token')
-    const username = localStorage.getItem('username')
-    const role     = localStorage.getItem('role')
-    return token ? { token, username, role } : null
-  })
+function readSavedUser() {
+  try {
+    const raw = sessionStorage.getItem(STORAGE_KEY)
+    return raw ? JSON.parse(raw) : null
+  } catch (_) { return null }
+}
 
-  const login = useCallback((token, refreshToken, username, role) => {
-    localStorage.setItem('token', token)
-    localStorage.setItem('refreshToken', refreshToken)
-    localStorage.setItem('username', username)
-    localStorage.setItem('role', role)
-    setAuth({ token, username, role })
+export function AuthProvider({ children }) {
+  // C1: token은 httpOnly cookie. username/role만 sessionStorage에 보관 (탭 닫으면 사라짐)
+  const [auth, setAuth] = useState(readSavedUser)
+
+  const login = useCallback((_token, _refreshToken, username, role) => {
+    const userInfo = { username, role }
+    try { sessionStorage.setItem(STORAGE_KEY, JSON.stringify(userInfo)) } catch (_) {}
+    setAuth(userInfo)
   }, [])
 
   const logout = useCallback(() => {
-    const rt = localStorage.getItem('refreshToken')
-    localStorage.removeItem('token')
-    localStorage.removeItem('refreshToken')
-    localStorage.removeItem('username')
-    localStorage.removeItem('role')
+    try { sessionStorage.removeItem(STORAGE_KEY) } catch (_) {}
     setAuth(null)
-    if (rt) logoutApi(rt).catch(() => {})
+    logoutApi().catch(() => {})
   }, [])
 
   const isAdmin = auth?.role === 'ADMIN' || auth?.role === 'SUPER_ADMIN'

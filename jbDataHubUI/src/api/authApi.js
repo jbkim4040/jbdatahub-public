@@ -1,11 +1,11 @@
 import http from './http'
-import axios from 'axios'
 
 export const login = (username, password) =>
   http.post('/auth/login', { username, password })
 
-export const refreshToken = (token) =>
-  axios.post('/api/auth/refresh', { refreshToken: token })
+// C1: refreshToken/logout은 httpOnly cookie로 자동 전송
+export const refreshToken = () =>
+  http.post('/auth/refresh', {})
 
-export const logout = (token) =>
-  http.post('/auth/logout', { refreshToken: token })
+export const logout = () =>
+  http.post('/auth/logout', {})

@@ -207,14 +207,28 @@ async def _submit_subscription(sub_id: str):
     cookies_dict = _parse_cookie_jar(cookie)
     base_headers = {"User-Agent": USER_AGENT}
 
+    import asyncio
+
+    async def _retry_get(client, url, **kw):
+        last_exc = None
+        for attempt in range(1, 4):
+            try:
+                return await client.get(url, **kw)
+            except Exception as e:
+                last_exc = e
+                logger.warning(f"[{sub_id}] attempt {attempt} {type(e).__name__}: {url}")
+                await asyncio.sleep(1)
+        raise last_exc
+
     try:
-        # cookies 매개변수로 전달 → httpx가 모든 도메인에 자동 적용 (SSO redirect 시에도)
         async with httpx.AsyncClient(
             timeout=30,
             follow_redirects=True,
             cookies=cookies_dict,
             headers=base_headers,
         ) as client:
+            # ── warmup: 메인 페이지 GET (connection 안정화) ──
+            await _retry_get(client, f"{DATA_PORTAL_BASE}/")
             # ── (a) redirectDevAcountRequestForm.do — list_id로 신청 폼 직행 ──
             # data.go.kr이 자동으로 적절한 detail_pk로 redirect함
             override_detail_pk = raw_req.get("detail_pk")
@@ -223,9 +237,14 @@ async def _submit_subscription(sub_id: str):
             else:
                 form_url = f"{DATA_PORTAL_BASE}/tcs/dss/redirectDevAcountRequestForm.do?publicDataPk={sub['list_id']}&isBusinessApply=false"
 
-            fr = await client.get(form_url)
+            fr = await _retry_get(
+                client, form_url,
+                headers={"Referer": f"{DATA_PORTAL_BASE}/data/{sub['list_id']}/openapi.do"}
+            )
             final_url = str(fr.url)
             logger.info(f"[{sub_id}] redirect from {form_url} -> {final_url}")
+            if "/index.do" in final_url or "/login" in final_url or "loginView" in final_url:
+                raise RuntimeError(f"세션이 인증 실패로 메인/로그인 페이지로 redirect됨. cookie 만료 또는 추가 cookie 필요. final_url: {final_url}")
 
             # final URL 또는 body에서 detail_pk
             m = re.search(r'publicDataDetailPk=(uddi:[a-f0-9-]+_\d+)', final_url)

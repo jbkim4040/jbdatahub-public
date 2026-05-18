@@ -56,14 +56,20 @@ public class RateLimitFilter extends OncePerRequestFilter {
         chain.doFilter(req, res);
     }
 
+    /** M2 fix: nginx만 X-Real-IP/X-Forwarded-For 설정 가능하다고 신뢰.
+     *  Cloudflare 통과 시 CF-Connecting-IP 우선. 둘 다 nginx에서 검증된 단일 값. */
     private String getClientIp(HttpServletRequest req) {
+        // Cloudflare 우선 (CF가 직접 서명한 헤더)
+        String cfIp = req.getHeader("CF-Connecting-IP");
+        if (cfIp != null && !cfIp.isBlank()) return cfIp.trim();
+        // nginx가 한 번만 set한 X-Real-IP
         String realIp = req.getHeader("X-Real-IP");
         if (realIp != null && !realIp.isBlank()) return realIp.trim();
-        // X-Forwarded-For의 마지막 값(신뢰 가능한 프록시가 추가한 IP) 사용
+        // X-Forwarded-For: 첫 번째 값이 진짜 클라이언트 (마지막은 신뢰할 수 없음 — 스푸핑 가능)
         String xff = req.getHeader("X-Forwarded-For");
         if (xff != null && !xff.isBlank()) {
             String[] parts = xff.split(",");
-            return parts[parts.length - 1].trim();
+            return parts[0].trim();
         }
         return req.getRemoteAddr();
     }

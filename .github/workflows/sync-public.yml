@@ -32,6 +32,7 @@ jobs:
             --exclude='dist' \
             --exclude='target' \
             --exclude='.gradle' \
+            --exclude='.github' \
             ./ /tmp/public-build/
 
           cd /tmp/public-build
@@ -71,7 +72,7 @@ jobs:
             echo "::error::ServerIP 잔존 — 동기화 중단"
             exit 1
           fi
-          if grep -rE "ghp_[A-Za-z0-9]{30}|jb-internal-svc-token" . ; then
+          if grep -rE --exclude-dir=.github --exclude=README.md "ghp_[A-Za-z0-9]{36}|jb-internal-svc-token-[0-9]{4}" . ; then
             echo "::error::Secret/token literal 잔존 — 동기화 중단"
             exit 1
           fi

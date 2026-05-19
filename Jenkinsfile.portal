@@ -7,18 +7,26 @@ pipeline {
     }
 
     stages {
+        stage('Checkout') {
+            steps {
+                checkout scm
+                echo "checkout 완료: ${WORKSPACE}"
+            }
+        }
+
         stage('Blue/Green Deploy') {
             steps {
-                sh """
+                // admin-portal/deploy.sh를 stdin으로 전달 — 운영 ~/deploy-admin.sh 갱신 불필요
+                sh '''
                     ssh -o StrictHostKeyChecking=no -i ${JENKINS_KEY} ubuntu@${HOST_IP} \
-                        'bash ~/deploy-admin.sh'
-                """
+                        'bash -s' < ${WORKSPACE}/admin-portal/deploy.sh
+                '''
             }
         }
     }
 
     post {
         success { echo 'Admin Portal Blue/Green deploy succeeded.' }
-        failure { echo 'Deploy FAILED — previous slot still active.' }
+        failure { echo 'Deploy FAILED - previous slot still active.' }
     }
 }

@@ -181,11 +181,12 @@ public class SemanticSearchService {
     @SuppressWarnings("unchecked")
     private String getEmbedding(String query) {
         try {
-            Map<String, Object> resp = webClient.get()
-                .uri(embedUrl + "/embed?text={text}", query)
+            Map<String, Object> resp = webClient.post()
+                .uri(embedUrl + "/embed")
+                .bodyValue(Map.of("text", query))
                 .retrieve()
                 .bodyToMono(Map.class)
-                .timeout(Duration.ofSeconds(3))
+                .timeout(Duration.ofSeconds(5))
                 .block();
             List<Double> emb = (List<Double>) resp.get("embedding");
             return "[" + emb.stream().map(Object::toString).collect(Collectors.joining(",")) + "]";

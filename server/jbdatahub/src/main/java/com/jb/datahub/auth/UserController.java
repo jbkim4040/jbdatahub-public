@@ -2,6 +2,7 @@ package com.jb.datahub.auth;
 
 import com.jb.datahub.auth.dto.*;
 import io.swagger.v3.oas.annotations.Operation;
+import jakarta.validation.Valid;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
@@ -30,14 +31,14 @@ public class UserController {
 
     @PostMapping
     @Operation(summary = "사용자 생성")
-    public ResponseEntity<UserResponseDto> create(@RequestBody UserCreateDto dto, Authentication auth) {
+    public ResponseEntity<UserResponseDto> create(@Valid @RequestBody UserCreateDto dto, Authentication auth) {
         return ResponseEntity.ok(userService.create(dto, getRole(auth)));
     }
 
     @PutMapping("/{id}")
     @Operation(summary = "사용자 정보 수정 (역할·활성화 상태)")
     public ResponseEntity<UserResponseDto> update(@PathVariable Long id,
-                                                   @RequestBody UserUpdateDto dto,
+                                                   @Valid @RequestBody UserUpdateDto dto,
                                                    Authentication auth) {
         return ResponseEntity.ok(userService.update(id, dto, getRole(auth), auth.getName()));
     }
@@ -45,7 +46,7 @@ public class UserController {
     @PutMapping("/{id}/password")
     @Operation(summary = "비밀번호 변경")
     public ResponseEntity<Void> changePassword(@PathVariable Long id,
-                                                @RequestBody ChangePasswordDto dto,
+                                                @Valid @RequestBody ChangePasswordDto dto,
                                                 Authentication auth) {
         userService.changePassword(id, dto, getRole(auth));
         return ResponseEntity.ok().build();

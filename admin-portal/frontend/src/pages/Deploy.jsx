@@ -3,6 +3,8 @@ import { Rocket, Shield, RefreshCw, X } from 'lucide-react'
 import { deployApi } from '../api'
 import BuildStatus from '../components/BuildStatus'
 
+const TOAST_DURATION_MS = 5000
+
 function Toast({ msg, onClose }) {
   return msg ? (
     <div className="flex items-center justify-between bg-blue-50 border border-blue-200 text-blue-700 px-4 py-3 rounded-lg text-sm">
@@ -43,7 +45,7 @@ export default function Deploy() {
   const [toast, setToast]         = useState('')
   const [logBuild, setLogBuild]   = useState(null)
 
-  const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(''), 5000) }
+  const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(''), TOAST_DURATION_MS) }
 
   const load = useCallback(async (p = page) => {
     setLoading(true)

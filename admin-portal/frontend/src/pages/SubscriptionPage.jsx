@@ -14,6 +14,8 @@ const STATUS_STYLE = {
 import PortalLoginModal from './PortalLoginModal'
 import SubscribeModal from './SubscribeModal'
 
+const RETRY_RELOAD_DELAY_MS = 1500
+
 function CookieModal({ onClose, onSaved }) {
   const [cookie, setCookie] = useState('')
   const [name, setName]     = useState('')
@@ -83,7 +85,7 @@ export default function SubscriptionPage() {
     setRetrying(prev => ({ ...prev, [list_id]: true }))
     try {
       await api.post(`/subscription/retry/${sub_id}`)
-      setTimeout(() => { load(); setRetrying(prev => ({ ...prev, [list_id]: false })) }, 1500)
+      setTimeout(() => { load(); setRetrying(prev => ({ ...prev, [list_id]: false })) }, RETRY_RELOAD_DELAY_MS)
     } catch (e) {
       alert('재신청 실패: ' + (e?.response?.data?.detail || e.message))
       setRetrying(prev => ({ ...prev, [list_id]: false }))

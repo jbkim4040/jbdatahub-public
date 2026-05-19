@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import {
   getList, getStats, getDataItems, getDataItemStats, getApiDetail,
-  semanticSearch, getSimilar, getTopics, getTopicList,
+  getSimilar, getTopics, getTopicList,
   getEmbedProgress
 } from '../api/publicApi'
 import {
@@ -84,7 +84,6 @@ function OpenApiTab({ stats }) {
   const [similarLoading, setSimilarLoading] = useState(false)
 
   // 의미 검색
-  const [semanticMode, setSemanticMode] = useState(false)
 
   // 토픽 필터
   const [topics, setTopics]           = useState([])
@@ -97,15 +96,13 @@ function OpenApiTab({ stats }) {
     getTopics().then(r => setTopics(r.data)).catch(() => {})
   }, [])
 
-  const loadList = useCallback(async (p = 0, q = query, s = sort, topicId = selectedTopic, semantic = semanticMode) => {
+  const loadList = useCallback(async (p = 0, q = query, s = sort, topicId = selectedTopic) => {
     scrollRef.current = window.scrollY
     setLoading(true)
     try {
       let res
       if (topicId !== null) {
         res = await getTopicList(topicId, p, 20)
-      } else if (semantic && q) {
-        res = await semanticSearch(q, p, 20)
       } else {
         res = await getList(p, 20, q, s.field, s.dir)
       }
@@ -114,7 +111,7 @@ function OpenApiTab({ stats }) {
       requestAnimationFrame(() => window.scrollTo(0, scrollRef.current))
     } catch (e) { console.error(e) }
     finally { setLoading(false) }
-  }, [query, sort, selectedTopic, semanticMode])
+  }, [query, sort, selectedTopic])
 
   useEffect(() => { loadList(0, '') }, [])
   useEffect(() => { loadList(0, query, sort) }, [sort])
@@ -123,11 +120,11 @@ function OpenApiTab({ stats }) {
     e.preventDefault()
     setSelectedTopic(null)
     setQuery(search)
-    loadList(0, search, sort, null, semanticMode)
+    loadList(0, search, sort, null)
   }
   const handleReset = () => {
-    setSearch(''); setQuery(''); setSelectedTopic(null); setSemanticMode(false)
-    loadList(0, '', sort, null, false)
+    setSearch(''); setQuery(''); setSelectedTopic(null)
+    loadList(0, '', sort, null)
   }
   const handleSort   = (newSort) => { setSelectedTopic(null); setSort(newSort) }
 
@@ -135,7 +132,7 @@ function OpenApiTab({ stats }) {
     const next = selectedTopic === topicId ? null : topicId
     setSelectedTopic(next)
     setSearch(''); setQuery('')
-    loadList(0, '', sort, next, false)
+    loadList(0, '', sort, next)
   }
 
   const handleRowClick = async (row) => {
@@ -177,7 +174,7 @@ function OpenApiTab({ stats }) {
     ? Object.entries(stats.countByApiType).map(([name, count]) => ({ name, count }))
     : []
 
-  const searchLabel = semanticMode ? '의미검색 중...' : (selectedTopic !== null ? `토픽 ${selectedTopic + 1}` : (query ? `"${query}"` : '전체'))
+  const searchLabel = selectedTopic !== null ? `토픽 ${selectedTopic + 1}` : (query ? `"${query}"` : '전체')
 
   return (
     <>
@@ -253,19 +250,13 @@ function OpenApiTab({ stats }) {
       )}
 
       {/* 검색 */}
-      <RelatedDatasets query={query} onSelect={(it) => { setSearch(it.listTitle); setQuery(it.listTitle); loadList(0, it.listTitle, sort, null, semanticMode) }} />
+      <RelatedDatasets query={query} onSelect={(it) => { setSearch(it.listTitle); setQuery(it.listTitle); loadList(0, it.listTitle, sort, null) }} />
       <form className={styles.searchRow} onSubmit={handleSearch}>
         <input className={styles.searchInput} placeholder="목록명 검색..."
           value={search} onChange={(e) => setSearch(e.target.value)} />
         <button className={styles.btnSearch} type="submit">검색</button>
         <button
           type="button"
-          className={`${styles.btnSemantic} ${semanticMode ? styles.btnSemanticActive : ''}`}
-          onClick={() => setSemanticMode(v => !v)}
-          title="의미 기반 검색: 키워드가 없어도 의미적으로 유사한 결과를 찾습니다"
-        >
-          {semanticMode ? '의미검색 ON' : '의미검색'}
-        </button>
         {(query || selectedTopic !== null) && (
           <button className={styles.btnReset} type="button" onClick={handleReset}>초기화</button>
         )}
@@ -279,7 +270,7 @@ function OpenApiTab({ stats }) {
             {selectedTopic !== null && topics.length > 0 && (
               <> · 토픽: <em>{topics.find(t => t.topicId === selectedTopic)?.topicKeywords?.split(', ').slice(0, 3).join(', ')}</em></>
             )}
-            {query && selectedTopic === null && <> · {semanticMode ? '의미검색' : '검색어'}: <em>"{query}"</em></>}
+            {query && selectedTopic === null && <> · '검색어': <em>"{query}"</em></>}
           </p>
           <div className={styles.tableWrap}>
             <table className={styles.table}>

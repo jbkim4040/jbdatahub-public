@@ -56,8 +56,8 @@ public class PublicApiQueryService {
         size = Math.min(size, 100);
         Pageable pageable = PageRequest.of(page, size, buildSort(LIST_SORT_FIELDS, sortBy, sortDir));
         if (title != null && !title.isBlank()) {
-            var result = repository.findByListTitleContainingIgnoreCase(title, pageable);
-            return PageResponseDto.from(result.map(PublicApiListDto::from));
+            // 키워드 매칭 우선 + 의미 매칭 후속 (embed_service down 시 키워드만)
+            return semanticSearchService.hybridSearch(title.trim(), page, size);
         }
         long total = countAllLists();
         var items = repository.findAllLists(pageable);

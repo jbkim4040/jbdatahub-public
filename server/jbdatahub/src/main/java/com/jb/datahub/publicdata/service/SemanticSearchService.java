@@ -27,6 +27,88 @@ public class SemanticSearchService {
     @Value("${embed.url:http://localhost:8001}")
     private String embedUrl;
 
+    /**
+     * 하이브리드 검색 — 키워드 매칭(pg_trgm ILIKE) 우선, 의미 매칭(임베딩) 후속.
+     * embed_service 실패 시 키워드 결과만 반환 (안전 fallback).
+     */
+    public PageResponseDto<PublicApiListDto> hybridSearch(String query, int page, int size) {
+        // 1) 키워드 매칭 — list_title/title/keywords ILIKE
+        List<PublicApiListDto> keyword = jdbcTemplate.query(
+            "SELECT list_id, api_id, list_title, api_type, data_format, title," +
+            " org_nm, new_category_nm, is_charged, is_deleted, request_cnt, updated_at" +
+            " FROM public_api_list" +
+            " WHERE COALESCE(is_deleted,'N') = 'N'" +
+            "   AND (list_title ILIKE ('%' || ? || '%')" +
+            "        OR title      ILIKE ('%' || ? || '%')" +
+            "        OR keywords   ILIKE ('%' || ? || '%'))" +
+            " ORDER BY request_cnt DESC NULLS LAST LIMIT 100",
+            (rs, rn) -> mapRow(rs),
+            query, query, query
+        );
+
+        // 2) 의미 매칭 — keyword 결과 제외, 임베딩 cosine 거리 순
+        List<PublicApiListDto> semantic = java.util.Collections.emptyList();
+        if (keyword.size() < 100) {
+            try {
+                String vec = getEmbedding(query);
+                String excludeSql = keyword.isEmpty() ? "" :
+                    " AND list_id NOT IN (" +
+                    keyword.stream().map(d -> "?").collect(Collectors.joining(",")) + ")";
+                Object[] args = new Object[keyword.size() + 1];
+                int i = 0;
+                for (PublicApiListDto d : keyword) args[i++] = d.getListId();
+                args[i] = vec;
+                semantic = jdbcTemplate.query(
+                    "SELECT list_id, api_id, list_title, api_type, data_format, title," +
+                    " org_nm, new_category_nm, is_charged, is_deleted, request_cnt, updated_at" +
+                    " FROM public_api_list" +
+                    " WHERE title_embedding IS NOT NULL" +
+                    "   AND COALESCE(is_deleted,'N') = 'N'" +
+                    excludeSql +
+                    " ORDER BY title_embedding <=> CAST(? AS vector) LIMIT 50",
+                    (rs, rn) -> mapRow(rs),
+                    args
+                );
+            } catch (Exception e) {
+                log.warn("hybridSearch semantic 단계 실패 (키워드만 반환): {}", e.getMessage());
+            }
+        }
+
+        // 3) 병합 + 페이징 (메모리)
+        List<PublicApiListDto> combined = new java.util.ArrayList<>(keyword);
+        combined.addAll(semantic);
+        long total = combined.size();
+        int offset = page * size;
+        int toIdx = Math.min(offset + size, combined.size());
+        List<PublicApiListDto> pageItems = offset >= combined.size()
+            ? java.util.Collections.emptyList()
+            : combined.subList(offset, toIdx);
+        int totalPages = (int) Math.ceil((double) total / size);
+        return PageResponseDto.<PublicApiListDto>builder()
+            .content(pageItems).page(page).size(size)
+            .totalElements(total).totalPages(totalPages)
+            .first(page == 0).last(page >= totalPages - 1)
+            .build();
+    }
+
+    private PublicApiListDto mapRow(java.sql.ResultSet rs) throws java.sql.SQLException {
+        return PublicApiListDto.builder()
+            .listId(rs.getString("list_id"))
+            .apiId(rs.getString("api_id"))
+            .listTitle(rs.getString("list_title"))
+            .apiType(rs.getString("api_type"))
+            .dataFormat(rs.getString("data_format"))
+            .title(rs.getString("title"))
+            .orgNm(rs.getString("org_nm"))
+            .newCategoryNm(rs.getString("new_category_nm"))
+            .isCharged(rs.getString("is_charged"))
+            .isDeleted(rs.getString("is_deleted"))
+            .requestCnt(rs.getObject("request_cnt", Integer.class))
+            .updatedAt(rs.getDate("updated_at") != null
+                ? rs.getDate("updated_at").toLocalDate() : null)
+            .build();
+    }
+
     public PageResponseDto<PublicApiListDto> semanticSearch(String query, int page, int size) {
         String vec;
         try {

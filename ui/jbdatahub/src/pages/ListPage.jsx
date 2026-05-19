@@ -14,17 +14,9 @@ const COLORS = ['#1e3a5f', '#3b7dd8', '#e67e22', '#27ae60', '#8e44ad',
                  '#2980b9', '#e74c3c', '#16a085', '#f39c12', '#7f8c8d']
 
 const TABS = [
-  { key: 'openapi',       label: 'OpenAPI' },
-  { key: 'dataset',       label: '데이터셋' },
-  { key: 'file-data',     label: '파일데이터' },
-  { key: 'standard-data', label: '표준데이터' },
+  { key: 'openapi', label: 'OpenAPI' },
+  { key: 'file',    label: '파일' },
 ]
-
-const SOURCE_TYPE_MAP = {
-  dataset:        'dataset',
-  'file-data':    'file-data',
-  'standard-data':'standard-data',
-}
 
 /* ── 정렬 헬퍼 ── */
 const nextSort = (cur, field) => {
@@ -461,8 +453,15 @@ function OpenApiTab({ stats }) {
   )
 }
 
-/* ── 데이터 유형 탭 (dataset / file-data / standard-data) ── */
-function DataItemTab({ sourceType }) {
+/* ── 파일 데이터 탭 — dataset / file-data / standard-data 통합 + 부필터 dropdown ── */
+const FILE_SOURCE_OPTIONS = [
+  { value: '', label: '전체 (모든 파일 형식)' },
+  { value: 'dataset', label: '데이터셋' },
+  { value: 'file-data', label: '파일데이터' },
+  { value: 'standard-data', label: '표준데이터' },
+]
+function DataItemTab() {
+  const [sourceType, setSourceType] = useState('')
   const [data, setData]       = useState(null)
   const [stats, setStats]     = useState(null)
   const [search, setSearch]   = useState('')
@@ -498,6 +497,20 @@ function DataItemTab({ sourceType }) {
 
   return (
     <>
+      {/* 파일 형식 필터 */}
+      <div style={{ marginBottom: 12 }}>
+        <label style={{ fontSize: 13, color: '#475569', marginRight: 8 }}>형식:</label>
+        <select
+          value={sourceType}
+          onChange={(e) => { setSourceType(e.target.value); setSearch(''); setQuery(''); }}
+          style={{ padding: '6px 10px', fontSize: 13, border: '1px solid #cbd5e1', borderRadius: 6 }}
+        >
+          {FILE_SOURCE_OPTIONS.map(o => (
+            <option key={o.value} value={o.value}>{o.label}</option>
+          ))}
+        </select>
+      </div>
+
       {/* 통계 카드 */}
       {stats && (
         <div className={styles.statsRow}>
@@ -641,7 +654,7 @@ export default function ListPage() {
 
       {activeTab === 'openapi'
         ? <OpenApiTab stats={stats} />
-        : <DataItemTab sourceType={SOURCE_TYPE_MAP[activeTab]} key={activeTab} />
+        : <DataItemTab key={activeTab} />
       }
     </div>
   )

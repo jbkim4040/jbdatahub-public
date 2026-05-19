@@ -14,11 +14,13 @@ alerting:
         - targets: ['alertmanager:9093']
 
 scrape_configs:
-  - job_name: 'jbdatahub'
+  # Blue/Green 둘 다 등록: nginx 전환과 무관하게 active 인 쪽만 응답하므로 scrape 안정.
+  # 둘 다 다운일 때만 BackendDown alert 트리거 (alert.rules.yml 참고)
+  - job_name: 'jbdatahub-was'
     metrics_path: '/actuator/prometheus'
     scrape_interval: 30s
     static_configs:
-      - targets: ['ACTIVE_COLOR:8080']
+      - targets: ['140.245.74.59:8080', '140.245.74.59:8081']
         labels:
           service: jbdatahub
           app: backend

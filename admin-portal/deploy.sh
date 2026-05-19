@@ -45,9 +45,9 @@ docker run -d \
   "$IMAGE"
 
 # Step 4: Health check (max 60s)
-echo "[4/5] Health checking http://127.0.0.1:$INACTIVE_PORT/api/health ..."
+echo "[4/5] Health checking http://172.17.0.1:$INACTIVE_PORT/api/health ..."
 for i in $(seq 1 20); do
-    if curl -sf "http://127.0.0.1:$INACTIVE_PORT/api/health" > /dev/null 2>&1; then
+    if curl -sf "http://172.17.0.1:$INACTIVE_PORT/api/health" > /dev/null 2>&1; then
         echo "  Health check passed (attempt $i)"
         break
     fi
@@ -63,7 +63,7 @@ done
 
 # Step 5: Swap nginx upstream
 echo "[5/5] Swapping nginx: $ACTIVE_PORT → $INACTIVE_PORT"
-sed -i "s|proxy_pass http://127.0.0.1:${ACTIVE_PORT};|proxy_pass http://127.0.0.1:${INACTIVE_PORT};|g" "$NGINX_CONF"
+sed -i "s|proxy_pass http://172.17.0.1:${ACTIVE_PORT};|proxy_pass http://172.17.0.1:${INACTIVE_PORT};|g" "$NGINX_CONF"
 docker exec nginx-ssl nginx -s reload
 
 # Finalize

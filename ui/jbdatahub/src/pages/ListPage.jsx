@@ -255,8 +255,6 @@ function OpenApiTab({ stats }) {
         <input className={styles.searchInput} placeholder="목록명 검색..."
           value={search} onChange={(e) => setSearch(e.target.value)} />
         <button className={styles.btnSearch} type="submit">검색</button>
-        <button
-          type="button"
         {(query || selectedTopic !== null) && (
           <button className={styles.btnReset} type="button" onClick={handleReset}>초기화</button>
         )}

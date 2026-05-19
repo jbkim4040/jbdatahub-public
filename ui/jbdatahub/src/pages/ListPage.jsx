@@ -50,6 +50,7 @@ function OpenApiTab({ stats }) {
   const [search, setSearch]       = useState('')
   const [subscribedMap, setSubscribedMap]   = useState({})  // list_id → status
   const [embedProgress, setEmbedProgress]   = useState(null)  // {done,total,percent,topics,similarPairs}
+  const [pendingApplies, setPendingApplies] = useState([])  // [{listId,listTitle}] — 신청 popup 열린 항목
 
   // 임베딩 배치 진행 상황 30초 폴링 (배치 완료까지)
   useEffect(() => {
@@ -249,6 +250,52 @@ function OpenApiTab({ stats }) {
         </div>
       )}
 
+      {pendingApplies.length > 0 && (
+        <div style={{
+          padding: '12px 16px', marginBottom: 12,
+          background: '#fffbeb', border: '1px solid #fcd34d', borderRadius: 8,
+          fontSize: 13,
+        }}>
+          <div style={{ fontWeight: 600, marginBottom: 6 }}>📝 활용신청 진행 중</div>
+          <div style={{ color: '#78350f', marginBottom: 8, fontSize: 12 }}>
+            data.go.kr 팝업에서 신청을 완료한 뒤 아래 "신청 완료" 버튼을 눌러주세요.
+          </div>
+          {pendingApplies.map(p => (
+            <div key={p.listId} style={{
+              display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+              padding: '6px 0', borderTop: '1px solid #fde68a',
+            }}>
+              <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {p.listTitle}
+              </span>
+              <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+                <button
+                  onClick={async () => {
+                    try {
+                      const { markManualSubscription } = await import('../api/publicApi')
+                      await markManualSubscription(p.listId)
+                      setSubscribedMap(prev => ({ ...prev, [p.listId]: 'MANUAL_REGISTERED' }))
+                      setPendingApplies(prev => prev.filter(x => x.listId !== p.listId))
+                      window.toast?.success('신청 등록 완료')
+                    } catch (err) {
+                      const detail = err?.response?.data?.detail || err?.response?.data?.error || err.message
+                      window.toast?.error('등록 실패: ' + String(detail).slice(0, 200))
+                    }
+                  }}
+                  style={{ padding: '4px 10px', fontSize: 12, background: '#16a34a', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer' }}>
+                  신청 완료
+                </button>
+                <button
+                  onClick={() => setPendingApplies(prev => prev.filter(x => x.listId !== p.listId))}
+                  style={{ padding: '4px 10px', fontSize: 12, background: '#e5e7eb', color: '#374151', border: 'none', borderRadius: 4, cursor: 'pointer' }}>
+                  취소
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
       {/* 검색 */}
       <RelatedDatasets query={query} onSelect={(it) => { setSearch(it.listTitle); setQuery(it.listTitle); loadList(0, it.listTitle, sort, null) }} />
       <form className={styles.searchRow} onSubmit={handleSearch}>
@@ -310,7 +357,7 @@ function OpenApiTab({ stats }) {
                               style={{padding:'4px 10px',fontSize:11,background:'#2563eb',color:'#fff',border:'none',borderRadius:4,cursor:'pointer'}}
                               onClick={(e) => {
                                 e.stopPropagation()
-                                // data.go.kr 활용신청 팝업 — apiId(uddi) 있으면 활용신청 페이지 직접 진입
+                                // data.go.kr 활용신청 팝업 — apiId(uddi) 있으면 직접 진입
                                 const apiId = row.apiId
                                 const url = apiId
                                   ? `https://www.data.go.kr/iim/api/selectAcountAplyView.do?publicDataDetailPk=${encodeURIComponent(apiId)}`
@@ -318,26 +365,15 @@ function OpenApiTab({ stats }) {
                                 const popup = window.open(url, `apply_${row.listId}`,
                                   'width=1100,height=800,scrollbars=yes,resizable=yes')
                                 if (!popup) {
-                                  // 팝업 차단 fallback — 새 탭
                                   window.toast?.warn('팝업이 차단되어 새 탭으로 엽니다')
                                   window.open(url, '_blank')
-                                  return
                                 }
-                                const timer = setInterval(async () => {
-                                  if (!popup.closed) return
-                                  clearInterval(timer)
-                                  if (!window.confirm('신청을 완료하셨나요? "확인"을 누르면 내 목록에 등록됩니다.')) return
-                                  try {
-                                    const { markManualSubscription } = await import('../api/publicApi')
-                                    const res = await markManualSubscription(row.listId)
-                                    const status = res?.data?.status || 'MANUAL_REGISTERED'
-                                    setSubscribedMap(prev => ({...prev, [row.listId]: status}))
-                                    window.toast?.success('신청 등록 완료 — 내 목록에서 확인 가능')
-                                  } catch (err) {
-                                    const detail = err?.response?.data?.detail || err?.response?.data?.error || err.message
-                                    window.toast?.error('등록 실패: ' + String(detail).slice(0, 200))
-                                  }
-                                }, 1000)
+                                // cross-origin 정책상 popup 내부 신청완료 자동 감지 불가
+                                // → 사용자가 페이지 상단 banner의 "신청 완료" 버튼을 직접 클릭
+                                setPendingApplies(prev =>
+                                  prev.some(x => x.listId === row.listId) ? prev :
+                                  [...prev, { listId: row.listId, listTitle: row.listTitle }]
+                                )
                               }}>신청</button>
                           )
                         })()}
@@ -395,7 +431,6 @@ function OpenApiTab({ stats }) {
                         title="클릭하여 상세 보기">
                         <span className={styles.similarTitle}>{s.listTitle}</span>
                         <span className={styles.similarMeta}>{s.orgNm} · {s.categoryNm}</span>
-                        <span className={styles.similarScore}>{(s.score * 100).toFixed(1)}%</span>
                       </div>
                     ))}
                   </div>

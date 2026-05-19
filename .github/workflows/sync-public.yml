@@ -1,0 +1,96 @@
+name: Sync to Public Portfolio
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+concurrency:
+  group: sync-public
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    if: github.repository == 'jbkim4040/jb-workspace'
+    steps:
+      - name: Checkout (master)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Sanitize sensitive data
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/public-build
+          rsync -a --delete \
+            --exclude='.git' \
+            --exclude='.idea' \
+            --exclude='CLAUDE.md' \
+            --exclude='node_modules' \
+            --exclude='build' \
+            --exclude='dist' \
+            --exclude='target' \
+            --exclude='.gradle' \
+            ./ /tmp/public-build/
+
+          cd /tmp/public-build
+          # 운영 서버 IP → placeholder
+          find . -type f \( -name "*.md" -o -name "*.yml" -o -name "*.yaml" \
+            -o -name "*.sh" -o -name "*.py" -o -name "*.java" \
+            -o -name "*.conf" -o -name "*.tmpl" -o -name "Jenkinsfile*" \
+            -o -name "*.js" -o -name "*.jsx" \) -print0 \
+            | xargs -0 sed -i \
+              -e 's|140\.245\.74\.59|<WAS_HOST>|g' \
+              -e 's|152\.69\.232\.44|<DB_HOST>|g' \
+              -e 's|168\.107\.20\.90|<CI_HOST>|g' \
+              -e 's|158\.180\.65\.135|<LEGACY_HOST>|g' \
+              -e 's|10\.0\.0\.148|<WAS_INTERNAL>|g' \
+              -e 's|10\.0\.0\.156|<CI_INTERNAL>|g' \
+              -e 's|10\.0\.0\.188|<DB_INTERNAL>|g'
+
+          # admin-portal config.py 기본값 환경변수화
+          if [ -f admin-portal/backend/config.py ]; then
+            grep -q '^import os' admin-portal/backend/config.py || sed -i '1i import os' admin-portal/backend/config.py
+            sed -i 's|app_server_host: str = .*|app_server_host: str = os.environ.get("APP_SERVER_HOST", "127.0.0.1")|' admin-portal/backend/config.py
+            sed -i 's|db_host: str = .*|db_host: str = os.environ.get("DB_HOST", "localhost")|' admin-portal/backend/config.py
+          fi
+
+          # README/LICENSE 템플릿 적용
+          if [ -f tools/portfolio/README.md ]; then
+            cp tools/portfolio/README.md README.md
+          fi
+          if [ -f tools/portfolio/LICENSE ]; then
+            cp tools/portfolio/LICENSE LICENSE
+          fi
+          # 도구 디렉토리는 portfolio repo에서 제외 (template 자체는 공개 안 함)
+          rm -rf tools/portfolio
+
+          # 최종 secret 검증 — 노출 시 빌드 실패
+          if grep -rE "140\.245\.74\.59|152\.69\.232\.44|168\.107\.20\.90" . ; then
+            echo "::error::ServerIP 잔존 — 동기화 중단"
+            exit 1
+          fi
+          if grep -rE "ghp_[A-Za-z0-9]{30}|jb-internal-svc-token" . ; then
+            echo "::error::Secret/token literal 잔존 — 동기화 중단"
+            exit 1
+          fi
+
+      - name: Push to public repo (force orphan)
+        env:
+          PUBLIC_PAT: ${{ secrets.PUBLIC_REPO_PAT }}
+        run: |
+          set -euo pipefail
+          cd /tmp/public-build
+          git init -q -b main
+          git config user.email "noreply@github.com"
+          git config user.name "jbdatahub-sync-bot"
+          git add -A
+          git commit -m "sync: ${GITHUB_SHA::10} (private → public mirror)
+
+          Source commit: jbkim4040/jb-workspace@${GITHUB_SHA}
+          Synced at: $(date -u +%Y-%m-%dT%H:%M:%SZ)
+          " -q
+          git remote add origin "https://jbkim4040:${PUBLIC_PAT}@github.com/jbkim4040/jbdatahub-public.git"
+          git push --force origin main
+          echo "✅ Synced to https://github.com/jbkim4040/jbdatahub-public"

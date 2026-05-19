@@ -3,6 +3,8 @@ services:
   nginx:
     image: nginx:alpine
     container_name: nginx
+    environment:
+      - TZ=Asia/Seoul
     ports:
       - "80:80"
       - "443:443"
@@ -19,6 +21,8 @@ services:
       context: ./ui/jbdatahub
       dockerfile: Dockerfile
     container_name: jbdatahubui
+    environment:
+      - TZ=Asia/Seoul
     restart: unless-stopped
     networks:
       - app-network
@@ -33,6 +37,7 @@ services:
       - .env
     environment:
       - SPRING_PROFILES_ACTIVE=prod
+      - TZ=Asia/Seoul
     networks:
       - app-network
 
@@ -46,6 +51,7 @@ services:
       - .env
     environment:
       - SPRING_PROFILES_ACTIVE=prod
+      - TZ=Asia/Seoul
     networks:
       - app-network
 

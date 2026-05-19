@@ -32,6 +32,7 @@ docker run -d \
     --log-opt max-file=5 \
     --env-file /tmp/.env \
     -e SPRING_PROFILES_ACTIVE=prod \
+    -e TZ=Asia/Seoul \
     -p ${HOST_PORT}:8080 \
     --network $NETWORK \
     jbdatahub-backend:latest

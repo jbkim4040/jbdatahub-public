@@ -7,14 +7,25 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pathlib import Path
 from database import init_pool, close_pool
+import asyncio
 from routes import pr, security, deploy, request, reports, subscription, errors, portal_login
+from routes.portal_login import session_expiry_scheduler
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await init_pool()
-    yield
-    await close_pool()
+    # data.go.kr 세션 만료 모니터링 (60초 간격)
+    bg_task = asyncio.create_task(session_expiry_scheduler())
+    try:
+        yield
+    finally:
+        bg_task.cancel()
+        try:
+            await bg_task
+        except asyncio.CancelledError:
+            pass
+        await close_pool()
 
 
 logging.basicConfig(

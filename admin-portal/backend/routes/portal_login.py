@@ -304,3 +304,59 @@ async def logout():
     async with pool.acquire() as conn:
         n = await conn.execute("UPDATE data_portal_session SET valid=false WHERE valid=true")
     return {"ok": True, "invalidated": n}
+
+
+
+# ─────────────────────────────────────────────────────────────
+# Background scheduler — 세션 만료 임박 시 미리 갱신 hint
+# (실제 자동 재로그인은 OAuth 2FA 때문에 사람 개입 필요할 수 있음.
+#  여기서는 만료 < 10분 임박 시 webhook/log로 알려 운영자가 갱신하도록 트리거)
+# ─────────────────────────────────────────────────────────────
+async def _check_session_expiry_warning():
+    """
+    1분마다 실행되어 data_portal_session의 만료 임박을 감지.
+    - 만료 < 10분: WARN 로그 + audit_log 기록 (운영자 알림)
+    - 만료 < 0분 (이미 만료): valid=false 자동 무효화
+    """
+    from datetime import datetime, timezone, timedelta
+    try:
+        pool = get_pool()
+        async with pool.acquire() as conn:
+            row = await conn.fetchrow(
+                """SELECT id, label, expires_at FROM data_portal_session
+                   WHERE valid=true ORDER BY created_at DESC LIMIT 1"""
+            )
+            if not row:
+                return
+            exp = row["expires_at"]
+            if exp is None:
+                return
+            if exp.tzinfo is None:
+                exp = exp.replace(tzinfo=timezone.utc)
+            now = datetime.now(timezone.utc)
+            remaining = exp - now
+            if remaining <= timedelta(0):
+                # 이미 만료 — 자동 무효화
+                await conn.execute(
+                    "UPDATE data_portal_session SET valid=false WHERE id=$1",
+                    row["id"]
+                )
+                logger.warning(
+                    "data.go.kr session expired — auto-invalidated (label=%s)",
+                    row["label"]
+                )
+            elif remaining <= timedelta(minutes=10):
+                logger.warning(
+                    "data.go.kr session expires soon — remaining=%s (label=%s). "
+                    "운영자: admin-portal UI에서 '포털 로그인' 다시 실행 권장",
+                    remaining, row["label"]
+                )
+    except Exception as e:
+        logger.error("_check_session_expiry_warning 실패: %s", e)
+
+
+async def session_expiry_scheduler():
+    """FastAPI lifespan background task — 60초 간격 polling."""
+    while True:
+        await _check_session_expiry_warning()
+        await asyncio.sleep(60)

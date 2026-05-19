@@ -103,10 +103,27 @@ async def _get_session_cookie() -> str:
     pool = get_pool()
     async with pool.acquire() as conn:
         row = await conn.fetchrow(
-            "SELECT cookie_jar FROM data_portal_session WHERE valid = true ORDER BY created_at DESC LIMIT 1"
+            """SELECT cookie_jar, expires_at FROM data_portal_session
+               WHERE valid = true ORDER BY created_at DESC LIMIT 1"""
         )
     if not row:
-        raise HTTPException(status_code=422, detail="저장된 세션이 없습니다.")
+        raise HTTPException(status_code=422, detail="저장된 세션이 없습니다. data.go.kr 포털 로그인이 필요합니다.")
+    # 만료 여부 사전 체크 — Playwright 띄우기 전에 빠른 차단
+    from datetime import datetime, timezone
+    exp = row["expires_at"]
+    if exp is not None:
+        if exp.tzinfo is None:
+            exp = exp.replace(tzinfo=timezone.utc)
+        if exp <= datetime.now(timezone.utc):
+            # 만료된 세션은 valid=false 처리 — 다음 호출에서 명확한 안내
+            async with pool.acquire() as conn2:
+                await conn2.execute(
+                    "UPDATE data_portal_session SET valid=false WHERE valid=true AND expires_at <= now()"
+                )
+            raise HTTPException(
+                status_code=422,
+                detail="data.go.kr 세션이 만료되었습니다. 포털 재로그인이 필요합니다."
+            )
     return row["cookie_jar"]
 
 
@@ -530,18 +547,51 @@ async def _submit_via_playwright(sub_id: str):
                             await form_page.goto(apply_url, wait_until="domcontentloaded", timeout=20000)
                         except Exception as e:
                             logger.warning(f"직접 진입 실패: {e}")
+                        # goto 직후 URL 다시 상세/로그인으로 redirect됐는지 검사 — 세션 만료의 결정적 신호
+                        after_url = form_page.url
+                        if "/openapi.do" in after_url or "/login" in after_url or "loginForm" in after_url:
+                            after_html = await form_page.content()
+                            if any(sig in after_html for sig in ["로그인이 필요", "loginForm", "회원가입 후 이용"]):
+                                async with pool.acquire() as conn_inv:
+                                    await conn_inv.execute(
+                                        "UPDATE data_portal_session SET valid=false WHERE valid=true"
+                                    )
+                                raise RuntimeError(
+                                    f"data.go.kr 세션 만료 — apply_url 진입 후 로그인 페이지로 redirect (URL={after_url})"
+                                )
                     else:
-                        # 활용신청 버튼 클릭이 cookie/세션 만료로 인한 무동작 — 명확한 에러
-                        raise RuntimeError(f"활용신청 폼으로 이동 못 함 (세션 만료 추정). URL: {form_page.url}")
+                        raise RuntimeError(f"활용신청 폼으로 이동 못 함 (detail_pk 추출 실패). URL: {form_page.url}")
 
-                # 3.9) form/textarea 동적 로딩 대기 (networkidle + wait_for_selector)
+                # 3.9) form 동적 로딩 대기 — 활용신청 폼의 핵심 필드만 매칭 (일반 textarea 매칭 회피)
                 try:
-                    await form_page.wait_for_selector('textarea, form input[name="prcusePurps"]', timeout=20000)
-                except Exception as wait_e:
-                    # 로그인 페이지로 redirect됐을 가능성
+                    await form_page.wait_for_selector(
+                        'textarea[name="prcusePurps"], input[name="prcusePrpos"]',
+                        timeout=20000
+                    )
+                except Exception:
+                    # selector 실패 — 페이지 컨텐츠로 원인 분류
                     cur_url = form_page.url
-                    body_len = len(await form_page.content())
-                    raise RuntimeError(f"form 로딩 실패 (세션 만료 추정). URL={cur_url}, body_len={body_len}")
+                    cur_html = await form_page.content()
+                    body_len = len(cur_html)
+                    # 로그인 안내 시그니처 우선 검사 — 명확한 메시지 제공
+                    login_signals = ["로그인이 필요", "loginForm", "로그인 후 이용", "회원가입 후 이용"]
+                    if any(sig in cur_html for sig in login_signals):
+                        # 세션 강제 무효화 — 다음 시도에서 _get_session_cookie 가 차단
+                        async with pool.acquire() as conn_inv:
+                            await conn_inv.execute(
+                                "UPDATE data_portal_session SET valid=false WHERE valid=true"
+                            )
+                        raise RuntimeError(
+                            f"data.go.kr 세션 만료 — 포털 재로그인 필요 (URL={cur_url})"
+                        )
+                    # redirect로 다시 상세 페이지로 돌아온 케이스
+                    if "/openapi.do" in cur_url or "/login" in cur_url:
+                        raise RuntimeError(
+                            f"활용신청 폼 진입 실패 — 로그인 alert/redirect 추정. URL={cur_url}"
+                        )
+                    raise RuntimeError(
+                        f"form 로딩 실패 — 폼 selector 미발견. URL={cur_url}, body_len={body_len}"
+                    )
 
                 # 4) 사용목적 입력 — selector 후보 시도
                 purpose_filled = False

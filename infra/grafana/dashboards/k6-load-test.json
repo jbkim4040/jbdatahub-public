@@ -1,0 +1,80 @@
+{
+  "uid": "k6-jbdatahub",
+  "title": "k6 Load Test — jbDataHub",
+  "tags": ["k6", "load-test"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "10s",
+  "time": {"from": "now-30m", "to": "now"},
+  "templating": {
+    "list": [
+      {"name": "testid", "label": "Test ID", "type": "query", "datasource": {"type": "prometheus", "uid": "prometheus"},
+       "query": "label_values(k6_http_reqs_total, testid)", "refresh": 2, "sort": 1, "current": {"text": "all", "value": "$__all"},
+       "includeAll": true, "multi": false}
+    ]
+  },
+  "panels": [
+    {"id": 1, "type": "stat", "title": "Total Requests", "gridPos": {"x": 0, "y": 0, "w": 4, "h": 4},
+     "datasource": {"type": "prometheus"},
+     "targets": [{"expr": "sum(k6_http_reqs_total{testid=~\"$testid\"})", "refId": "A"}],
+     "fieldConfig": {"defaults": {"unit": "short", "color": {"mode": "thresholds"}}}},
+
+    {"id": 2, "type": "stat", "title": "Request Rate (RPS)", "gridPos": {"x": 4, "y": 0, "w": 4, "h": 4},
+     "datasource": {"type": "prometheus"},
+     "targets": [{"expr": "sum(rate(k6_http_reqs_total{testid=~\"$testid\"}[1m]))", "refId": "A"}],
+     "fieldConfig": {"defaults": {"unit": "reqps", "decimals": 1}}},
+
+    {"id": 3, "type": "stat", "title": "Error Rate", "gridPos": {"x": 8, "y": 0, "w": 4, "h": 4},
+     "datasource": {"type": "prometheus"},
+     "targets": [{"expr": "sum(rate(k6_http_reqs_total{testid=~\"$testid\",expected_response=\"false\"}[1m])) / clamp_min(sum(rate(k6_http_reqs_total{testid=~\"$testid\"}[1m])),0.001)", "refId": "A"}],
+     "fieldConfig": {"defaults": {"unit": "percentunit", "decimals": 2,
+       "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "yellow", "value": 0.01}, {"color": "red", "value": 0.05}]}}}},
+
+    {"id": 4, "type": "stat", "title": "Active VUs", "gridPos": {"x": 12, "y": 0, "w": 4, "h": 4},
+     "datasource": {"type": "prometheus"},
+     "targets": [{"expr": "max(k6_vus{testid=~\"$testid\"})", "refId": "A"}],
+     "fieldConfig": {"defaults": {"unit": "short"}}},
+
+    {"id": 5, "type": "stat", "title": "p95 Duration", "gridPos": {"x": 16, "y": 0, "w": 4, "h": 4},
+     "datasource": {"type": "prometheus"},
+     "targets": [{"expr": "max(k6_http_req_duration_seconds{testid=~\"$testid\",quantile=\"0.95\"}) * 1000", "refId": "A"}],
+     "fieldConfig": {"defaults": {"unit": "ms", "decimals": 0,
+       "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "yellow", "value": 500}, {"color": "red", "value": 1500}]}}}},
+
+    {"id": 6, "type": "stat", "title": "p99 Duration", "gridPos": {"x": 20, "y": 0, "w": 4, "h": 4},
+     "datasource": {"type": "prometheus"},
+     "targets": [{"expr": "max(k6_http_req_duration_seconds{testid=~\"$testid\",quantile=\"0.99\"}) * 1000", "refId": "A"}],
+     "fieldConfig": {"defaults": {"unit": "ms", "decimals": 0}}},
+
+    {"id": 10, "type": "timeseries", "title": "HTTP Duration percentiles", "gridPos": {"x": 0, "y": 4, "w": 12, "h": 8},
+     "datasource": {"type": "prometheus"},
+     "targets": [
+       {"expr": "k6_http_req_duration_seconds{testid=~\"$testid\",quantile=\"0.5\"} * 1000", "legendFormat": "p50 {{endpoint}}", "refId": "A"},
+       {"expr": "k6_http_req_duration_seconds{testid=~\"$testid\",quantile=\"0.95\"} * 1000", "legendFormat": "p95 {{endpoint}}", "refId": "B"},
+       {"expr": "k6_http_req_duration_seconds{testid=~\"$testid\",quantile=\"0.99\"} * 1000", "legendFormat": "p99 {{endpoint}}", "refId": "C"}
+     ],
+     "fieldConfig": {"defaults": {"unit": "ms"}}},
+
+    {"id": 11, "type": "timeseries", "title": "Requests / sec by endpoint", "gridPos": {"x": 12, "y": 4, "w": 12, "h": 8},
+     "datasource": {"type": "prometheus"},
+     "targets": [{"expr": "sum by (endpoint, status) (rate(k6_http_reqs_total{testid=~\"$testid\"}[1m]))", "legendFormat": "{{endpoint}} ({{status}})", "refId": "A"}],
+     "fieldConfig": {"defaults": {"unit": "reqps"}}},
+
+    {"id": 12, "type": "timeseries", "title": "VUs", "gridPos": {"x": 0, "y": 12, "w": 12, "h": 6},
+     "datasource": {"type": "prometheus"},
+     "targets": [
+       {"expr": "k6_vus{testid=~\"$testid\"}", "legendFormat": "active", "refId": "A"},
+       {"expr": "k6_vus_max{testid=~\"$testid\"}", "legendFormat": "max", "refId": "B"}
+     ],
+     "fieldConfig": {"defaults": {"unit": "short"}}},
+
+    {"id": 13, "type": "timeseries", "title": "Checks (success vs fail)", "gridPos": {"x": 12, "y": 12, "w": 12, "h": 6},
+     "datasource": {"type": "prometheus"},
+     "targets": [
+       {"expr": "sum(rate(k6_checks_total{testid=~\"$testid\"}[1m]))", "legendFormat": "passed", "refId": "A"},
+       {"expr": "sum(rate(k6_checks_total{testid=~\"$testid\",check=~\".*\"}[1m]) - rate(k6_checks_total{testid=~\"$testid\"}[1m]))", "legendFormat": "failed", "refId": "B"}
+     ],
+     "fieldConfig": {"defaults": {"unit": "ops"}}}
+  ]
+}

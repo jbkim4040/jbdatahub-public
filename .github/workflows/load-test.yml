@@ -1,4 +1,5 @@
 name: Load Test (k6)
+
 on:
   workflow_dispatch:
     inputs:
@@ -13,11 +14,15 @@ on:
         required: false
         default: 'https://jbdatahub.com'
   schedule:
-    - cron: '0 17 * * *'  # 매일 02:00 KST baseline
+    - cron: '0 17 * * *'
 
 permissions:
   contents: read
   issues: write
+
+env:
+  CI_HOST: 168.107.20.90
+  CI_USER: ubuntu
 
 jobs:
   load-test:
@@ -30,27 +35,62 @@ jobs:
           curl -L https://github.com/grafana/k6/releases/download/v0.50.0/k6-v0.50.0-linux-amd64.tar.gz | tar xz
           sudo mv k6-*/k6 /usr/local/bin/
 
+      - name: Open SSH tunnel to CI server (Prometheus remote-write)
+        id: tunnel
+        if: ${{ secrets.CI_SSH_PRIVATE_KEY != '' }}
+        env:
+          KEY: ${{ secrets.CI_SSH_PRIVATE_KEY }}
+        run: |
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          printf '%s\n' "$KEY" > ~/.ssh/ci_key
+          chmod 600 ~/.ssh/ci_key
+          ssh-keyscan -H "$CI_HOST" >> ~/.ssh/known_hosts 2>/dev/null
+          ssh -i ~/.ssh/ci_key -o StrictHostKeyChecking=no \
+              -L 19091:127.0.0.1:19091 \
+              -fN -o ExitOnForwardFailure=yes \
+              "$CI_USER@$CI_HOST"
+          for i in $(seq 1 10); do
+            if curl -sf -o /dev/null http://127.0.0.1:19091/-/ready; then
+              echo "tunnel_up=true" >> $GITHUB_OUTPUT
+              echo "✓ Prometheus tunnel ready"
+              break
+            fi
+            sleep 1
+          done
+
       - name: Run k6
         id: k6
         env:
           BASE_URL: ${{ github.event.inputs.base_url || 'https://jbdatahub.com' }}
+          K6_PROMETHEUS_RW_TREND_STATS: 'p(50),p(95),p(99),max,avg'
         run: |
           SCENARIO="${{ github.event.inputs.scenario || 'baseline' }}"
-          echo "🎯 시나리오: $SCENARIO  대상: $BASE_URL"
+          TESTID="$SCENARIO-$(date -u +%Y%m%d-%H%M%S)"
+          echo "🎯 시나리오: $SCENARIO  대상: $BASE_URL  testid: $TESTID"
           mkdir -p results
-          k6 run --summary-export=results/summary.json --out json=results/raw.json \
-            infra/k6/${SCENARIO}.js | tee results/output.txt
-          # Summary 메트릭 추출
-          python3 -c "
+          K6_ARGS="--summary-export=results/summary.json --out json=results/raw.json --tag testid=$TESTID"
+          if [ "${{ steps.tunnel.outputs.tunnel_up }}" = "true" ]; then
+            K6_ARGS="$K6_ARGS --out experimental-prometheus-rw=http://localhost:19091/api/v1/write"
+            echo "📊 Prometheus remote-write: http://localhost:19091/api/v1/write"
+          else
+            echo "⚠️ Prometheus 송출 skip (CI_SSH_PRIVATE_KEY secret 미설정)"
+          fi
+          k6 run $K6_ARGS infra/k6/${SCENARIO}.js | tee results/output.txt
+          python3 - << 'PY'
           import json
           d = json.load(open('results/summary.json'))
           m = d['metrics']
-          print(f\"::set-output name=p95::{m['http_req_duration']['values']['p(95)']:.0f}\")
-          print(f\"::set-output name=p99::{m['http_req_duration']['values']['p(99)']:.0f}\")
-          print(f\"::set-output name=fail_rate::{m['http_req_failed']['values']['rate']*100:.2f}\")
-          print(f\"::set-output name=rps::{m['http_reqs']['values']['rate']:.1f}\")
-          print(f\"::set-output name=count::{int(m['http_reqs']['values']['count'])}\")
-          " || true
+          print(f"\n=== 요약 ===")
+          print(f"p95: {m['http_req_duration']['values']['p(95)']:.0f}ms")
+          print(f"p99: {m['http_req_duration']['values']['p(99)']:.0f}ms")
+          print(f"fail_rate: {m['http_req_failed']['values']['rate']*100:.2f}%")
+          print(f"rps: {m['http_reqs']['values']['rate']:.1f}")
+          print(f"count: {int(m['http_reqs']['values']['count'])}")
+          PY
+
+      - name: Close SSH tunnel
+        if: always() && steps.tunnel.outputs.tunnel_up == 'true'
+        run: pkill -f 'ssh.*-L 19091' || true
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
@@ -66,5 +106,5 @@ jobs:
         run: |
           gh issue create \
             --title "🔴 Load test 실패 ($(date '+%Y-%m-%d'))" \
-            --body "k6 baseline threshold 위반. results/output.txt 참고." \
+            --body "k6 baseline threshold 위반. Grafana http://grafana.jbdatahub.com → k6 dashboard 참고." \
             --label "load-test,alert" || true

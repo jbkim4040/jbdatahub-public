@@ -39,7 +39,7 @@ docker rm   "admin-portal-$INACTIVE" 2>/dev/null || true
 echo "[3/5] Starting admin-portal-$INACTIVE on port $INACTIVE_PORT..."
 docker run -d \
   --name "admin-portal-$INACTIVE" \
-  -p "127.0.0.1:$INACTIVE_PORT:8080" \
+  -p "172.17.0.1:$INACTIVE_PORT:8080" \
   --env-file "$ENV_FILE" \
   --restart unless-stopped \
   "$IMAGE"

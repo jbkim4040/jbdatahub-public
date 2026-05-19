@@ -53,8 +53,7 @@ public class AuthController {
         return ResponseEntity.ok()
                 .header(HttpHeaders.SET_COOKIE, authCookie(TOKEN_COOKIE, token, TOKEN_MAX_AGE, "/").toString())
                 .header(HttpHeaders.SET_COOKIE, authCookie(REFRESH_COOKIE, rt.getToken(), REFRESH_MAX_AGE, "/api/auth").toString())
-                // 기존 body 유지 (하위 호환). UI 마이그레이션 완료 후 토큰 필드 제거 예정
-                .body(new LoginResponseDto(token, rt.getToken(), user.getUsername(), user.getRole()));
+                .body(new LoginResponseDto(user.getUsername(), user.getRole()));
     }
 
     @PostMapping("/refresh")
@@ -78,7 +77,7 @@ public class AuthController {
                     return ResponseEntity.ok()
                             .header(HttpHeaders.SET_COOKIE, authCookie(TOKEN_COOKIE, newToken, TOKEN_MAX_AGE, "/").toString())
                             .header(HttpHeaders.SET_COOKIE, authCookie(REFRESH_COOKIE, newRt.getToken(), REFRESH_MAX_AGE, "/api/auth").toString())
-                            .body((Object) Map.of("token", newToken, "refreshToken", newRt.getToken()));
+                            .body((Object) Map.of("ok", true));
                 })
                 .orElse(ResponseEntity.status(401).body("유효하지 않은 리프레시 토큰입니다."));
     }

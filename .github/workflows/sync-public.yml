@@ -19,6 +19,26 @@ jobs:
         with:
           fetch-depth: 1
 
+      - name: Extract source commit metadata
+        id: meta
+        run: |
+          SUBJECT=$(git log -1 --pretty=%s)
+          BODY=$(git log -1 --pretty=%b)
+          AUTHOR_NAME=$(git log -1 --pretty=%an)
+          AUTHOR_EMAIL=$(git log -1 --pretty=%ae)
+          echo "author_name=$AUTHOR_NAME" >> $GITHUB_OUTPUT
+          echo "author_email=$AUTHOR_EMAIL" >> $GITHUB_OUTPUT
+          {
+            echo "subject<<EOF"
+            echo "$SUBJECT"
+            echo "EOF"
+          } >> $GITHUB_OUTPUT
+          {
+            echo "body<<EOF"
+            echo "$BODY"
+            echo "EOF"
+          } >> $GITHUB_OUTPUT
+
       - name: Sanitize sensitive data
         run: |
           set -euo pipefail
@@ -84,14 +104,21 @@ jobs:
           set -euo pipefail
           cd /tmp/public-build
           git init -q -b main
-          git config user.email "noreply@github.com"
-          git config user.name "jbdatahub-sync-bot"
           git add -A
-          git commit -m "sync: ${GITHUB_SHA::10} (private → public mirror)
+          # 원본 커밋 메시지 그대로 사용 + mirror trailer 추가
+          cat > /tmp/sync-commit-msg.txt <<COMMITEOF
+          ${{ steps.meta.outputs.subject }}
 
-          Source commit: jbkim4040/jb-workspace@${GITHUB_SHA}
-          Synced at: $(date -u +%Y-%m-%dT%H:%M:%SZ)
-          " -q
+          ${{ steps.meta.outputs.body }}
+
+          ---
+          🔄 Synced from jbkim4040/jb-workspace@${GITHUB_SHA::10} ($(date -u +%Y-%m-%dT%H:%M:%SZ))
+          COMMITEOF
+          # heredoc 들여쓰기 제거
+          sed -i 's/^          //' /tmp/sync-commit-msg.txt
+          git config user.email "${{ steps.meta.outputs.author_email }}"
+          git config user.name "${{ steps.meta.outputs.author_name }}"
+          git commit -F /tmp/sync-commit-msg.txt -q
           git remote add origin "https://jbkim4040:${PUBLIC_PAT}@github.com/jbkim4040/jbdatahub-public.git"
           git push --force origin main
           echo "✅ Synced to https://github.com/jbkim4040/jbdatahub-public"

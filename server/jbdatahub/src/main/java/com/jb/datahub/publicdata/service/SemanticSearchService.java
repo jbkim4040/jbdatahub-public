@@ -6,6 +6,7 @@ import com.jb.datahub.publicdata.dto.SimilarApiDto;
 import com.jb.datahub.publicdata.dto.TopicDto;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
@@ -23,7 +24,8 @@ public class SemanticSearchService {
     private final JdbcTemplate jdbcTemplate;
     private final WebClient    webClient;
 
-    private static final String EMBED_URL = "http://localhost:8001";
+    @Value("${embed.url:http://localhost:8001}")
+    private String embedUrl;
 
     public PageResponseDto<PublicApiListDto> semanticSearch(String query, int page, int size) {
         String vec;
@@ -153,7 +155,7 @@ public class SemanticSearchService {
     private String getEmbedding(String query) {
         try {
             Map<String, Object> resp = webClient.get()
-                .uri(EMBED_URL + "/embed?text={text}", query)
+                .uri(embedUrl + "/embed?text={text}", query)
                 .retrieve()
                 .bodyToMono(Map.class)
                 .timeout(Duration.ofSeconds(3))

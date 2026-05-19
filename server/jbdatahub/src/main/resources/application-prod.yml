@@ -28,6 +28,9 @@ admin:
     url: ${ADMIN_PORTAL_URL:https://admin.jbdatahub.com}
     internal-token: ${ADMIN_PORTAL_INTERNAL_TOKEN}
 
+embed:
+  url: ${EMBED_SERVICE_URL:http://localhost:8001}
+
 cors:
   allowed-origins: ${CORS_ALLOWED_ORIGINS:https://jbdatahub.com}
 

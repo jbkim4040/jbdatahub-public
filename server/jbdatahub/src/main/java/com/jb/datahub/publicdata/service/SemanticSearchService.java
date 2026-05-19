@@ -40,12 +40,13 @@ public class SemanticSearchService {
         int offset  = page * size;
 
         List<PublicApiListDto> items = jdbcTemplate.query(
-            "SELECT list_id, list_title, api_type, data_format, title," +
+            "SELECT list_id, api_id, list_title, api_type, data_format, title," +
             " org_nm, new_category_nm, is_charged, is_deleted, request_cnt, updated_at" +
             " FROM public_api_list WHERE title_embedding IS NOT NULL" +
             " ORDER BY title_embedding <=> CAST(? AS vector) LIMIT ? OFFSET ?",
             (rs, rn) -> PublicApiListDto.builder()
                 .listId(rs.getString("list_id"))
+                .apiId(rs.getString("api_id"))
                 .listTitle(rs.getString("list_title"))
                 .apiType(rs.getString("api_type"))
                 .dataFormat(rs.getString("data_format"))
@@ -144,12 +145,13 @@ public class SemanticSearchService {
         int offset = page * size;
 
         List<PublicApiListDto> items = jdbcTemplate.query(
-            "SELECT l.list_id, l.list_title, l.api_type, l.data_format, l.title," +
+            "SELECT l.list_id, l.api_id, l.list_title, l.api_type, l.data_format, l.title," +
             " l.org_nm, l.new_category_nm, l.is_charged, l.is_deleted, l.request_cnt, l.updated_at" +
             " FROM public_api_list l JOIN api_topic t ON t.list_id = l.list_id" +
             " WHERE t.topic_id = ? ORDER BY l.request_cnt DESC NULLS LAST LIMIT ? OFFSET ?",
             (rs, rn) -> PublicApiListDto.builder()
                 .listId(rs.getString("list_id"))
+                .apiId(rs.getString("api_id"))
                 .listTitle(rs.getString("list_title"))
                 .apiType(rs.getString("api_type"))
                 .dataFormat(rs.getString("data_format"))

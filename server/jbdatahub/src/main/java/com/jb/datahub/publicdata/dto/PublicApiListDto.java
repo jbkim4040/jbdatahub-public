@@ -11,6 +11,7 @@ import java.time.LocalDate;
 public class PublicApiListDto {
 
     private String listId;
+    private String apiId;  // uddi:... 형식 — data.go.kr 활용신청 URL용
     private String listTitle;
     private String apiType;
     private String dataFormat;
@@ -25,6 +26,7 @@ public class PublicApiListDto {
     public static PublicApiListDto from(PublicApiList e) {
         return PublicApiListDto.builder()
                 .listId(e.getListId())
+                .apiId(e.getApiId())
                 .listTitle(e.getListTitle())
                 .apiType(e.getApiType())
                 .dataFormat(e.getDataFormat())

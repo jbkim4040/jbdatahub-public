@@ -321,8 +321,11 @@ function OpenApiTab({ stats }) {
                               style={{padding:'4px 10px',fontSize:11,background:'#2563eb',color:'#fff',border:'none',borderRadius:4,cursor:'pointer'}}
                               onClick={(e) => {
                                 e.stopPropagation()
-                                // data.go.kr 활용신청 팝업 — 사용자가 직접 신청, 닫히면 자동 등록
-                                const url = `https://www.data.go.kr/data/${row.listId}/openapi.do`
+                                // data.go.kr 활용신청 팝업 — apiId(uddi) 있으면 활용신청 페이지 직접 진입
+                                const apiId = row.apiId
+                                const url = apiId
+                                  ? `https://www.data.go.kr/iim/api/selectAcountAplyView.do?publicDataDetailPk=${encodeURIComponent(apiId)}`
+                                  : `https://www.data.go.kr/data/${row.listId}/openapi.do`
                                 const popup = window.open(url, `apply_${row.listId}`,
                                   'width=1100,height=800,scrollbars=yes,resizable=yes')
                                 if (!popup) {

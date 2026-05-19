@@ -23,7 +23,7 @@ public class SubscribeService {
     @Value("${admin.portal.url:https://admin.jbdatahub.com}")
     private String adminPortalUrl;
 
-    @Value("${admin.portal.internal-token:jb-internal-svc-token-2026}")
+    @Value("${admin.portal.internal-token}")
     private String internalToken;
 
     private final RestTemplate restTemplate;

@@ -1,13 +1,14 @@
 """관리자 인증 미들웨어 — API만 보호 + GUEST mutation 차단."""
 import httpx
 import logging
+import os
 from fastapi import Request
 from fastapi.responses import JSONResponse
 
 logger = logging.getLogger(__name__)
 
 JBDATAHUB_URL = "https://jbdatahub.com"
-INTERNAL_TOKEN = "jb-internal-svc-token-2026"  # WAS ↔ admin-portal
+INTERNAL_TOKEN = os.environ["INTERNAL_TOKEN"]  # WAS ↔ admin-portal: 환경변수 강제, 기본값 없음
 ALLOWED_ROLES = {"ADMIN", "SUPER_ADMIN", "GUEST"}
 MUTATION_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
 

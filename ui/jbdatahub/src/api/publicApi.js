@@ -74,3 +74,7 @@ export const getTopics = () =>
 
 export const getTopicList = (topicId, page = 0, size = 20) =>
   http.get(`/public-data/topics/${topicId}/list`, { params: { page, size } })
+
+/** 신청 — 사용자가 data.go.kr에서 직접 신청한 후 수동 등록 (팝업 흐름) */
+export const markManualSubscription = (listId) =>
+  http.post(`/public-data/${listId}/subscribe/manual`)

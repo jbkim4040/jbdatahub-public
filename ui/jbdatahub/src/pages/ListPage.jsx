@@ -300,27 +300,40 @@ function OpenApiTab({ stats }) {
                       <td style={{textAlign:"center"}} onClick={(e)=>e.stopPropagation()}>
                         {(() => {
                           const s = subscribedMap[row.listId]
-                          if (s === 'APPROVED')  return <span style={{fontSize:11,color:'#15803d',fontWeight:600}}>🔑 승인</span>
-                          if (s === 'SUBMITTED') return <span style={{fontSize:11,color:'#2563eb',fontWeight:600}}>✓ 제출됨</span>
-                          if (s === 'PENDING')   return <span style={{fontSize:11,color:'#92400e',fontWeight:600}}>⏳ 진행중</span>
+                          if (s === 'APPROVED')          return <span style={{fontSize:11,color:'#15803d',fontWeight:600}}>🔑 승인</span>
+                          if (s === 'SUBMITTED')         return <span style={{fontSize:11,color:'#2563eb',fontWeight:600}}>✓ 제출됨</span>
+                          if (s === 'PENDING')           return <span style={{fontSize:11,color:'#92400e',fontWeight:600}}>⏳ 진행중</span>
+                          if (s === 'MANUAL_REGISTERED') return <span style={{fontSize:11,color:'#6d28d9',fontWeight:600}} title="data.go.kr에서 직접 신청한 데이터셋">✓ 신청 완료</span>
                           return (
                             <button
                               style={{padding:'4px 10px',fontSize:11,background:'#2563eb',color:'#fff',border:'none',borderRadius:4,cursor:'pointer'}}
-                              onClick={async (e) => {
+                              onClick={(e) => {
                                 e.stopPropagation()
-                                if (!confirm(`"${row.listTitle}" 자동 신청을 등록하시겠습니까?`)) return
-                                try {
-                                  const res = await fetch(`/api/public-data/${row.listId}/subscribe`, {
-                                    method: 'POST',
-                                    headers: { 'Content-Type': 'application/json' },
-                                    credentials: 'include',
-                                    body: JSON.stringify({}),
-                                  })
-                                  if (res.status === 409) { window.toast?.warn('이미 신청한 데이터셋입니다'); setSubscribedMap(prev => ({...prev, [row.listId]: 'PENDING'})); return }
-                                  if (!res.ok) { const t = await res.text(); window.toast?.error('실패: ' + t.slice(0, 200)); return }
-                                  window.toast?.success('신청 등록 완료 — admin.jbdatahub.com/subscriptions에서 진행 상태 확인')
-                                  setSubscribedMap(prev => ({...prev, [row.listId]: 'PENDING'}))
-                                } catch (err) { window.toast?.error('오류: ' + err.message) }
+                                // data.go.kr 활용신청 팝업 — 사용자가 직접 신청, 닫히면 자동 등록
+                                const url = `https://www.data.go.kr/data/${row.listId}/openapi.do`
+                                const popup = window.open(url, `apply_${row.listId}`,
+                                  'width=1100,height=800,scrollbars=yes,resizable=yes')
+                                if (!popup) {
+                                  // 팝업 차단 fallback — 새 탭
+                                  window.toast?.warn('팝업이 차단되어 새 탭으로 엽니다')
+                                  window.open(url, '_blank')
+                                  return
+                                }
+                                const timer = setInterval(async () => {
+                                  if (!popup.closed) return
+                                  clearInterval(timer)
+                                  if (!window.confirm('신청을 완료하셨나요? "확인"을 누르면 내 목록에 등록됩니다.')) return
+                                  try {
+                                    const { markManualSubscription } = await import('../api/publicApi')
+                                    const res = await markManualSubscription(row.listId)
+                                    const status = res?.data?.status || 'MANUAL_REGISTERED'
+                                    setSubscribedMap(prev => ({...prev, [row.listId]: status}))
+                                    window.toast?.success('신청 등록 완료 — 내 목록에서 확인 가능')
+                                  } catch (err) {
+                                    const detail = err?.response?.data?.detail || err?.response?.data?.error || err.message
+                                    window.toast?.error('등록 실패: ' + String(detail).slice(0, 200))
+                                  }
+                                }, 1000)
                               }}>신청</button>
                           )
                         })()}

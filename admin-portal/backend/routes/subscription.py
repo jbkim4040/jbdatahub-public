@@ -58,6 +58,12 @@ class SubscriptionRequest(BaseModel):
 # ────────────────────────────────────────────────────────────
 # Session management
 # ────────────────────────────────────────────────────────────
+
+class ManualSubscriptionRequest(BaseModel):
+    list_id: str
+    requested_by: str
+
+
 @router.post("/session")
 async def save_session(session: SessionUpdate):
     pool = get_pool()
@@ -192,6 +198,35 @@ async def request_subscription(req: SubscriptionRequest, bg: BackgroundTasks):
     bg.add_task(_submit_subscription, sub_id)
     return {"id": sub_id, "status": "PENDING"}
 
+
+
+@router.post("/manual", status_code=201)
+async def mark_manual_subscription(req: ManualSubscriptionRequest):
+    """
+    사용자가 data.go.kr에서 직접 신청을 완료한 후 jb-workspace에 마킹.
+    Playwright 자동 신청 흐름과 별도 — 즉시 INSERT 후 status='MANUAL_REGISTERED'.
+    중복(이미 활성/완료된 신청)이면 기존 row 반환 (409 아님 — UX 매끄럽게).
+    """
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        existing = await conn.fetchrow(
+            """SELECT id, status FROM api_subscriptions
+               WHERE list_id=$1 AND requested_by=$2
+               AND status IN ('MANUAL_REGISTERED','APPROVED','SUBMITTED','PENDING')
+               ORDER BY requested_at DESC LIMIT 1""",
+            req.list_id, req.requested_by,
+        )
+        if existing:
+            return {"id": str(existing["id"]), "status": existing["status"], "duplicate": True}
+        row = await conn.fetchrow(
+            """INSERT INTO api_subscriptions
+                  (list_id, status, usage_purpose, requested_by, raw_request)
+               VALUES ($1, 'MANUAL_REGISTERED',
+                       '사용자가 data.go.kr에서 직접 신청', $2, $3::jsonb)
+               RETURNING id, status""",
+            req.list_id, req.requested_by, '{"manual": true}',
+        )
+    return {"id": str(row["id"]), "status": row["status"], "duplicate": False}
 
 
 @router.get("/list")

@@ -63,6 +63,36 @@ public class SubscribeService {
         }
     }
 
+    /**
+     * 사용자가 data.go.kr에서 직접 신청을 완료한 후 admin-portal에 수동 등록 마킹.
+     * Playwright 자동 신청을 거치지 않고 status='MANUAL_REGISTERED'로 즉시 INSERT.
+     */
+    public Map<String, Object> markManual(String listId, String user) {
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("list_id", listId);
+        payload.put("requested_by", user);
+        try {
+            @SuppressWarnings("unchecked")
+            Map<String, Object> resp = restTemplate.exchange(
+                    adminPortalUrl + "/api/subscription/manual",
+                    org.springframework.http.HttpMethod.POST,
+                    new org.springframework.http.HttpEntity<>(payload, internalHeaders()),
+                    Map.class
+            ).getBody();
+            return resp != null ? resp : Map.of("ok", true);
+        } catch (HttpClientErrorException e) {
+            log.error("admin-portal 수동 등록 실패: {} {}", e.getStatusCode(), e.getResponseBodyAsString());
+            throw new ResponseStatusException(
+                    HttpStatus.valueOf(e.getStatusCode().value()),
+                    "admin-portal 수동 등록 실패: " + e.getResponseBodyAsString()
+            );
+        } catch (RestClientException e) {
+            log.error("admin-portal 연결 실패 (manual)", e);
+            throw new ResponseStatusException(HttpStatus.BAD_GATEWAY,
+                    "admin-portal 연결 실패: " + e.getMessage());
+        }
+    }
+
     private URI buildUserSubscribedUri(String user) {
         return UriComponentsBuilder.fromHttpUrl(adminPortalUrl)
                 .path("/api/subscription/user-subscribed-ids")

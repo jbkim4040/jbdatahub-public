@@ -3,6 +3,7 @@ package com.jb.datahub.publicdata.service;
 import com.jb.datahub.publicdata.dto.RelatedDatasetDto;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
@@ -37,6 +38,10 @@ public class RelatedDatasetService {
         LIMIT ?
         """;
 
+    // TODO(ops): list_title/title/keywords 컬럼에 pg_trgm GIN 인덱스 필요
+    //   CREATE INDEX idx_pal_list_title_trgm ON public_api_list USING gin (list_title gin_trgm_ops);
+    // 결과 캐시(2분)는 임시 완충 — 인덱스 생성 후에도 유지 권장
+    @Cacheable(value = "related", key = "#q + '_' + #limit")
     public List<RelatedDatasetDto> related(String q, int limit) {
         return jdbcTemplate.query(
             SQL,

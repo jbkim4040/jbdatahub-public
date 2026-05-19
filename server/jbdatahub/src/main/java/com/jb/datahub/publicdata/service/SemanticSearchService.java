@@ -10,6 +10,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
 
+import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -155,6 +156,7 @@ public class SemanticSearchService {
                 .uri(EMBED_URL + "/embed?text={text}", query)
                 .retrieve()
                 .bodyToMono(Map.class)
+                .timeout(Duration.ofSeconds(3))
                 .block();
             List<Double> emb = (List<Double>) resp.get("embedding");
             return "[" + emb.stream().map(Object::toString).collect(Collectors.joining(",")) + "]";

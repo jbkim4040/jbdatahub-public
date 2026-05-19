@@ -9,7 +9,9 @@ import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.server.ResponseStatusException;
+import org.springframework.web.util.UriComponentsBuilder;
 
+import java.net.URI;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -24,7 +26,7 @@ public class SubscribeService {
     @Value("${admin.portal.internal-token:jb-internal-svc-token-2026}")
     private String internalToken;
 
-    private final RestTemplate restTemplate = new RestTemplate();
+    private final RestTemplate restTemplate;
 
     public Map<String, Object> requestSubscription(String listId, Map<String, Object> body, String user) {
         Map<String, Object> payload = new HashMap<>(body == null ? Map.of() : body);
@@ -61,6 +63,14 @@ public class SubscribeService {
         }
     }
 
+    private URI buildUserSubscribedUri(String user) {
+        return UriComponentsBuilder.fromHttpUrl(adminPortalUrl)
+                .path("/api/subscription/user-subscribed-ids")
+                .queryParam("requested_by", user)
+                .build()
+                .toUri();
+    }
+
     private org.springframework.http.HttpHeaders internalHeaders() {
         org.springframework.http.HttpHeaders h = new org.springframework.http.HttpHeaders();
         h.set("X-Internal-Token", internalToken);
@@ -72,7 +82,7 @@ public class SubscribeService {
     public Map<String, Object> getUserSubscribedIds(String user) {
         try {
             Map<String, Object> resp = restTemplate.exchange(
-                    adminPortalUrl + "/api/subscription/user-subscribed-ids?requested_by=" + user,
+                    buildUserSubscribedUri(user),
                     org.springframework.http.HttpMethod.GET,
                     new org.springframework.http.HttpEntity<>(internalHeaders()),
                     Map.class

@@ -19,7 +19,8 @@ public class CacheConfig {
             "api:listCountAll", "api:stats", "api:dataItemStats",
             "api:itemCount", "api:itemCountAll",
             "listCountAll", "stats", "dataItemStats",
-            "itemCount", "itemCountAll"
+            "itemCount", "itemCountAll",
+            "related"
         ));
         mgr.setCaffeine(Caffeine.newBuilder()
             .maximumSize(1000)

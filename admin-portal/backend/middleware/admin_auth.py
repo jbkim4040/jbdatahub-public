@@ -39,7 +39,7 @@ async def admin_auth_middleware(request: Request, call_next):
     role = None
     if token:
         try:
-            async with httpx.AsyncClient(timeout=3.0, verify=False) as client:
+            async with httpx.AsyncClient(timeout=3.0) as client:
                 r = await client.get(
                     f"{JBDATAHUB_URL}/api/auth/me",
                     cookies={"jb_token": token},

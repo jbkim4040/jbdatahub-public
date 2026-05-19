@@ -1,7 +1,8 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import {
   getList, getStats, getDataItems, getDataItemStats, getApiDetail,
-  semanticSearch, getSimilar, getTopics, getTopicList
+  semanticSearch, getSimilar, getTopics, getTopicList,
+  getEmbedProgress
 } from '../api/publicApi'
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, PieChart, Pie, Legend

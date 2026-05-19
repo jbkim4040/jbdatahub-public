@@ -36,7 +36,8 @@ function OpenApiTab() {
   const [search, setSearch]       = useState('')
   const [subscribedMap, setSubscribedMap]   = useState({})  // list_id → status
   const [embedProgress, setEmbedProgress]   = useState(null)  // {done,total,percent,topics,similarPairs}
-  const [pendingApplies, setPendingApplies] = useState([])  // [{listId,listTitle}] — 신청 popup 열린 항목
+  const [pendingApplies, setPendingApplies] = useState([])  // [{listId,listTitle}] — 신청 모달 닫힌 뒤 대기
+  const [applyRow, setApplyRow] = useState(null)  // 현재 활용신청 모달에 띄운 row (null이면 닫힘)
 
   // 임베딩 배치 진행 상황 30초 폴링 (배치 완료까지)
   useEffect(() => {
@@ -189,7 +190,7 @@ function OpenApiTab() {
         }}>
           <div style={{ fontWeight: 600, marginBottom: 6 }}>📝 활용신청 진행 중</div>
           <div style={{ color: '#78350f', marginBottom: 8, fontSize: 12 }}>
-            data.go.kr 팝업에서 신청을 완료한 뒤 아래 "신청 완료" 버튼을 눌러주세요.
+            모달에서 신청을 완료한 뒤 아래 "신청 완료" 버튼을 눌러주세요.
           </div>
           {pendingApplies.map(p => (
             <div key={p.listId} style={{
@@ -288,21 +289,8 @@ function OpenApiTab() {
                               style={{padding:'4px 10px',fontSize:11,background:'#2563eb',color:'#fff',border:'none',borderRadius:4,cursor:'pointer'}}
                               onClick={(e) => {
                                 e.stopPropagation()
-                                // data.go.kr 활용신청 팝업 — 상세 페이지로 진입 (활용신청 직접 URL은 2026-05 deprecated)
-                                // 사용자가 상세 페이지에서 "활용신청" 버튼 클릭 → 폼 페이지로 이동
-                                const url = `https://www.data.go.kr/data/${row.listId}/openapi.do`
-                                const popup = window.open(url, `apply_${row.listId}`,
-                                  'width=1100,height=800,scrollbars=yes,resizable=yes')
-                                if (!popup) {
-                                  window.toast?.warn('팝업이 차단되어 새 탭으로 엽니다')
-                                  window.open(url, '_blank')
-                                }
-                                // cross-origin 정책상 popup 내부 신청완료 자동 감지 불가
-                                // → 사용자가 페이지 상단 banner의 "신청 완료" 버튼을 직접 클릭
-                                setPendingApplies(prev =>
-                                  prev.some(x => x.listId === row.listId) ? prev :
-                                  [...prev, { listId: row.listId, listTitle: row.listTitle }]
-                                )
+                                // 활용신청 모달 (iframe) — 상세 페이지로 진입. 활용신청 직접 URL은 2026-05 deprecated
+                                setApplyRow({ listId: row.listId, listTitle: row.listTitle })
                               }}>신청</button>
                           )
                         })()}
@@ -383,6 +371,97 @@ function OpenApiTab() {
                 ))}
               </>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* 활용신청 iframe 모달 */}
+      {applyRow && (
+        <div
+          style={{
+            position:'fixed', inset:0, zIndex:1000,
+            background:'rgba(0,0,0,0.55)',
+            display:'flex', alignItems:'center', justifyContent:'center',
+          }}
+          onClick={() => setApplyRow(null)}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              width:'min(1180px, 96vw)', height:'min(880px, 94vh)',
+              background:'#fff', borderRadius:10, overflow:'hidden',
+              display:'flex', flexDirection:'column',
+              boxShadow:'0 20px 50px rgba(0,0,0,0.25)',
+            }}
+          >
+            <div style={{
+              display:'flex', alignItems:'center', gap:8,
+              padding:'10px 14px', borderBottom:'1px solid #e5e7eb',
+              background:'#f8fafc', fontSize:13,
+            }}>
+              <span style={{fontWeight:600, color:'#0f172a', flex:1, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}}>
+                📝 활용신청 — {applyRow.listTitle}
+              </span>
+              <a
+                href={`https://www.data.go.kr/data/${applyRow.listId}/openapi.do`}
+                target="_blank" rel="noreferrer"
+                style={{fontSize:12, color:'#2563eb', textDecoration:'none'}}>
+                새 탭으로 열기 ↗
+              </a>
+              <button
+                onClick={async () => {
+                  try {
+                    const { markManualSubscription } = await import('../api/publicApi')
+                    await markManualSubscription(applyRow.listId)
+                    setSubscribedMap(prev => ({ ...prev, [applyRow.listId]: 'MANUAL_REGISTERED' }))
+                    setPendingApplies(prev => prev.filter(x => x.listId !== applyRow.listId))
+                    setApplyRow(null)
+                    window.toast?.success('신청 등록 완료')
+                  } catch (err) {
+                    const detail = err?.response?.data?.detail || err?.response?.data?.error || err.message
+                    window.toast?.error('등록 실패: ' + String(detail).slice(0, 200))
+                  }
+                }}
+                style={{
+                  padding:'6px 14px', fontSize:12,
+                  background:'#16a34a', color:'#fff',
+                  border:'none', borderRadius:6, cursor:'pointer',
+                }}>
+                신청 완료
+              </button>
+              <button
+                onClick={() => {
+                  // 모달 닫기 — 상단 배너에 "완료/취소" 옵션이 그대로 남도록 pendingApplies 추가
+                  setPendingApplies(prev =>
+                    prev.some(x => x.listId === applyRow.listId)
+                      ? prev
+                      : [...prev, { listId: applyRow.listId, listTitle: applyRow.listTitle }]
+                  )
+                  setApplyRow(null)
+                }}
+                style={{
+                  padding:'6px 12px', fontSize:12,
+                  background:'#e5e7eb', color:'#374151',
+                  border:'none', borderRadius:6, cursor:'pointer',
+                }}>
+                나중에
+              </button>
+              <button
+                onClick={() => setApplyRow(null)}
+                style={{
+                  padding:'4px 10px', fontSize:16, lineHeight:1,
+                  background:'transparent', color:'#64748b',
+                  border:'none', cursor:'pointer',
+                }}>
+                ✕
+              </button>
+            </div>
+            <iframe
+              src={`https://www.data.go.kr/data/${applyRow.listId}/openapi.do`}
+              title={`활용신청 - ${applyRow.listTitle}`}
+              style={{flex:1, width:'100%', border:'none'}}
+              referrerPolicy="no-referrer"
+            />
           </div>
         </div>
       )}

@@ -77,7 +77,7 @@ public class UserService {
         if (user.getUsername().equals(requestingUsername)) {
             throw new IllegalArgumentException("자기 자신은 삭제할 수 없습니다.");
         }
-        if (user.getRole().equals(requestingRole)) {
+        if (requestingRole.equals(user.getRole())) {
             throw new IllegalArgumentException("같은 권한(" + requestingRole + ")의 계정은 삭제할 수 없습니다.");
         }
         checkCanManage(user.getRole(), requestingRole);

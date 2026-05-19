@@ -12,8 +12,13 @@ emergency 라벨 PR은 skip (cherry-pick hotfix용).
     GH_TOKEN — GitHub PAT (필수)
     REPO     — owner/name (기본 jbkim4040/jb-workspace)
 """
-import argparse, json, os, sys, time
-import urllib.request, urllib.error
+import argparse
+import json
+import os
+import sys
+import time
+import urllib.error
+import urllib.request
 
 REPO = os.environ.get("REPO", "jbkim4040/jb-workspace")
 TOKEN = os.environ.get("GH_TOKEN") or os.environ.get("GITHUB_TOKEN")

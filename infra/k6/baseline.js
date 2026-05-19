@@ -35,7 +35,7 @@ export default function () {
 
   group('login_then_me', () => {
     const r = http.post(`${BASE}/api/auth/login`,
-      JSON.stringify({ username: 'guest', password: 'guest' }),
+      JSON.stringify({ username: __ENV.TEST_USERNAME || 'guest', password: __ENV.TEST_PASSWORD || 'guest' }),
       { headers: { 'Content-Type': 'application/json' }, tags: { endpoint: 'login' } })
     check(r, { 200: (r) => r.status === 200 })
   })

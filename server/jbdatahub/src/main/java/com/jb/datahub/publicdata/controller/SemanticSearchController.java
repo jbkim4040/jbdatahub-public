@@ -39,6 +39,12 @@ public class SemanticSearchController {
         return ResponseEntity.ok(semanticSearchService.getSimilar(listId));
     }
 
+    @GetMapping("/data-items/{id}/similar")
+    @Operation(summary = "유사 DataItem 조회", description = "지정한 DataItem과 의미적으로 가장 유사한 상위 10개를 반환합니다. 임베딩 없으면 빈 배열.")
+    public ResponseEntity<List<com.jb.datahub.publicdata.dto.PublicDataItemResponseDto>> getSimilarDataItem(@PathVariable String id) {
+        return ResponseEntity.ok(semanticSearchService.getSimilarDataItem(id));
+    }
+
     @GetMapping("/embed-progress")
     @Operation(summary = "초기 배치 임베딩 진행 상황", description = "title_embedding 완료/전체/퍼센트")
     public ResponseEntity<java.util.Map<String, Object>> embedProgress() {

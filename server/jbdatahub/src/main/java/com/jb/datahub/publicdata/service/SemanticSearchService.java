@@ -25,6 +25,7 @@ public class SemanticSearchService {
 
     private final JdbcTemplate jdbcTemplate;
     private final WebClient    webClient;
+    private final com.jb.datahub.publicdata.repository.PublicDataItemRepository dataItemRepository;
 
     @Value("${embed.url:http://localhost:8001}")
     private String embedUrl;
@@ -98,12 +99,18 @@ public class SemanticSearchService {
      * source_type 필터링 가능. 임베딩이 NULL인 row가 많을 수 있어 키워드만으로도 동작.
      */
     public PageResponseDto<PublicDataItemResponseDto> hybridDataItemSearch(
-            String sourceType, String query, int page, int size) {
+            String sourceType, java.util.List<String> extList, String query, int page, int size) {
         boolean hasType = sourceType != null && !sourceType.isBlank();
+        boolean hasExt  = extList != null && !extList.isEmpty();
         StringBuilder typeFilter = new StringBuilder();
         java.util.List<Object> baseArgs = new java.util.ArrayList<>();
         if (hasType) {
             typeFilter.append(" AND source_type = ? ");
+        }
+        if (hasExt) {
+            typeFilter.append(" AND LOWER(ext) IN (")
+                .append(extList.stream().map(x -> "?").collect(Collectors.joining(",")))
+                .append(") ");
         }
 
         // 1) 키워드 매칭 (title/list_title/keywords)
@@ -117,6 +124,7 @@ public class SemanticSearchService {
             "ORDER BY COALESCE(download_cnt, view_cnt, req_cnt) DESC NULLS LAST LIMIT 100";
         java.util.List<Object> kwArgs = new java.util.ArrayList<>();
         if (hasType) kwArgs.add(sourceType);
+        if (hasExt)  for (String ex : extList) kwArgs.add(ex.toLowerCase());
         kwArgs.add(query); kwArgs.add(query); kwArgs.add(query);
         java.util.List<String> keywordIds = jdbcTemplate.query(
             keywordSql, (rs, rn) -> rs.getString("id"), kwArgs.toArray());
@@ -129,6 +137,7 @@ public class SemanticSearchService {
                 StringBuilder excludeSql = new StringBuilder();
                 java.util.List<Object> semArgs = new java.util.ArrayList<>();
                 if (hasType) semArgs.add(sourceType);
+                if (hasExt)  for (String ex : extList) semArgs.add(ex.toLowerCase());
                 if (!keywordIds.isEmpty()) {
                     excludeSql.append(" AND id NOT IN (")
                         .append(keywordIds.stream().map(x -> "?").collect(Collectors.joining(",")))
@@ -196,6 +205,84 @@ public class SemanticSearchService {
             .updatedAt(rs.getDate("updated_at") != null
                 ? rs.getDate("updated_at").toLocalDate() : null)
             .build();
+    }
+
+    /**
+     * 키워드 없는 단순 ext/type 필터 조회 — 정렬 sortBy 적용.
+     */
+    public PageResponseDto<PublicDataItemResponseDto> listDataItems(
+            String sourceType, java.util.List<String> extList,
+            int page, int size, String sortBy, String sortDir) {
+        boolean hasType = sourceType != null && !sourceType.isBlank();
+        boolean hasExt  = extList != null && !extList.isEmpty();
+        StringBuilder where = new StringBuilder("COALESCE(is_deleted,'N') = 'N'");
+        java.util.List<Object> args = new java.util.ArrayList<>();
+        if (hasType) { where.append(" AND source_type = ?"); args.add(sourceType); }
+        if (hasExt) {
+            where.append(" AND LOWER(ext) IN (")
+                .append(extList.stream().map(x -> "?").collect(Collectors.joining(",")))
+                .append(")");
+            for (String ex : extList) args.add(ex.toLowerCase());
+        }
+        String order;
+        String sortDirSql = "desc".equalsIgnoreCase(sortDir) ? "DESC" : ("asc".equalsIgnoreCase(sortDir) ? "ASC" : "DESC");
+        if ("title".equalsIgnoreCase(sortBy))            order = "title " + sortDirSql;
+        else if ("orgNm".equalsIgnoreCase(sortBy))       order = "org_nm " + sortDirSql;
+        else if ("viewCnt".equalsIgnoreCase(sortBy))     order = "view_cnt " + sortDirSql + " NULLS LAST";
+        else if ("downloadCnt".equalsIgnoreCase(sortBy)) order = "download_cnt " + sortDirSql + " NULLS LAST";
+        else                                             order = "updated_at " + sortDirSql + " NULLS LAST";
+
+        long total = jdbcTemplate.queryForObject(
+            "SELECT COUNT(*) FROM public_data_item WHERE " + where, Long.class, args.toArray());
+        int offset = page * size;
+        java.util.List<Object> qArgs = new java.util.ArrayList<>(args);
+        qArgs.add(size); qArgs.add(offset);
+        java.util.List<String> ids = jdbcTemplate.query(
+            "SELECT id FROM public_data_item WHERE " + where + " ORDER BY " + order + " LIMIT ? OFFSET ?",
+            (rs, rn) -> rs.getString("id"), qArgs.toArray());
+        java.util.List<PublicDataItem> entities = dataItemRepository.findAllById(ids);
+        java.util.Map<String, PublicDataItem> byId = new java.util.HashMap<>();
+        for (PublicDataItem e : entities) byId.put(e.getId(), e);
+        java.util.List<PublicDataItemResponseDto> content = new java.util.ArrayList<>();
+        for (String id : ids) {
+            PublicDataItem e = byId.get(id);
+            if (e != null) content.add(new PublicDataItemResponseDto(e));
+        }
+        int totalPages = (int) Math.ceil((double) total / size);
+        return PageResponseDto.<PublicDataItemResponseDto>builder()
+            .content(content).page(page).size(size)
+            .totalElements(total).totalPages(totalPages)
+            .first(page == 0).last(page >= totalPages - 1).build();
+    }
+
+    /**
+     * DataItem 의미 유사도 — 같은 ext 그룹 내에서 cosine 거리 상위 10개 반환.
+     * 임베딩 없으면 빈 리스트 fallback.
+     */
+    public java.util.List<PublicDataItemResponseDto> getSimilarDataItem(String id) {
+        try {
+            java.util.List<String> ids = jdbcTemplate.query(
+                "SELECT id FROM public_data_item " +
+                "WHERE title_embedding IS NOT NULL " +
+                "  AND id <> ? " +
+                "  AND COALESCE(is_deleted,'N') = 'N' " +
+                "ORDER BY title_embedding <=> (SELECT title_embedding FROM public_data_item WHERE id = ?) " +
+                "LIMIT 10",
+                (rs, rn) -> rs.getString("id"), id, id);
+            if (ids.isEmpty()) return java.util.Collections.emptyList();
+            java.util.List<PublicDataItem> entities = dataItemRepository.findAllById(ids);
+            java.util.Map<String, PublicDataItem> byId = new java.util.HashMap<>();
+            for (PublicDataItem e : entities) byId.put(e.getId(), e);
+            java.util.List<PublicDataItemResponseDto> out = new java.util.ArrayList<>();
+            for (String x : ids) {
+                PublicDataItem e = byId.get(x);
+                if (e != null) out.add(new PublicDataItemResponseDto(e));
+            }
+            return out;
+        } catch (Exception e) {
+            log.warn("getSimilarDataItem fallback: {}", e.getMessage());
+            return java.util.Collections.emptyList();
+        }
     }
 
     public PageResponseDto<PublicApiListDto> semanticSearch(String query, int page, int size) {

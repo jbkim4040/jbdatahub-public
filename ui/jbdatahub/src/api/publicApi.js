@@ -36,9 +36,21 @@ export const getStats = () => http.get('/public-data/stats')
 export const getDataItemStats = (sourceType) =>
   http.get('/public-data/stats/data-items', { params: { sourceType } })
 
-/** 수집 데이터 목록 조회 (dataset / file-data / standard-data) */
-export const getDataItems = (sourceType = '', page = 0, size = 20, title = '', sortBy = null, sortDir = null) =>
-  http.get('/public-data/data-items', { params: { sourceType: sourceType || undefined, page, size, title: title || undefined, sortBy: sortBy || undefined, sortDir: sortDir || undefined } })
+/** 수집 데이터 목록 조회 — ext: 파일 형식 콤마 구분 (csv,xlsx 등) */
+export const getDataItems = (extCsv = '', page = 0, size = 20, title = '', sortBy = null, sortDir = null) =>
+  http.get('/public-data/data-items', {
+    params: {
+      ext: extCsv || undefined,
+      page, size,
+      title: title || undefined,
+      sortBy: sortBy || undefined,
+      sortDir: sortDir || undefined,
+    }
+  })
+
+/** DataItem 유사도 조회 */
+export const getDataItemSimilar = (id) =>
+  http.get(`/public-data/data-items/${id}/similar`)
 
 /* ── 사용자 관리 (관리자 전용) ── */
 export const getUsers = () => http.get('/admin/users')

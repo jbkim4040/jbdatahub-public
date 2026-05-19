@@ -33,6 +33,7 @@ public class PublicApiQueryService {
     private final PublicApiListRepository     repository;
     private final PublicApiOperationRepository operationRepository;
     private final PublicDataItemRepository    dataItemRepository;
+    private final SemanticSearchService       semanticSearchService;
 
     private static final Set<String> LIST_SORT_FIELDS =
             Set.of("listTitle", "orgNm", "requestCnt", "updatedAt", "isCharged");
@@ -148,32 +149,26 @@ public class PublicApiQueryService {
     }
 
     public PageResponseDto<PublicDataItemResponseDto> getDataItems(
-            String sourceType, int page, int size, String title,
+            String sourceType, List<String> extList, int page, int size, String title,
             String sortBy, String sortDir) {
 
         size = Math.min(size, 100);
         Sort sort = buildSort(ITEM_SORT_FIELDS, sortBy, sortDir);
         Pageable pageable = PageRequest.of(page, size, sort);
         boolean hasType  = sourceType != null && !sourceType.isBlank();
+        boolean hasExt   = extList != null && !extList.isEmpty();
         boolean hasTitle = title != null && !title.isBlank();
 
-        if (hasType && !hasTitle) {
-            long total = countBySourceType(sourceType);
-            var items  = dataItemRepository.findPageBySourceType(sourceType, pageable);
-            var pg = new PageImpl<>(items, pageable, total);
-            return PageResponseDto.from(pg.map(PublicDataItemResponseDto::new));
-        }
-
-        if (!hasType && !hasTitle) {
-            long total = countAllItems();
-            var items = dataItemRepository.findAllItems(pageable);
-            var pg = new PageImpl<>(items, pageable, total);
-            return PageResponseDto.from(pg.map(PublicDataItemResponseDto::new));
+        if (!hasTitle) {
+            // 키워드 없이 ext/type 필터만 → JdbcTemplate 직접 조회 (정렬 ‚ 페이징 sortBy=updatedAt 기본)
+            return semanticSearchService.listDataItems(
+                hasType ? sourceType : null, hasExt ? extList : null, page, size, sortBy, sortDir);
         }
 
         // title 있으면 hybrid (키워드 우선 + 의미 후속). embed_service down 시 키워드만 fallback.
         return semanticSearchService.hybridDataItemSearch(
-            hasType ? sourceType : null, title.trim(), page, size);
+            hasType ? sourceType : null, hasExt ? extList : null,
+            title.trim(), page, size);
     }
 
         public PublicApiDetailDto getDetail(String listId) {

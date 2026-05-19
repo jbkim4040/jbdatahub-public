@@ -1,17 +1,11 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import {
-  getList, getStats, getDataItems, getDataItemStats, getApiDetail,
-  getSimilar, getTopics, getTopicList,
+  getList, getDataItems, getApiDetail,
+  getSimilar, getDataItemSimilar, getTopics, getTopicList,
   getEmbedProgress
 } from '../api/publicApi'
-import {
-  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, PieChart, Pie, Legend
-} from 'recharts'
 import styles from './ListPage.module.css'
 import RelatedDatasets from '../components/RelatedDatasets'
-
-const COLORS = ['#1e3a5f', '#3b7dd8', '#e67e22', '#27ae60', '#8e44ad',
-                 '#2980b9', '#e74c3c', '#16a085', '#f39c12', '#7f8c8d']
 
 const TABS = [
   { key: 'openapi', label: 'OpenAPI' },
@@ -37,7 +31,7 @@ function SortTh({ field, sort, onSort, children, className }) {
 }
 
 /* ── OpenAPI 탭 ─────────────────────────────────────── */
-function OpenApiTab({ stats }) {
+function OpenApiTab() {
   const [data, setData]           = useState(null)
   const [search, setSearch]       = useState('')
   const [subscribedMap, setSubscribedMap]   = useState({})  // list_id → status
@@ -162,63 +156,8 @@ function OpenApiTab({ stats }) {
   }
 
 
-  const categoryData = stats?.countByCategory ?? []
-  const apiTypeData  = stats?.countByApiType
-    ? Object.entries(stats.countByApiType).map(([name, count]) => ({ name, count }))
-    : []
-
-  const searchLabel = selectedTopic !== null ? `토픽 ${selectedTopic + 1}` : (query ? `"${query}"` : '전체')
-
   return (
     <>
-      {stats && (
-        <div className={styles.statsRow}>
-          <div className={styles.statCard}>
-            <div className={styles.statNum}>{stats.totalCount.toLocaleString()}</div>
-            <div className={styles.statLabel}>전체 서비스 수</div>
-          </div>
-          {apiTypeData.map(({ name, count }) => (
-            <div key={name} className={styles.statCard}>
-              <div className={styles.statNum}>{Number(count).toLocaleString()}</div>
-              <div className={styles.statLabel}>{name || '미분류'}</div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {stats && (
-        <div className={styles.charts}>
-          <div className={styles.chartBox}>
-            <h3>분류별 건수 (상위 10개)</h3>
-            <ResponsiveContainer width="100%" height={260}>
-              <BarChart data={categoryData} margin={{ left: 0, right: 10 }}>
-                <XAxis dataKey="name" tick={{ fontSize: 11 }} interval={0}
-                  angle={-25} textAnchor="end" height={60} />
-                <YAxis tick={{ fontSize: 11 }} />
-                <Tooltip formatter={(v) => v.toLocaleString()} />
-                <Bar dataKey="count" radius={[4, 4, 0, 0]}>
-                  {categoryData.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-          <div className={styles.chartBox}>
-            <h3>API 유형 비율</h3>
-            <ResponsiveContainer width="100%" height={260}>
-              <PieChart>
-                <Pie data={apiTypeData} dataKey="count" nameKey="name"
-                  cx="50%" cy="50%" outerRadius={90}
-                  label={({ name, percent }) => `${name} ${(percent * 100).toFixed(1)}%`}>
-                  {apiTypeData.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
-                </Pie>
-                <Tooltip formatter={(v) => v.toLocaleString()} />
-                <Legend />
-              </PieChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-      )}
-
       {/* 토픽 필터 */}
       {topics.length > 0 && (
         <div className={styles.topicRow}>
@@ -451,41 +390,51 @@ function OpenApiTab({ stats }) {
   )
 }
 
-/* ── 파일 데이터 탭 — dataset / file-data / standard-data 통합 + 부필터 dropdown ── */
-const FILE_SOURCE_OPTIONS = [
-  { value: '', label: '전체 (모든 파일 형식)' },
-  { value: 'dataset', label: '데이터셋' },
-  { value: 'file-data', label: '파일데이터' },
-  { value: 'standard-data', label: '표준데이터' },
+/* ── 파일 데이터 탭 — 파일 형식 ext 필터 + 유사도 ── */
+const FILE_FORMAT_OPTIONS = [
+  { value: '',                            label: '전체' },
+  { value: 'csv',                         label: 'CSV' },
+  { value: 'xlsx,xls',                    label: 'Excel (xlsx, xls)' },
+  { value: 'json,JSON,JSON+XML',          label: 'JSON' },
+  { value: 'xml,XML',                     label: 'XML' },
+  { value: 'pdf',                         label: 'PDF' },
+  { value: 'hwp,hwpx',                    label: '한글 (hwp/hwpx)' },
+  { value: 'docx,doc,odt',                label: '워드 (docx/doc/odt)' },
+  { value: 'pptx',                        label: '파워포인트' },
+  { value: 'txt,TEXT',                    label: '텍스트 (txt)' },
+  { value: 'jpg,jpeg,png,gif,tiff',       label: '이미지' },
+  { value: 'mp4,mp3',                     label: '미디어' },
+  { value: 'zip,7z',                      label: '압축' },
 ]
 function DataItemTab() {
-  const [sourceType, setSourceType] = useState('')
-  const [data, setData]       = useState(null)
-  const [stats, setStats]     = useState(null)
-  const [search, setSearch]   = useState('')
-  const [query, setQuery]     = useState('')
-  const [page, setPage]       = useState(0)
-  const [loading, setLoading] = useState(false)
-  const [sort, setSort]       = useState({ field: null, dir: null })
+  const [extFilter, setExtFilter] = useState('')
+  const [data, setData]           = useState(null)
+  const [search, setSearch]       = useState('')
+  const [query, setQuery]         = useState('')
+  const [page, setPage]           = useState(0)
+  const [loading, setLoading]     = useState(false)
+  const [sort, setSort]           = useState({ field: null, dir: null })
+  const [selectedItem, setSelectedItem]   = useState(null)   // 유사도 모달 대상
+  const [similar, setSimilar]             = useState([])
+  const [similarLoading, setSimilarLoading] = useState(false)
 
   const scrollRef = useRef(0)
   const loadItems = useCallback(async (p = 0, q = query, s = sort) => {
     scrollRef.current = window.scrollY
     setLoading(true)
     try {
-      const res = await getDataItems(sourceType, p, 20, q, s.field, s.dir)
+      const res = await getDataItems(extFilter, p, 20, q, s.field, s.dir)
       setData(res.data)
       setPage(p)
       requestAnimationFrame(() => window.scrollTo(0, scrollRef.current))
     } catch (e) { console.error(e) }
     finally { setLoading(false) }
-  }, [sourceType, query, sort])
+  }, [extFilter, query, sort])
 
   useEffect(() => {
     setSearch(''); setQuery(''); setSort({ field: null, dir: null })
     loadItems(0, '')
-    getDataItemStats(sourceType).then(r => setStats(r.data)).catch(() => {})
-  }, [sourceType])
+  }, [extFilter])
 
   useEffect(() => { loadItems(0, query, sort) }, [sort])
 
@@ -493,69 +442,32 @@ function DataItemTab() {
   const handleReset  = () => { setSearch(''); setQuery(''); loadItems(0, '', sort) }
   const handleSort   = (newSort) => setSort(newSort)
 
+  const handleRowClick = async (row) => {
+    setSelectedItem(row)
+    setSimilar([])
+    setSimilarLoading(true)
+    try {
+      const res = await getDataItemSimilar(row.id)
+      setSimilar(res.data || [])
+    } catch (e) { console.error(e) }
+    finally { setSimilarLoading(false) }
+  }
+
   return (
     <>
       {/* 파일 형식 필터 */}
       <div style={{ marginBottom: 12 }}>
         <label style={{ fontSize: 13, color: '#475569', marginRight: 8 }}>형식:</label>
         <select
-          value={sourceType}
-          onChange={(e) => { setSourceType(e.target.value); setSearch(''); setQuery(''); }}
+          value={extFilter}
+          onChange={(e) => { setExtFilter(e.target.value); setSearch(''); setQuery(''); }}
           style={{ padding: '6px 10px', fontSize: 13, border: '1px solid #cbd5e1', borderRadius: 6 }}
         >
-          {FILE_SOURCE_OPTIONS.map(o => (
+          {FILE_FORMAT_OPTIONS.map(o => (
             <option key={o.value} value={o.value}>{o.label}</option>
           ))}
         </select>
       </div>
-
-      {/* 통계 카드 */}
-      {stats && (
-        <div className={styles.statsRow}>
-          <div className={styles.statCard}>
-            <div className={styles.statNum}>{stats.totalCount.toLocaleString()}</div>
-            <div className={styles.statLabel}>전체 건수</div>
-          </div>
-        </div>
-      )}
-
-      {/* 분류별 차트 */}
-      {(stats?.countByCategory?.length > 0 || stats?.countByFormat?.length > 0) && (
-        <div className={styles.charts}>
-          {stats?.countByCategory?.length > 0 && (
-            <div className={styles.chartBox}>
-              <h3>분류별 건수 (상위 10개)</h3>
-              <ResponsiveContainer width="100%" height={240}>
-                <BarChart data={stats.countByCategory} margin={{ left: 0, right: 10 }}>
-                  <XAxis dataKey="name" tick={{ fontSize: 11 }} interval={0}
-                    angle={-25} textAnchor="end" height={60} />
-                  <YAxis tick={{ fontSize: 11 }} />
-                  <Tooltip formatter={(v) => v.toLocaleString()} />
-                  <Bar dataKey="count" radius={[4, 4, 0, 0]}>
-                    {stats.countByCategory.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          )}
-          {stats?.countByFormat?.length > 0 && (
-            <div className={styles.chartBox}>
-              <h3>형식 비율</h3>
-              <ResponsiveContainer width="100%" height={240}>
-                <PieChart>
-                  <Pie data={stats.countByFormat} dataKey="count" nameKey="name"
-                    cx="50%" cy="50%" outerRadius={80}
-                    label={({ name, percent }) => `${name} ${(percent * 100).toFixed(1)}%`}>
-                    {stats.countByFormat.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
-                  </Pie>
-                  <Tooltip formatter={(v) => v.toLocaleString()} />
-                  <Legend />
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
-          )}
-        </div>
-      )}
 
       {/* 검색 */}
       <form className={styles.searchRow} onSubmit={handleSearch}>
@@ -591,7 +503,7 @@ function DataItemTab() {
                 {data.content.length === 0
                   ? <tr><td colSpan={9} className={styles.empty}>검색 결과가 없습니다.</td></tr>
                   : data.content.map((row) => (
-                    <tr key={row.id}>
+                    <tr key={row.id} className={styles.clickableRow} onClick={() => handleRowClick(row)} title="클릭하여 유사 데이터 보기">
                       <td className={styles.titleCell} title={row.title}>{row.title}</td>
                       <td>{row.orgNm}</td>
                       <td>{row.newCategoryNm || row.categoryNm}</td>
@@ -600,7 +512,7 @@ function DataItemTab() {
                       <td className={styles.num}>{row.viewCnt?.toLocaleString() ?? '-'}</td>
                       <td className={styles.num}>{row.downloadCnt?.toLocaleString() ?? '-'}</td>
                       <td>{row.updatedAt ?? '-'}</td>
-                      <td>
+                      <td onClick={(e) => e.stopPropagation()}>
                         {row.pageUrl
                           ? <a href={row.pageUrl} target="_blank" rel="noreferrer" className={styles.linkBtn}>바로가기</a>
                           : '-'
@@ -621,6 +533,47 @@ function DataItemTab() {
           </div>
         </div>
       )}
+
+      {/* 유사 데이터 모달 */}
+      {selectedItem && (
+        <div className={styles.detailOverlay} onClick={() => setSelectedItem(null)}>
+          <div className={styles.detailModal} onClick={e => e.stopPropagation()}>
+            <div className={styles.detailHeader}>
+              <h2 className={styles.detailTitle}>{selectedItem.title}</h2>
+              <button className={styles.closeBtn} onClick={() => setSelectedItem(null)}>✕</button>
+            </div>
+            <div className={styles.detailMeta}>
+              <span>🏢 {selectedItem.orgNm}</span>
+              <span>📂 {selectedItem.newCategoryNm || selectedItem.categoryNm}</span>
+              <span>📄 {selectedItem.ext || selectedItem.dataType || '-'}</span>
+              {selectedItem.updatedAt && <span>📅 {selectedItem.updatedAt}</span>}
+            </div>
+            {selectedItem.pageUrl && (
+              <p><a href={selectedItem.pageUrl} target="_blank" rel="noreferrer" className={styles.linkBtn}>원본 페이지 바로가기 ↗</a></p>
+            )}
+
+            <h3 className={styles.sectionTitle}>유사 데이터</h3>
+            {similarLoading && <p className={styles.noDdl}>불러오는 중...</p>}
+            {!similarLoading && similar.length === 0 && (
+              <p className={styles.noDdl}>유사 데이터를 찾지 못했습니다. (임베딩 배치 진행 중일 수 있음)</p>
+            )}
+            {similar.length > 0 && (
+              <div className={styles.similarList}>
+                {similar.map(s => (
+                  <div key={s.id} className={styles.similarItem}
+                    onClick={() => handleRowClick(s)}
+                    title="클릭하여 유사 데이터 보기">
+                    <span className={styles.similarTitle}>{s.title}</span>
+                    <span className={styles.similarMeta}>
+                      {s.orgNm} · {s.newCategoryNm || s.categoryNm} · {s.ext || s.dataType || '-'}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </>
   )
 }
@@ -628,11 +581,6 @@ function DataItemTab() {
 /* ── 메인 ── */
 export default function ListPage() {
   const [activeTab, setActiveTab] = useState('openapi')
-  const [stats, setStats] = useState(null)
-
-  useEffect(() => {
-    getStats().then(r => setStats(r.data)).catch(console.error)
-  }, [])
 
   return (
     <div className={styles.container}>
@@ -651,7 +599,7 @@ export default function ListPage() {
       </div>
 
       {activeTab === 'openapi'
-        ? <OpenApiTab stats={stats} />
+        ? <OpenApiTab />
         : <DataItemTab key={activeTab} />
       }
     </div>

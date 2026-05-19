@@ -52,9 +52,11 @@ public class PublicApiQueryController {
     }
 
     @GetMapping("/data-items")
-    @Operation(summary = "수집 데이터 목록 조회", description = "저장된 데이터셋/파일데이터/표준데이터를 페이징 조회합니다.")
+    @Operation(summary = "수집 데이터 목록 조회", description = "저장된 데이터셋/파일데이터/표준데이터를 페이징 조회. ext 파라미터로 파일 형식 필터링 가능 (csv, xlsx, pdf 등 — 콤마 구분).")
     public ResponseEntity<PageResponseDto<PublicDataItemResponseDto>> getDataItems(
             @RequestParam(required = false) String sourceType,
+            @Parameter(description = "파일 형식 필터 (csv, xlsx, pdf 등 — 콤마 구분, 대소문자 무관)")
+            @RequestParam(required = false) String ext,
             @RequestParam(required = false) String title,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
@@ -63,7 +65,13 @@ public class PublicApiQueryController {
             @Parameter(description = "정렬 방향: asc | desc")
             @RequestParam(required = false) String sortDir
     ) {
-        return ResponseEntity.ok(queryService.getDataItems(sourceType, page, size, title, sortBy, sortDir));
+        java.util.List<String> extList = (ext == null || ext.isBlank())
+            ? null
+            : java.util.Arrays.stream(ext.split(","))
+                .map(String::trim).filter(s -> !s.isEmpty())
+                .map(String::toLowerCase).toList();
+        return ResponseEntity.ok(
+            queryService.getDataItems(sourceType, extList, page, size, title, sortBy, sortDir));
     }
 
     @GetMapping("/detail/{listId}")

@@ -48,6 +48,17 @@ function OpenApiTab({ stats }) {
   const [data, setData]           = useState(null)
   const [search, setSearch]       = useState('')
   const [subscribedMap, setSubscribedMap]   = useState({})  // list_id → status
+  const [embedProgress, setEmbedProgress]   = useState(null)  // {done,total,percent,topics,similarPairs}
+
+  // 임베딩 배치 진행 상황 30초 폴링 (배치 완료까지)
+  useEffect(() => {
+    const fetchProgress = () => {
+      getEmbedProgress().then(r => setEmbedProgress(r.data)).catch(() => {})
+    }
+    fetchProgress()
+    const t = setInterval(fetchProgress, 30000)
+    return () => clearInterval(t)
+  }, [])
 
   // 사용자 신청 목록 로드 (등록 여부 표시용)
   useEffect(() => {

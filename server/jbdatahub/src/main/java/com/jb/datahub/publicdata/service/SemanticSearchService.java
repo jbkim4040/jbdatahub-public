@@ -95,6 +95,33 @@ public class SemanticSearchService {
         }
     }
 
+    /** 70만 건 초기 배치 임베딩 진행 상황. */
+    public Map<String, Object> getEmbedProgress() {
+        try {
+            Map<String, Object> row = jdbcTemplate.queryForMap(
+                "SELECT COUNT(*) FILTER (WHERE title_embedding IS NOT NULL) AS done, " +
+                "       COUNT(*) AS total, " +
+                "       (SELECT COUNT(DISTINCT topic_id) FROM api_topic_label) AS topics, " +
+                "       (SELECT COUNT(*) FROM api_similar) AS similar_pairs " +
+                "FROM public_api_list"
+            );
+            long done = ((Number) row.get("done")).longValue();
+            long total = ((Number) row.get("total")).longValue();
+            double percent = total > 0 ? (100.0 * done / total) : 0.0;
+            Map<String, Object> out = new java.util.HashMap<>();
+            out.put("done", done);
+            out.put("total", total);
+            out.put("pending", total - done);
+            out.put("percent", Math.round(percent * 100) / 100.0);
+            out.put("topics", row.get("topics"));
+            out.put("similarPairs", row.get("similar_pairs"));
+            return out;
+        } catch (Exception e) {
+            log.warn("getEmbedProgress fallback: {}", e.getMessage());
+            return java.util.Map.of("done", 0, "total", 0, "pending", 0, "percent", 0.0);
+        }
+    }
+
     public List<TopicDto> getTopics() {
         try {
             return jdbcTemplate.query(

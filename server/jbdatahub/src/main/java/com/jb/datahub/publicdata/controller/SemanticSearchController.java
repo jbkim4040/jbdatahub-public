@@ -39,6 +39,12 @@ public class SemanticSearchController {
         return ResponseEntity.ok(semanticSearchService.getSimilar(listId));
     }
 
+    @GetMapping("/embed-progress")
+    @Operation(summary = "초기 배치 임베딩 진행 상황", description = "title_embedding 완료/전체/퍼센트")
+    public ResponseEntity<java.util.Map<String, Object>> embedProgress() {
+        return ResponseEntity.ok(semanticSearchService.getEmbedProgress());
+    }
+
     @GetMapping("/topics")
     @Operation(summary = "토픽 목록 조회", description = "K-means 클러스터링으로 생성된 토픽 목록과 각 토픽의 건수를 반환합니다.")
     public ResponseEntity<List<TopicDto>> getTopics() {

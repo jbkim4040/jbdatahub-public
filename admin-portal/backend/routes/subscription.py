@@ -483,10 +483,32 @@ async def _submit_via_playwright(sub_id: str):
             page = await context.new_page()
             try:
                 # 1) 상세 페이지
-                await page.goto(
+                resp = await page.goto(
                     f"{DATA_PORTAL_BASE}/data/{sub['list_id']}/openapi.do",
                     wait_until="domcontentloaded", timeout=30000
                 )
+                # 데이터셋 자체가 삭제/비공개됐는지 즉시 감지 (HTTP 4xx 또는 에러 title)
+                if resp is not None and resp.status >= 400:
+                    async with pool.acquire() as conn_g:
+                        await conn_g.execute(
+                            "UPDATE api_subscriptions SET status='DATASET_GONE', error_message=$2 WHERE id=$1::uuid",
+                            sub_id,
+                            f"데이터셋 비공개/삭제 추정 — list_id={sub['list_id']}, http={resp.status}"
+                        )
+                    raise RuntimeError(
+                        f"데이터셋 비공개/삭제 — list_id={sub['list_id']}, http={resp.status}"
+                    )
+                _det_title = await page.title()
+                if "에러" in _det_title or "찾을 수 없" in _det_title:
+                    async with pool.acquire() as conn_g:
+                        await conn_g.execute(
+                            "UPDATE api_subscriptions SET status='DATASET_GONE', error_message=$2 WHERE id=$1::uuid",
+                            sub_id,
+                            f"데이터셋 비공개/삭제 추정 — list_id={sub['list_id']}, title={_det_title}"
+                        )
+                    raise RuntimeError(
+                        f"데이터셋 비공개/삭제 — list_id={sub['list_id']}, title={_det_title}"
+                    )
 
                 # 2) 활용신청 버튼 클릭 → 새 탭 또는 same-page navigation
                 form_page = page  # default
@@ -588,6 +610,21 @@ async def _submit_via_playwright(sub_id: str):
                     if "/openapi.do" in cur_url or "/login" in cur_url:
                         raise RuntimeError(
                             f"활용신청 폼 진입 실패 — 로그인 alert/redirect 추정. URL={cur_url}"
+                        )
+                    # body_len이 매우 짧고 title이 에러면 데이터셋 자체 문제
+                    try:
+                        _form_title = await form_page.title()
+                    except Exception:
+                        _form_title = ""
+                    if body_len < 3000 and ("에러" in _form_title or "찾을 수 없" in _form_title):
+                        async with pool.acquire() as conn_g:
+                            await conn_g.execute(
+                                "UPDATE api_subscriptions SET status='DATASET_GONE', error_message=$2 WHERE id=$1::uuid",
+                                sub_id,
+                                f"데이터셋 비공개/삭제 추정 — title={_form_title}, body_len={body_len}"
+                            )
+                        raise RuntimeError(
+                            f"데이터셋 비공개/삭제 — title={_form_title}, body_len={body_len}"
                         )
                     raise RuntimeError(
                         f"form 로딩 실패 — 폼 selector 미발견. URL={cur_url}, body_len={body_len}"

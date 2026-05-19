@@ -171,11 +171,9 @@ public class PublicApiQueryService {
             return PageResponseDto.from(pg.map(PublicDataItemResponseDto::new));
         }
 
-        var result = (hasType)
-                ? dataItemRepository.findBySourceTypeAndTitleContainingIgnoreCase(sourceType, title, pageable)
-                : dataItemRepository.findByTitleContainingIgnoreCase(title, pageable);
-
-        return PageResponseDto.from(result.map(PublicDataItemResponseDto::new));
+        // title 있으면 hybrid (키워드 우선 + 의미 후속). embed_service down 시 키워드만 fallback.
+        return semanticSearchService.hybridDataItemSearch(
+            hasType ? sourceType : null, title.trim(), page, size);
     }
 
         public PublicApiDetailDto getDetail(String listId) {

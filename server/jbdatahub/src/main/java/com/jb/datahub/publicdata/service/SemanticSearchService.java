@@ -1,6 +1,8 @@
 package com.jb.datahub.publicdata.service;
 
 import com.jb.datahub.publicdata.dto.PageResponseDto;
+import com.jb.datahub.publicdata.dto.PublicDataItemResponseDto;
+import com.jb.datahub.publicdata.entity.PublicDataItem;
 import com.jb.datahub.publicdata.dto.PublicApiListDto;
 import com.jb.datahub.publicdata.dto.SimilarApiDto;
 import com.jb.datahub.publicdata.dto.TopicDto;
@@ -89,6 +91,93 @@ public class SemanticSearchService {
             .totalElements(total).totalPages(totalPages)
             .first(page == 0).last(page >= totalPages - 1)
             .build();
+    }
+
+    /**
+     * DataItem (public_data_item) 하이브리드 검색 — 키워드 우선 + 의미 후속.
+     * source_type 필터링 가능. 임베딩이 NULL인 row가 많을 수 있어 키워드만으로도 동작.
+     */
+    public PageResponseDto<PublicDataItemResponseDto> hybridDataItemSearch(
+            String sourceType, String query, int page, int size) {
+        boolean hasType = sourceType != null && !sourceType.isBlank();
+        StringBuilder typeFilter = new StringBuilder();
+        java.util.List<Object> baseArgs = new java.util.ArrayList<>();
+        if (hasType) {
+            typeFilter.append(" AND source_type = ? ");
+        }
+
+        // 1) 키워드 매칭 (title/list_title/keywords)
+        String keywordSql =
+            "SELECT id FROM public_data_item " +
+            "WHERE COALESCE(is_deleted,'N') = 'N' " +
+            typeFilter.toString() +
+            "  AND (title ILIKE ('%' || ? || '%')" +
+            "       OR list_title ILIKE ('%' || ? || '%')" +
+            "       OR keywords   ILIKE ('%' || ? || '%')) " +
+            "ORDER BY COALESCE(download_cnt, view_cnt, req_cnt) DESC NULLS LAST LIMIT 100";
+        java.util.List<Object> kwArgs = new java.util.ArrayList<>();
+        if (hasType) kwArgs.add(sourceType);
+        kwArgs.add(query); kwArgs.add(query); kwArgs.add(query);
+        java.util.List<String> keywordIds = jdbcTemplate.query(
+            keywordSql, (rs, rn) -> rs.getString("id"), kwArgs.toArray());
+
+        // 2) 의미 매칭 (keyword 제외)
+        java.util.List<String> semanticIds = java.util.Collections.emptyList();
+        if (keywordIds.size() < 100) {
+            try {
+                String vec = getEmbedding(query);
+                StringBuilder excludeSql = new StringBuilder();
+                java.util.List<Object> semArgs = new java.util.ArrayList<>();
+                if (hasType) semArgs.add(sourceType);
+                if (!keywordIds.isEmpty()) {
+                    excludeSql.append(" AND id NOT IN (")
+                        .append(keywordIds.stream().map(x -> "?").collect(Collectors.joining(",")))
+                        .append(") ");
+                    semArgs.addAll(keywordIds);
+                }
+                semArgs.add(vec);
+                String semSql =
+                    "SELECT id FROM public_data_item " +
+                    "WHERE title_embedding IS NOT NULL " +
+                    "  AND COALESCE(is_deleted,'N') = 'N' " +
+                    typeFilter.toString() +
+                    excludeSql +
+                    "ORDER BY title_embedding <=> CAST(? AS vector) LIMIT 50";
+                semanticIds = jdbcTemplate.query(
+                    semSql, (rs, rn) -> rs.getString("id"), semArgs.toArray());
+            } catch (Exception e) {
+                log.warn("hybridDataItemSearch semantic 단계 실패 (키워드만): {}", e.getMessage());
+            }
+        }
+
+        // 3) ID 순서 보존 + entity fetch (단일 IN 쿼리)
+        java.util.List<String> orderedIds = new java.util.ArrayList<>(keywordIds);
+        orderedIds.addAll(semanticIds);
+        long total = orderedIds.size();
+        int offset = page * size;
+        if (offset >= orderedIds.size()) {
+            return PageResponseDto.<PublicDataItemResponseDto>builder()
+                .content(java.util.Collections.emptyList()).page(page).size(size)
+                .totalElements(total).totalPages((int) Math.ceil((double) total / size))
+                .first(page == 0).last(true).build();
+        }
+        java.util.List<String> pageIds = orderedIds.subList(
+            offset, Math.min(offset + size, orderedIds.size()));
+
+        // entity 조회 — JPA Repository 통해 (id 순서 보존)
+        java.util.List<PublicDataItem> entities = dataItemRepository.findAllById(pageIds);
+        java.util.Map<String, PublicDataItem> byId = new java.util.HashMap<>();
+        for (PublicDataItem e : entities) byId.put(e.getId(), e);
+        java.util.List<PublicDataItemResponseDto> content = new java.util.ArrayList<>();
+        for (String id : pageIds) {
+            PublicDataItem e = byId.get(id);
+            if (e != null) content.add(new PublicDataItemResponseDto(e));
+        }
+        int totalPages = (int) Math.ceil((double) total / size);
+        return PageResponseDto.<PublicDataItemResponseDto>builder()
+            .content(content).page(page).size(size)
+            .totalElements(total).totalPages(totalPages)
+            .first(page == 0).last(page >= totalPages - 1).build();
     }
 
     private PublicApiListDto mapRow(java.sql.ResultSet rs) throws java.sql.SQLException {

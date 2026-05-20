@@ -10,6 +10,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.client.WebClient;
 
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -17,14 +18,15 @@ import java.util.stream.Collectors;
 /**
  * 신규/갱신된 dataset row 임베딩 자동 백필.
  *
+ * 임베딩 텍스트 = 제목 + 키워드 + 분류 + 제공기관 + 설명 (메타정보 포함, 500자 cap).
+ *   → 제목만 쓸 때보다 의미 유사도/관련 검색어 품질 향상.
+ *
  * 동작:
- *  - 매 시 30분: title_embedding IS NULL (신규) 또는 embedded_at < updated_at (제목 변경) 인
- *    row 최대 1000건 처리
+ *  - 매 시 30분: title_embedding IS NULL (신규) 또는 embedded_at < updated_at (갱신) row 최대 1000건
  *  - embed_service /embed_batch 호출 (X-Internal-Token 포함)
  *  - UPDATE title_embedding + embedded_at
- *  - 토픽/유사도 재계산은 DB 서버 cron (run_kmeans.py + run_similar_top10.py) — 주 1회
  *
- * embedded_at 컬럼이 아직 없으면 (마이그레이션 전) NULL-only 모드로 degrade.
+ * embedded_at 컬럼이 없으면 NULL-only 모드로 degrade.
  */
 @Slf4j
 @Component
@@ -43,8 +45,8 @@ public class EmbeddingBackfillScheduler {
 
     private static final int BATCH_SIZE   = 32;
     private static final int CYCLE_LIMIT  = 1000;
+    private static final int MAX_TEXT_LEN = 500;
 
-    /** embedded_at 컬럼 존재 여부 — 시작 시 1회 감지 */
     private volatile boolean hasEmbeddedAt = false;
 
     @PostConstruct
@@ -58,30 +60,48 @@ public class EmbeddingBackfillScheduler {
         } catch (Exception e) {
             hasEmbeddedAt = false;
         }
-        log.info("[EmbeddingBackfill] embedded_at 컬럼 = {}", hasEmbeddedAt ? "있음 (stale 재임베딩 활성)" : "없음 (NULL-only 모드)");
+        log.info("[EmbeddingBackfill] embedded_at 컬럼 = {}",
+            hasEmbeddedAt ? "있음 (stale 재임베딩 활성)" : "없음 (NULL-only 모드)");
     }
 
     @Scheduled(cron = "0 30 * * * *", zone = "Asia/Seoul")
     public void backfillEmbeddings() {
-        // Blue/Green 오버랩 중 중복 실행 방지 (TTL 3000s < 3600s 주기)
         if (!schedulerLock.tryAcquire("embedding-backfill", 3000)) return;
         try {
-            int aListDone = backfillTable("public_api_list", "list_id", "list_title");
-            int aItemDone = backfillTable("public_data_item", "id", "title");
+            int aListDone = backfill(
+                "public_api_list", "list_id",
+                "list_title, keywords, new_category_nm, org_nm, description");
+            int aItemDone = backfill(
+                "public_data_item", "id",
+                "title AS list_title, keywords, " +
+                "COALESCE(new_category_nm, category_nm) AS new_category_nm, org_nm, description");
             log.info("[EmbeddingBackfill] cycle done: list={}, item={}", aListDone, aItemDone);
         } catch (Exception e) {
             log.error("[EmbeddingBackfill] cycle failed: {}", e.getMessage(), e);
         }
     }
 
-    private int backfillTable(String table, String idCol, String textCol) {
-        // 신규(IMBEDDING NULL) + (컬럼 있으면) stale(embedded_at < updated_at)
+    /** 임베딩 텍스트 — 제목/키워드/분류/기관/설명 결합 (메타정보 반영) */
+    private String buildText(Map<String, Object> r) {
+        List<String> parts = new ArrayList<>();
+        for (String col : new String[]{"list_title", "keywords", "new_category_nm", "org_nm", "description"}) {
+            Object v = r.get(col);
+            if (v != null) {
+                String s = String.valueOf(v).trim();
+                if (!s.isEmpty()) parts.add(s);
+            }
+        }
+        String text = String.join(" ", parts);
+        return text.length() > MAX_TEXT_LEN ? text.substring(0, MAX_TEXT_LEN) : text;
+    }
+
+    private int backfill(String table, String idCol, String metaCols) {
         String staleClause = hasEmbeddedAt
             ? " OR embedded_at IS NULL OR embedded_at < updated_at"
             : "";
         String selectSql =
-            "SELECT " + idCol + " AS id, " + textCol + " AS text FROM " + table +
-            " WHERE COALESCE(is_deleted,'N') = 'N' AND " + textCol + " IS NOT NULL " +
+            "SELECT " + idCol + " AS id, " + metaCols + " FROM " + table +
+            " WHERE COALESCE(is_deleted,'N') = 'N' " +
             "   AND (title_embedding IS NULL" + staleClause + ") " +
             "LIMIT ?";
         String updateSql = hasEmbeddedAt
@@ -95,17 +115,13 @@ public class EmbeddingBackfillScheduler {
         for (int from = 0; from < rows.size(); from += BATCH_SIZE) {
             int to = Math.min(from + BATCH_SIZE, rows.size());
             List<Map<String, Object>> chunk = rows.subList(from, to);
-            List<String> texts = chunk.stream()
-                .map(r -> String.valueOf(r.get("text")))
-                .map(s -> s.length() > 500 ? s.substring(0, 500) : s)
-                .collect(Collectors.toList());
+            List<String> texts = chunk.stream().map(this::buildText).collect(Collectors.toList());
 
             List<List<Double>> embeddings = embedBatch(texts);
             if (embeddings == null || embeddings.size() != chunk.size()) {
                 log.warn("[EmbeddingBackfill] {} embed_service 응답 불일치 — 청크 스킵", table);
                 continue;
             }
-
             for (int i = 0; i < chunk.size(); i++) {
                 String vec = "[" + embeddings.get(i).stream()
                     .map(Object::toString).collect(Collectors.joining(",")) + "]";

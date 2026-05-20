@@ -24,6 +24,7 @@ public class ScheduledCollector {
     private final CollectionStateService stateService;
     private final PublicApiFetchService  fetchService;
     private final JdbcTemplate           jdbcTemplate;
+    private final SchedulerLock          schedulerLock;
 
     @Value("${publicdata.api.dataset-path:/15077093/v1/dataset}")
     private String datasetPath;
@@ -37,6 +38,8 @@ public class ScheduledCollector {
     /** 매 분마다 실행하여 설정된 시각인지 확인 */
     @Scheduled(cron = "0 * * * * *")
     public void checkAndRun() {
+        // Blue/Green 오버랩 중 중복 실행 방지 (TTL 50s < 60s 주기)
+        if (!schedulerLock.tryAcquire("collector-check", 50)) return;
         CollectScheduleConfig config = schedulerConfigService.getOrDefault();
         if (!config.isEnabled()) return;
 
@@ -62,6 +65,7 @@ public class ScheduledCollector {
      */
     @Scheduled(cron = "0 0 0 * * *")
     public void midnightChangeCheck() {
+        if (!schedulerLock.tryAcquire("collector-midnight", 600)) return;
         log.info("[MidnightCheck] 자정 변화량 감지 시작");
         if (stateService.isRunning()) {
             log.warn("[MidnightCheck] 수집 진행 중 — 건너뜀");

@@ -29,8 +29,9 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class EmbeddingBackfillScheduler {
 
-    private final JdbcTemplate jdbcTemplate;
-    private final WebClient    webClient;
+    private final JdbcTemplate   jdbcTemplate;
+    private final WebClient      webClient;
+    private final SchedulerLock  schedulerLock;
 
     @Value("${embed.url:http://localhost:8001}")
     private String embedUrl;
@@ -43,6 +44,8 @@ public class EmbeddingBackfillScheduler {
 
     @Scheduled(cron = "0 30 * * * *", zone = "Asia/Seoul")
     public void backfillEmbeddings() {
+        // Blue/Green 오버랩 중 중복 실행 방지 (TTL 3000s < 3600s 주기)
+        if (!schedulerLock.tryAcquire("embedding-backfill", 3000)) return;
         try {
             int aListDone  = backfillTable("public_api_list",
                 "SELECT list_id AS id, list_title AS text FROM public_api_list " +

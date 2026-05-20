@@ -5,20 +5,21 @@ import {
   stopCollect, getCollectStatus, getCollectHistory,
   generateAllDdl, resumeCollect,
 } from '../api/publicApi'
+import { useI18n } from '../context/I18nContext'
 import styles from './CollectPage.module.css'
 
 const TYPES = [
-  { key: 'openapi',        label: 'OpenAPI 목록',  fn: collectAll },
-  { key: 'dataset',        label: '데이터셋',       fn: collectDataset },
-  { key: 'file-data',      label: '파일데이터',     fn: collectFileData },
-  { key: 'standard-data',  label: '표준데이터',     fn: collectStandardData },
+  { key: 'openapi',        labelKey: 'collect.type.openapi',      fn: collectAll },
+  { key: 'dataset',        labelKey: 'collect.type.dataset',      fn: collectDataset },
+  { key: 'file-data',      labelKey: 'collect.type.fileData',     fn: collectFileData },
+  { key: 'standard-data',  labelKey: 'collect.type.standardData', fn: collectStandardData },
 ]
 
-const TYPE_LABELS = {
-  openapi: 'OpenAPI',
-  dataset: '데이터셋',
-  'file-data': '파일데이터',
-  'standard-data': '표준데이터',
+const TYPE_LABEL_KEYS = {
+  openapi: 'collect.type.openapi',
+  dataset: 'collect.type.dataset',
+  'file-data': 'collect.type.fileData',
+  'standard-data': 'collect.type.standardData',
 }
 
 const fmt = (n) => n?.toLocaleString() ?? '-'
@@ -27,14 +28,15 @@ const fmtDate = (iso) => {
   const d = new Date(iso.endsWith('Z') ? iso : iso + 'Z')
   return `${d.getFullYear()}.${String(d.getMonth()+1).padStart(2,'0')}.${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`
 }
-const fmtDuration = (secs) => {
+const fmtDuration = (secs, t) => {
   if (!secs) return '-'
-  if (secs < 60) return `${secs}초`
+  if (secs < 60) return `${secs}${t('unit.sec')}`
   const m = Math.floor(secs / 60), s = secs % 60
-  return s > 0 ? `${m}분 ${s}초` : `${m}분`
+  return s > 0 ? `${m}${t('unit.min')} ${s}${t('unit.sec')}` : `${m}${t('unit.min')}`
 }
 
 export default function CollectPage() {
+  const { t } = useI18n()
   const [status, setStatus]           = useState(null)
   const [history, setHistory]         = useState([])
   const [pageInput, setPageInput]     = useState('')
@@ -81,9 +83,9 @@ export default function CollectPage() {
       await fn(); await fetchStatus(); startPolling()
     } catch (e) {
       const code = e.response?.status
-      if (code === 409) setStartError('이미 수집이 진행 중입니다.')
-      else if (code === 403) setStartError('관리자 권한이 없습니다.')
-      else setStartError(e.response?.data?.message ?? '수집 시작 실패')
+      if (code === 409) setStartError(t('collect.err.running'))
+      else if (code === 403) setStartError(t('collect.err.noPermission'))
+      else setStartError(e.response?.data?.message ?? t('collect.err.startFail'))
     }
   }
 
@@ -95,17 +97,17 @@ export default function CollectPage() {
       await resumeCollect(); await fetchStatus(); startPolling()
     } catch (e) {
       const code = e.response?.status
-      if (code === 409) setStartError('이미 수집이 진행 중입니다.')
-      else setStartError(e.response?.data?.message ?? '수집 재개 실패')
+      if (code === 409) setStartError(t('collect.err.running'))
+      else setStartError(e.response?.data?.message ?? t('collect.err.resumeFail'))
     }
   }
 
   const handlePageCollect = async () => {
     const p = parseInt(pageInput)
-    if (!p || p < 1) return alert('1 이상의 페이지 번호를 입력하세요.')
+    if (!p || p < 1) return alert(t('collect.pageInvalidAlert'))
     setPageLoading(true); setPageResult(null); setPageError(null)
     try { const res = await collectPage(p); setPageResult(res.data) }
-    catch (e) { setPageError(e.response?.data?.message ?? '오류가 발생했습니다.') }
+    catch (e) { setPageError(e.response?.data?.message ?? t('collect.error.generic')) }
     finally { setPageLoading(false) }
   }
 
@@ -113,9 +115,9 @@ export default function CollectPage() {
     setDdlLoading(true); setDdlMsg(null)
     try {
       await generateAllDdl()
-      setDdlMsg({ type: 'ok', text: 'DDL 생성이 시작되었습니다. 완료 후 목록 조회 → API 상세에서 확인하세요.' })
+      setDdlMsg({ type: 'ok', text: t('collect.ddl.ok') })
     } catch (e) {
-      setDdlMsg({ type: 'err', text: e.response?.data?.message ?? 'DDL 생성 요청 실패' })
+      setDdlMsg({ type: 'err', text: e.response?.data?.message ?? t('collect.ddl.fail') })
     } finally {
       setDdlLoading(false)
     }
@@ -128,27 +130,27 @@ export default function CollectPage() {
   return (
     <div className={styles.container}>
       <div className={styles.header}>
-        <h1 className={styles.title}>데이터 수집</h1>
-        <span className={styles.adminBadge}>🔒 관리자 전용</span>
+        <h1 className={styles.title}>{t('collect.title')}</h1>
+        <span className={styles.adminBadge}>{t('collect.adminOnly')}</span>
       </div>
-      <p className={styles.desc}>공공데이터포털 외부 API에서 데이터를 수집하여 DB에 저장합니다.</p>
+      <p className={styles.desc}>{t('collect.desc')}</p>
 
       {/* 수집 타입 카드 */}
       <div className={styles.grid}>
-        {TYPES.map(({ key, label, fn }) => {
+        {TYPES.map(({ key, labelKey, fn }) => {
           const h = memHistory[key]
           const active = isRunning && status?.sourceType === key
           return (
             <div key={key} className={`${styles.card} ${active ? styles.cardActive : ''}`}>
               <div className={styles.cardTop}>
-                <span className={styles.cardLabel}>{label}</span>
+                <span className={styles.cardLabel}>{t(labelKey)}</span>
                 {active && <span className={styles.spinner} />}
               </div>
 
               {active ? (
                 <div className={styles.cardProgress}>
                   <div className={styles.cardProgressStats}>
-                    <span className={styles.cardSaved}>{fmt(status.savedCount)}건 저장</span>
+                    <span className={styles.cardSaved}>{fmt(status.savedCount)}{t('collect.savedSuffix')}</span>
                     {status.totalCount > 0
                       ? <span className={styles.cardPct}>{pct}%</span>
                       : <span className={styles.cardPage}>p.{status.currentPage}</span>
@@ -161,23 +163,23 @@ export default function CollectPage() {
                     />
                   </div>
                   {status.totalCount > 0 && (
-                    <div className={styles.cardTotal}>{fmt(status.savedCount)} / {fmt(status.totalCount)}건</div>
+                    <div className={styles.cardTotal}>{fmt(status.savedCount)} / {fmt(status.totalCount)}{t('collect.countSuffix')}</div>
                   )}
                   <button className={styles.btnStopInline} onClick={handleStop} disabled={stopping}>
-                    {stopping ? '중지 중...' : '⏹ 중지'}
+                    {stopping ? t('collect.stopping') : t('collect.stop')}
                   </button>
                 </div>
               ) : h ? (
                 <div className={styles.lastInfo}>
                   <span className={styles.lastDate}>🕐 {fmtDate(h.lastCompletedAt)}</span>
-                  <span className={styles.lastCount}>{fmt(h.lastSavedCount)}건 저장</span>
+                  <span className={styles.lastCount}>{fmt(h.lastSavedCount)}{t('collect.savedSuffix')}</span>
                 </div>
               ) : (
-                <div className={styles.noHistory}>수집 이력 없음</div>
+                <div className={styles.noHistory}>{t('collect.noHistory')}</div>
               )}
 
               <button className={styles.btnStart} onClick={() => handleCollect(fn)} disabled={isRunning}>
-                {active ? '수집 중...' : '수집 시작'}
+                {active ? t('collect.collecting') : t('collect.start')}
               </button>
             </div>
           )
@@ -192,46 +194,48 @@ export default function CollectPage() {
           <div className={styles.progressHeader}>
             <span className={styles.spinner} />
             <span className={styles.progressTitle}>
-              {TYPES.find(t => t.key === status.sourceType)?.label ?? status.sourceType} 수집 중
+              {(TYPES.find(ty => ty.key === status.sourceType)
+                ? t(TYPES.find(ty => ty.key === status.sourceType).labelKey)
+                : status.sourceType)} {t('collect.progress.collecting')}
             </span>
             <button className={styles.btnStop} onClick={handleStop} disabled={stopping}>
-              {stopping ? '중지 요청 중...' : '⏹ 수집 중지'}
+              {stopping ? t('collect.stopRequesting') : t('collect.stopCollect')}
             </button>
           </div>
           <div className={styles.progressStats}>
-            <div className={styles.stat}><span className={styles.statLabel}>현재 페이지</span><span className={styles.statValue}>{fmt(status.currentPage)}</span></div>
-            <div className={styles.stat}><span className={styles.statLabel}>저장 완료</span><span className={styles.statValue}>{fmt(status.savedCount)}</span></div>
-            <div className={styles.stat}><span className={styles.statLabel}>전체 건수</span><span className={styles.statValue}>{status.totalCount > 0 ? fmt(status.totalCount) : '-'}</span></div>
-            <div className={styles.stat}><span className={styles.statLabel}>진행률</span><span className={styles.statValue}>{status.totalCount > 0 ? `${pct}%` : '집계 중'}</span></div>
+            <div className={styles.stat}><span className={styles.statLabel}>{t('collect.currentPage')}</span><span className={styles.statValue}>{fmt(status.currentPage)}</span></div>
+            <div className={styles.stat}><span className={styles.statLabel}>{t('collect.savedDone')}</span><span className={styles.statValue}>{fmt(status.savedCount)}</span></div>
+            <div className={styles.stat}><span className={styles.statLabel}>{t('collect.totalCount')}</span><span className={styles.statValue}>{status.totalCount > 0 ? fmt(status.totalCount) : '-'}</span></div>
+            <div className={styles.stat}><span className={styles.statLabel}>{t('collect.progressPct')}</span><span className={styles.statValue}>{status.totalCount > 0 ? `${pct}%` : t('collect.aggregating')}</span></div>
             {status.elapsedSeconds != null && (
-              <div className={styles.stat}><span className={styles.statLabel}>경과 시간</span><span className={styles.statValue}>{fmtDuration(status.elapsedSeconds)}</span></div>
+              <div className={styles.stat}><span className={styles.statLabel}>{t('collect.elapsed')}</span><span className={styles.statValue}>{fmtDuration(status.elapsedSeconds, t)}</span></div>
             )}
             {status.etaSeconds != null && (
-              <div className={styles.stat}><span className={styles.statLabel}>예상 잔여</span><span className={styles.statValue}>{fmtDuration(status.etaSeconds)}</span></div>
+              <div className={styles.stat}><span className={styles.statLabel}>{t('collect.eta')}</span><span className={styles.statValue}>{fmtDuration(status.etaSeconds, t)}</span></div>
             )}
           </div>
           {status.totalCount > 0 && (
             <div className={styles.barWrap}>
               <div className={styles.bar} style={{ width: `${pct}%` }} />
-              <span className={styles.barLabel}>{fmt(status.savedCount)} / {fmt(status.totalCount)}건</span>
+              <span className={styles.barLabel}>{fmt(status.savedCount)} / {fmt(status.totalCount)}{t('collect.countSuffix')}</span>
             </div>
           )}
-          {status.startedAt && <div className={styles.startedAt}>시작 시각: {fmtDate(status.startedAt)}</div>}
+          {status.startedAt && <div className={styles.startedAt}>{t('collect.startedAt')}{fmtDate(status.startedAt)}</div>}
         </div>
       )}
 
       {/* 완료/중단 결과 */}
       {(status?.status === 'DONE' || status?.status === 'STOPPED') && (
         <div className={status.status === 'STOPPED' ? styles.stoppedBox : styles.resultBox}>
-          <h3>{status.status === 'STOPPED' ? '⏹ 수집 중단됨' : '✅ 수집 완료'}</h3>
+          <h3>{status.status === 'STOPPED' ? t('collect.stopped') : t('collect.done')}</h3>
           <ul>
-            <li>저장 건수: <strong>{fmt(status.savedCount)}</strong></li>
-            {status.totalCount > 0 && <li>전체 건수: <strong>{fmt(status.totalCount)}</strong></li>}
-            {status.currentPage > 0 && <li>마지막 페이지: <strong>{status.currentPage}</strong></li>}
+            <li>{t('collect.savedCount')}<strong>{fmt(status.savedCount)}</strong></li>
+            {status.totalCount > 0 && <li>{t('collect.totalCount')}: <strong>{fmt(status.totalCount)}</strong></li>}
+            {status.currentPage > 0 && <li>{t('collect.lastPage')}<strong>{status.currentPage}</strong></li>}
           </ul>
           {status.status === 'STOPPED' && (
             <button className={styles.btnResume} onClick={handleResume} disabled={isRunning}>
-              ▶ 이어서 수집
+              {t('collect.resume')}
             </button>
           )}
         </div>
@@ -241,18 +245,18 @@ export default function CollectPage() {
 
       {/* 단일 페이지 수집 */}
       <div className={styles.section}>
-        <h2>OpenAPI 단일 페이지 수집</h2>
-        <p>특정 페이지(100건)만 수집합니다. 테스트 용도로 사용하세요.</p>
+        <h2>{t('collect.singlePage.title')}</h2>
+        <p>{t('collect.singlePage.desc')}</p>
         <div className={styles.row}>
-          <input className={styles.input} type="number" min="1" placeholder="페이지 번호 (예: 1)"
+          <input className={styles.input} type="number" min="1" placeholder={t('collect.pagePlaceholder')}
             value={pageInput} onChange={(e) => setPageInput(e.target.value)} />
           <button className={styles.btnSecondary} onClick={handlePageCollect} disabled={pageLoading}>
-            {pageLoading ? '수집 중...' : '수집'}
+            {pageLoading ? t('collect.collecting') : t('common.search')}
           </button>
         </div>
         {pageResult && (
           <div className={`${styles.resultBox} ${styles.inlineResult}`}>
-            <strong>완료</strong> — {fmt(pageResult.savedCount)}건 저장 (전체 {fmt(pageResult.totalCount)}건)
+            <strong>{t('collect.doneShort')}</strong> — {fmt(pageResult.savedCount)}{t('collect.savedSuffix')} ({t('collect.totalCount')} {fmt(pageResult.totalCount)}{t('collect.countSuffix')})
           </div>
         )}
         {pageError && <div className={styles.errorBox}>{pageError}</div>}
@@ -262,10 +266,10 @@ export default function CollectPage() {
 
       {/* DDL 전체 생성 */}
       <div className={styles.section}>
-        <h2>DDL 전체 생성</h2>
-        <p>수집된 모든 OpenAPI 오퍼레이션의 CREATE TABLE DDL을 생성합니다. 수집 완료 후 실행하세요.</p>
+        <h2>{t('collect.ddl.title')}</h2>
+        <p>{t('collect.ddl.desc')}</p>
         <button className={styles.btnDdl} onClick={handleGenerateDdl} disabled={ddlLoading || isRunning}>
-          {ddlLoading ? '요청 중...' : '⚙ DDL 전체 생성'}
+          {ddlLoading ? t('collect.ddl.requesting') : t('collect.ddl.btn')}
         </button>
         {ddlMsg && (
           <div className={`${styles.inlineResult} ${ddlMsg.type === 'ok' ? styles.resultBox : styles.errorBox}`}>
@@ -279,29 +283,29 @@ export default function CollectPage() {
       {/* 수집 이력 (DB) */}
       <div className={styles.section}>
         <div className={styles.historyHeader}>
-          <h2>수집 이력</h2>
-          <button className={styles.btnRefresh} onClick={fetchHistory}>새로고침</button>
+          <h2>{t('collect.history.title')}</h2>
+          <button className={styles.btnRefresh} onClick={fetchHistory}>{t('collect.refresh')}</button>
         </div>
         {history.length === 0 ? (
-          <p className={styles.noHistoryMsg}>수집 이력이 없습니다.</p>
+          <p className={styles.noHistoryMsg}>{t('collect.history.empty')}</p>
         ) : (
           <div className={styles.tableWrap}>
             <table className={styles.historyTable}>
               <thead>
-                <tr><th>유형</th><th>상태</th><th>저장 건수</th><th>전체 건수</th><th>소요 시간</th><th>완료 시각</th></tr>
+                <tr><th>{t('collect.col.type')}</th><th>{t('collect.col.status')}</th><th>{t('collect.col.saved')}</th><th>{t('collect.col.total')}</th><th>{t('collect.col.duration')}</th><th>{t('collect.col.completedAt')}</th></tr>
               </thead>
               <tbody>
                 {history.map((log) => (
                   <tr key={log.id}>
-                    <td>{TYPE_LABELS[log.sourceType] ?? log.sourceType}</td>
+                    <td>{TYPE_LABEL_KEYS[log.sourceType] ? t(TYPE_LABEL_KEYS[log.sourceType]) : log.sourceType}</td>
                     <td>
                       <span className={`${styles.statusTag} ${log.status === 'DONE' ? styles.tagDone : styles.tagStopped}`}>
-                        {log.status === 'DONE' ? '완료' : '중단'}
+                        {log.status === 'DONE' ? t('collect.status.done') : t('collect.status.stopped')}
                       </span>
                     </td>
                     <td className={styles.num}>{fmt(log.totalSaved)}</td>
                     <td className={styles.num}>{fmt(log.totalCount)}</td>
-                    <td>{fmtDuration(log.durationSecs)}</td>
+                    <td>{fmtDuration(log.durationSecs, t)}</td>
                     <td>{fmtDate(log.completedAt)}</td>
                   </tr>
                 ))}

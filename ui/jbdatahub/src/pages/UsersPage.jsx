@@ -3,15 +3,17 @@ import { useState, useEffect, useCallback } from 'react'
 import {
   getUsers, createUser, updateUser, changeUserPassword, deleteUser, revokeUserTokens
 } from '../api/publicApi'
+import { useI18n } from '../context/I18nContext'
 import styles from './UsersPage.module.css'
-
-const ROLE_LABELS = { ADMIN: '관리자', USER: '일반 사용자' }
 
 export default function UsersPage() {
   const { isSuperAdmin, auth } = useAuth()
+  const { t } = useI18n()
   const [users, setUsers] = useState([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+
+  const ROLE_LABEL = { ADMIN: t('users.role.admin'), USER: t('users.role.user') }
 
   // 신규 생성 폼
   const [createForm, setCreateForm] = useState({ username: '', password: '', role: 'USER' })
@@ -28,11 +30,11 @@ export default function UsersPage() {
       const res = await getUsers()
       setUsers(res.data)
     } catch {
-      setError('사용자 목록 조회 실패')
+      setError(t('users.fetchFail'))
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [t])
 
   useEffect(() => { fetchUsers() }, [fetchUsers])
 
@@ -40,7 +42,7 @@ export default function UsersPage() {
     e.preventDefault()
     setCreateError('')
     if (!createForm.username || !createForm.password) {
-      setCreateError('아이디와 비밀번호를 입력하세요.')
+      setCreateError(t('users.inputRequired'))
       return
     }
     try {
@@ -48,7 +50,7 @@ export default function UsersPage() {
       setCreateForm({ username: '', password: '', role: 'USER' })
       fetchUsers()
     } catch (err) {
-      setCreateError(err.response?.data || '생성 실패')
+      setCreateError(err.response?.data || t('users.createFail'))
     }
   }
 
@@ -57,7 +59,7 @@ export default function UsersPage() {
       await updateUser(user.id, { active: !user.active })
       fetchUsers()
     } catch {
-      alert('상태 변경 실패')
+      alert(t('users.statusChangeFail'))
     }
   }
 
@@ -67,34 +69,34 @@ export default function UsersPage() {
       await updateUser(user.id, { role: newRole })
       fetchUsers()
     } catch {
-      alert('역할 변경 실패')
+      alert(t('users.roleChangeFail'))
     }
   }
 
   const handleRevokeTokens = async (user) => {
-    if (!window.confirm(`"${user.username}" 의 토큰을 즉시 무효화하시겠습니까? (강제 로그아웃)`)) return
+    if (!window.confirm(t('users.revokeConfirm').replace('{name}', user.username))) return
     try {
       await revokeUserTokens(user.id)
-      alert(`${user.username} 강제 로그아웃 완료`)
+      alert(t('users.revokeDone').replace('{name}', user.username))
     } catch (err) {
-      alert(err.response?.data || '강제 로그아웃 실패')
+      alert(err.response?.data || t('users.revokeFail'))
     }
   }
 
   const handleDelete = async (user) => {
-    if (!window.confirm(`"${user.username}" 계정을 삭제하시겠습니까?`)) return
+    if (!window.confirm(t('users.deleteConfirm').replace('{name}', user.username))) return
     try {
       await deleteUser(user.id)
       fetchUsers()
     } catch (err) {
-      alert(err.response?.data || '삭제 실패')
+      alert(err.response?.data || t('users.deleteFail'))
     }
   }
 
   const handleChangePassword = async () => {
     setPwError('')
     if (!newPw || newPw.length < 4) {
-      setPwError('비밀번호는 4자 이상 입력하세요.')
+      setPwError(t('users.pwTooShort'))
       return
     }
     try {
@@ -102,28 +104,28 @@ export default function UsersPage() {
       setPwModal(null)
       setNewPw('')
     } catch {
-      setPwError('비밀번호 변경 실패')
+      setPwError(t('users.pwChangeFail'))
     }
   }
 
   return (
     <div className={styles.page}>
-      <h2 className={styles.title}>사용자 관리</h2>
+      <h2 className={styles.title}>{t('users.title')}</h2>
 
       {/* 신규 사용자 생성 폼 */}
       <section className={styles.createSection}>
-        <h3>새 계정 추가</h3>
+        <h3>{t('users.createTitle')}</h3>
         <form className={styles.createForm} onSubmit={handleCreate}>
           <input
             className={styles.input}
-            placeholder="아이디"
+            placeholder={t('users.username')}
             value={createForm.username}
             onChange={e => setCreateForm(f => ({ ...f, username: e.target.value }))}
           />
           <input
             className={styles.input}
             type="password"
-            placeholder="비밀번호"
+            placeholder={t('users.password')}
             value={createForm.password}
             onChange={e => setCreateForm(f => ({ ...f, password: e.target.value }))}
           />
@@ -132,29 +134,29 @@ export default function UsersPage() {
             value={createForm.role}
             onChange={e => setCreateForm(f => ({ ...f, role: e.target.value }))}
           >
-            <option value="USER">일반 사용자</option>
-            {isSuperAdmin && <option value="ADMIN">관리자</option>}
+            <option value="USER">{t('users.role.user')}</option>
+            {isSuperAdmin && <option value="ADMIN">{t('users.role.admin')}</option>}
           </select>
-          <button className={styles.createBtn} type="submit">추가</button>
+          <button className={styles.createBtn} type="submit">{t('users.add')}</button>
         </form>
         {createError && <p className={styles.errMsg}>{createError}</p>}
       </section>
 
       {/* 사용자 목록 */}
       <section className={styles.listSection}>
-        {loading && <p>불러오는 중...</p>}
+        {loading && <p>{t('common.loading')}</p>}
         {error && <p className={styles.errMsg}>{error}</p>}
         {!loading && (
           <table className={styles.table}>
             <thead>
               <tr>
-                <th>ID</th>
-                <th>아이디</th>
-                <th>역할</th>
-                <th>상태</th>
-                <th>생성일</th>
-              <th>최근 접속</th>
-                <th>작업</th>
+                <th>{t('users.col.id')}</th>
+                <th>{t('users.col.username')}</th>
+                <th>{t('users.col.role')}</th>
+                <th>{t('users.col.status')}</th>
+                <th>{t('users.col.createdAt')}</th>
+                <th>{t('users.col.lastLogin')}</th>
+                <th>{t('users.col.actions')}</th>
               </tr>
             </thead>
             <tbody>
@@ -167,41 +169,41 @@ export default function UsersPage() {
                       className={`${styles.tagBtn} ${u.role === 'ADMIN' ? styles.adminTag : styles.userTag}`}
                       onClick={() => handleToggleRole(u)}
                       disabled={u.username === auth?.username}
-                      title={u.username === auth?.username ? '자신의 권한은 변경할 수 없습니다' : '클릭하여 역할 변경'}
+                      title={u.username === auth?.username ? t('users.selfRoleTip') : t('users.roleChangeTip')}
                     >
-                      {ROLE_LABELS[u.role] ?? u.role}
+                      {ROLE_LABEL[u.role] ?? u.role}
                     </button>
                   </td>
                   <td>
                     <button
                       className={`${styles.tagBtn} ${u.active ? styles.activeTag : styles.inactiveTag}`}
                       onClick={() => handleToggleActive(u)}
-                      title="클릭하여 상태 변경"
+                      title={t('users.statusChangeTip')}
                     >
-                      {u.active ? '활성' : '비활성'}
+                      {u.active ? t('users.active') : t('users.inactive')}
                     </button>
                   </td>
                   <td>{u.createdAt ? u.createdAt.slice(0, 10) : '-'}</td>
-              <td>{u.lastLoginAt ? new Date(u.lastLoginAt).toLocaleString("ko-KR") : "-"}</td>
+                  <td>{u.lastLoginAt ? new Date(u.lastLoginAt).toLocaleString() : "-"}</td>
                   <td className={styles.actions}>
                     <button
                       className={styles.pwBtn}
                       onClick={() => { setPwModal(u); setNewPw(''); setPwError('') }}
                     >
-                      비밀번호 변경
+                      {t('users.pwChange')}
                     </button>
                     <button
                       className={styles.revokeBtn}
                       onClick={() => handleRevokeTokens(u)}
-                      title="현재 발급된 토큰을 즉시 무효화합니다"
+                      title={t('users.forceLogoutTip')}
                     >
-                      강제 로그아웃
+                      {t('users.forceLogout')}
                     </button>
                     <button
                       className={styles.delBtn}
                       onClick={() => handleDelete(u)}
                     >
-                      삭제
+                      {t('users.delete')}
                     </button>
                   </td>
                 </tr>
@@ -215,11 +217,11 @@ export default function UsersPage() {
       {pwModal && (
         <div className={styles.modalOverlay} onClick={() => setPwModal(null)}>
           <div className={styles.modal} onClick={e => e.stopPropagation()}>
-            <h3>비밀번호 변경 — {pwModal.username}</h3>
+            <h3>{t('users.pwModalTitle')}{pwModal.username}</h3>
             <input
               className={styles.input}
               type="password"
-              placeholder="새 비밀번호"
+              placeholder={t('users.newPw')}
               value={newPw}
               onChange={e => setNewPw(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && handleChangePassword()}
@@ -227,8 +229,8 @@ export default function UsersPage() {
             />
             {pwError && <p className={styles.errMsg}>{pwError}</p>}
             <div className={styles.modalBtns}>
-              <button className={styles.createBtn} onClick={handleChangePassword}>변경</button>
-              <button className={styles.cancelBtn} onClick={() => setPwModal(null)}>취소</button>
+              <button className={styles.createBtn} onClick={handleChangePassword}>{t('users.change')}</button>
+              <button className={styles.cancelBtn} onClick={() => setPwModal(null)}>{t('common.cancel')}</button>
             </div>
           </div>
         </div>

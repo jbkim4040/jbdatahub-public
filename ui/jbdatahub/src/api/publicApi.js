@@ -92,7 +92,7 @@ export const markManualSubscription = (listId) =>
   http.post(`/public-data/${listId}/subscribe/manual`)
 
 /** API 호출(프록시) — 사용자 인증키로 공공 API 직접 호출 (백엔드 타임아웃 8s + 여유) */
-export const invokeApi = (body) => http.post('/public-data/invoke', body, { timeout: 12000 })
+export const invokeApi = (body) => http.post('/public-data/invoke', body, { timeout: 12000, _skipLogout: true })
 
 /** 초기 배치 임베딩 진행 상황 */
 export const getEmbedProgress = () =>
@@ -106,5 +106,5 @@ export const getRelatedTerms = (q, limit = 8) =>
 export const getMe = () => http.get('/auth/me')
 
 /** 내 serviceKey 저장 */
-export const saveServiceKey = (key) => http.patch('/auth/me/service-key', { serviceKey: key })
+export const saveServiceKey = (key) => http.patch('/auth/me/service-key', { serviceKey: key }, { _skipLogout: true })
 

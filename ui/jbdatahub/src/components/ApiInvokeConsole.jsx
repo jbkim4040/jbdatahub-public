@@ -95,8 +95,11 @@ export default function ApiInvokeConsole({ listId, listTitle, onClose }) {
       await saveServiceKey(serviceKey.trim())
       setKeySaved(true)
       setTimeout(() => setKeySaved(false), 2000)
-    } catch {
-      setError('인증키 저장에 실패했습니다. 다시 시도해주세요.')
+    } catch (e) {
+      const status = e?.response?.status
+      setError(status === 401 || status === 403
+        ? '저장하려면 로그인이 필요합니다.'
+        : '인증키 저장에 실패했습니다. 다시 시도해주세요.')
     } finally { setKeySaving(false) }
   }
 
@@ -128,9 +131,14 @@ export default function ApiInvokeConsole({ listId, listTitle, onClose }) {
       const r = await invokeApi(body)
       setResult(r.data)
     } catch (e) {
-      const data = e?.response?.data
-      if (data && data.status) setResult(data)
-      else setError(data?.message || data?.error || e.message || '호출에 실패했습니다.')
+      const status = e?.response?.status
+      if (status === 401 || status === 403) {
+        setError('API를 호출하려면 로그인이 필요합니다.')
+      } else {
+        const data = e?.response?.data
+        if (data && data.status) setResult(data)
+        else setError(data?.message || data?.error || e.message || '호출에 실패했습니다.')
+      }
     } finally {
       setRunning(false)
     }

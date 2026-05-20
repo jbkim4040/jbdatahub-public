@@ -41,9 +41,11 @@ http.interceptors.response.use(
         return http(original)
       } catch (e) {
         processQueue(e)
-        // 인증 만료 → 로그인 페이지로
-        try { sessionStorage.removeItem('user') } catch (_) {}
-        window.location.href = '/login'
+        // _skipLogout 플래그가 있으면 인터셉터 로그아웃을 건너뜀 (콘솔 내 에러로 처리)
+        if (!original._skipLogout) {
+          try { sessionStorage.removeItem('jb_user') } catch (_) {}
+          window.location.href = '/login'
+        }
         return Promise.reject(e)
       } finally {
         isRefreshing = false

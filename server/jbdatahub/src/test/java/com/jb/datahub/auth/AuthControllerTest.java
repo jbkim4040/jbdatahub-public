@@ -68,10 +68,9 @@ class AuthControllerTest {
                         .content(objectMapper.writeValueAsString(
                                 Map.of("username", "admin", "password", "admin1234"))))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.token").value("mock-jwt-token"))
-                .andExpect(jsonPath("$.refreshToken").value("mock-refresh-token"))
                 .andExpect(jsonPath("$.username").value("admin"))
-                .andExpect(jsonPath("$.role").value("ADMIN"));
+                .andExpect(jsonPath("$.role").value("ADMIN"))
+                .andExpect(header().exists("Set-Cookie"));
     }
 
     @Test
@@ -134,8 +133,8 @@ class AuthControllerTest {
                         .content(objectMapper.writeValueAsString(
                                 Map.of("refreshToken", "valid-refresh"))))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.token").value("new-access-token"))
-                .andExpect(jsonPath("$.refreshToken").value("new-refresh"));
+                .andExpect(jsonPath("$.ok").value(true))
+                .andExpect(header().exists("Set-Cookie"));
     }
 
     @Test

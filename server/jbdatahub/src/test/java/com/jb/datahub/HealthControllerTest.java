@@ -1,15 +1,16 @@
 package com.jb.datahub;
 
-import com.jb.datahub.auth.JwtFilter;
 import com.jb.datahub.auth.JwtUtil;
 import com.jb.datahub.auth.TokenBlacklist;
 import com.jb.datahub.auth.UserTokenRevocationStore;
 import com.jb.datahub.auth.repository.UserRepository;
+import com.jb.datahub.config.SecurityConfig;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -20,13 +21,13 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 @WebMvcTest(HealthController.class)
+@Import(SecurityConfig.class)
 class HealthControllerTest {
 
     @Autowired MockMvc mockMvc;
 
     @MockBean JdbcTemplate jdbcTemplate;
     @MockBean JwtUtil jwtUtil;
-    @MockBean JwtFilter jwtFilter;
     @MockBean TokenBlacklist tokenBlacklist;
     @MockBean UserTokenRevocationStore userTokenRevocationStore;
     @MockBean UserRepository userRepository;

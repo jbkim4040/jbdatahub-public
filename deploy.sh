@@ -60,17 +60,25 @@ if [ "$PASSED" = "0" ]; then
 fi
 
 # ── 5. nginx upstream 전환 ───────────────────────────────────────────
+# nginx 설정 검증 먼저 — 실패 시 전환하지 않고 중단 (구 컨테이너 그대로 유지)
 sed "s/ACTIVE_COLOR/jbdatahub-${INACTIVE}/" \
     $WORKSPACE_DIR/nginx/conf.d/default.conf.tmpl > /home/ubuntu/nginx-ssl/jbdatahub.conf
-docker exec nginx nginx -t && docker exec nginx nginx -s reload
+if ! docker exec nginx nginx -t; then
+    echo "❌ nginx 설정 검증 실패 — 전환 중단, 구 컨테이너(${ACTIVE}) 유지"
+    docker stop jbdatahub-${INACTIVE} 2>/dev/null || true
+    exit 1
+fi
+docker exec nginx nginx -s reload
 echo "✅ nginx → jbdatahub-${INACTIVE}"
 
-# ── 6. 이전 컨테이너 중지 & 제거 ────────────────────────────────────
+# ── 6. 상태 저장 (전환 성공 직후 — 데스싱크 방지) ───────────────────
+# nginx 가 이미 INACTIVE 를 가리키므로, 이후 단계 실패해도 state 파일은 정확해야 함
+echo "${INACTIVE}" > $STATE_FILE
+echo "✅ 상태 저장 — active: ${INACTIVE}"
+
+# ── 7. 이전 컨테이너 중지 & 제거 ────────────────────────────────────
 # -t 30: graceful shutdown 을 위해 SIGTERM 후 30초 대기 (in-flight 요청 처리 완료)
 docker stop -t 30 jbdatahub-${ACTIVE} 2>/dev/null || true
 docker rm        jbdatahub-${ACTIVE} 2>/dev/null || true
 echo "✅ jbdatahub-${ACTIVE} 중지 및 제거"
-
-# ── 7. 상태 저장 ─────────────────────────────────────────────────────
-echo "${INACTIVE}" > $STATE_FILE
 echo "✅ Blue/Green 배포 완료 — active: ${INACTIVE}"

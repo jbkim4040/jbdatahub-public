@@ -4,12 +4,13 @@ import {
   getSimilar, getDataItemSimilar, getTopics, getTopicList,
   getEmbedProgress, getRelatedTerms
 } from '../api/publicApi'
+import { useI18n } from '../context/I18nContext'
 import styles from './ListPage.module.css'
 import RelatedDatasets from '../components/RelatedDatasets'
 
 const TABS = [
-  { key: 'openapi', label: 'OpenAPI' },
-  { key: 'file',    label: '파일' },
+  { key: 'openapi', labelKey: 'list.tab.openapi' },
+  { key: 'file',    labelKey: 'list.tab.file' },
 ]
 
 /* ── 정렬 헬퍼 ── */
@@ -32,6 +33,7 @@ function SortTh({ field, sort, onSort, children, className }) {
 
 /* ── OpenAPI 탭 ─────────────────────────────────────── */
 function OpenApiTab() {
+  const { t } = useI18n()
   const [data, setData]           = useState(null)
   const [search, setSearch]       = useState('')
   const [subscribedMap, setSubscribedMap]   = useState({})  // list_id → status
@@ -45,8 +47,8 @@ function OpenApiTab() {
       getEmbedProgress().then(r => setEmbedProgress(r.data)).catch(() => {})
     }
     fetchProgress()
-    const t = setInterval(fetchProgress, 30000)
-    return () => clearInterval(t)
+    const timer = setInterval(fetchProgress, 30000)
+    return () => clearInterval(timer)
   }, [])
 
   // 사용자 신청 목록 로드 (등록 여부 표시용)
@@ -71,8 +73,6 @@ function OpenApiTab() {
   const [openedOps, setOpenedOps]         = useState(new Set())
   const [similar, setSimilar]             = useState([])
   const [similarLoading, setSimilarLoading] = useState(false)
-
-  // 의미 검색
 
   // 토픽 필터
   const [topics, setTopics]           = useState([])
@@ -155,34 +155,32 @@ function OpenApiTab() {
     })
   }
 
-  const copyDdl = (text) => navigator.clipboard.writeText(text)
   const copyToClipboard = (text, label) => {
     navigator.clipboard.writeText(text)
       .then(() => console.log(`복사됨: ${label}`))
       .catch(() => {})
   }
 
-
   return (
     <>
       {/* 토픽 필터 */}
       {topics.length > 0 && (
         <div className={styles.topicRow}>
-          <span className={styles.topicLabel}>토픽 필터</span>
+          <span className={styles.topicLabel}>{t('list.topicFilter')}</span>
           <div className={styles.topicChips}>
-            {topics.slice(0, 12).map(t => (
+            {topics.slice(0, 12).map(tp => (
               <button
-                key={t.topicId}
-                className={`${styles.topicChip} ${selectedTopic === t.topicId ? styles.topicChipActive : ''}`}
-                onClick={() => handleTopicSelect(t.topicId)}
-                title={t.topicKeywords}
+                key={tp.topicId}
+                className={`${styles.topicChip} ${selectedTopic === tp.topicId ? styles.topicChipActive : ''}`}
+                onClick={() => handleTopicSelect(tp.topicId)}
+                title={tp.topicKeywords}
               >
-                {t.topicKeywords.split(', ').slice(0, 3).join(' · ')}
-                <span className={styles.topicCount}>{t.itemCount}</span>
+                {tp.topicKeywords.split(', ').slice(0, 3).join(' · ')}
+                <span className={styles.topicCount}>{tp.itemCount}</span>
               </button>
             ))}
             {selectedTopic !== null && (
-              <button className={styles.btnReset} onClick={handleReset}>전체 보기</button>
+              <button className={styles.btnReset} onClick={handleReset}>{t('list.viewAll')}</button>
             )}
           </div>
         </div>
@@ -194,9 +192,9 @@ function OpenApiTab() {
           background: '#fffbeb', border: '1px solid #fcd34d', borderRadius: 8,
           fontSize: 13,
         }}>
-          <div style={{ fontWeight: 600, marginBottom: 6 }}>📝 활용신청 진행 중</div>
+          <div style={{ fontWeight: 600, marginBottom: 6 }}>📝 {t('list.applyInProgress')}</div>
           <div style={{ color: '#78350f', marginBottom: 8, fontSize: 12 }}>
-            모달에서 신청을 완료한 뒤 아래 "신청 완료" 버튼을 눌러주세요.
+            {t('list.applyBannerDesc')}
           </div>
           {pendingApplies.map(p => (
             <div key={p.listId} style={{
@@ -214,19 +212,19 @@ function OpenApiTab() {
                       await markManualSubscription(p.listId)
                       setSubscribedMap(prev => ({ ...prev, [p.listId]: 'MANUAL_REGISTERED' }))
                       setPendingApplies(prev => prev.filter(x => x.listId !== p.listId))
-                      window.toast?.success('신청 등록 완료')
+                      window.toast?.success(t('list.toast.registered'))
                     } catch (err) {
                       const detail = err?.response?.data?.detail || err?.response?.data?.error || err.message
-                      window.toast?.error('등록 실패: ' + String(detail).slice(0, 200))
+                      window.toast?.error(t('list.toast.registerFail') + String(detail).slice(0, 200))
                     }
                   }}
                   style={{ padding: '4px 10px', fontSize: 12, background: '#16a34a', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer' }}>
-                  신청 완료
+                  {t('list.apply.complete')}
                 </button>
                 <button
                   onClick={() => setPendingApplies(prev => prev.filter(x => x.listId !== p.listId))}
                   style={{ padding: '4px 10px', fontSize: 12, background: '#e5e7eb', color: '#374151', border: 'none', borderRadius: 4, cursor: 'pointer' }}>
-                  취소
+                  {t('common.cancel')}
                 </button>
               </div>
             </div>
@@ -237,69 +235,69 @@ function OpenApiTab() {
       {/* 검색 */}
       <RelatedDatasets query={query} onSelect={(it) => { setSearch(it.listTitle); setQuery(it.listTitle); loadList(0, it.listTitle, sort, null) }} />
       <form className={styles.searchRow} onSubmit={handleSearch}>
-        <input className={styles.searchInput} placeholder="목록명 검색... (한/영/중 입력 가능)"
+        <input className={styles.searchInput} placeholder={t('list.search.placeholder')}
           value={search} onChange={(e) => setSearch(e.target.value)} />
-        <button className={styles.btnSearch} type="submit">검색</button>
+        <button className={styles.btnSearch} type="submit">{t('common.search')}</button>
         {(query || selectedTopic !== null) && (
-          <button className={styles.btnReset} type="button" onClick={handleReset}>초기화</button>
+          <button className={styles.btnReset} type="button" onClick={handleReset}>{t('common.reset')}</button>
         )}
       </form>
 
       {relatedTerms.length > 0 && (
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center', margin: '8px 0 4px' }}>
-          <span style={{ fontSize: 12, color: '#64748b', marginRight: 2 }}>관련 검색어:</span>
-          {relatedTerms.map(t => (
+          <span style={{ fontSize: 12, color: '#64748b', marginRight: 2 }}>{t('list.relatedTerms')}</span>
+          {relatedTerms.map(rt => (
             <button
-              key={t.term}
+              key={rt.term}
               type="button"
               onClick={() => {
-                setSearch(t.term); setQuery(t.term); setSelectedTopic(null)
-                loadList(0, t.term, sort, null)
-                getRelatedTerms(t.term).then(r => setRelatedTerms(r.data || [])).catch(() => {})
+                setSearch(rt.term); setQuery(rt.term); setSelectedTopic(null)
+                loadList(0, rt.term, sort, null)
+                getRelatedTerms(rt.term).then(r => setRelatedTerms(r.data || [])).catch(() => {})
               }}
               style={{
                 padding: '3px 10px', fontSize: 12, cursor: 'pointer',
                 background: '#eff6ff', color: '#1d4ed8',
                 border: '1px solid #bfdbfe', borderRadius: 12,
               }}>
-              {t.term}
+              {rt.term}
             </button>
           ))}
         </div>
       )}
 
-      {!data && loading && <div className={styles.loading}>불러오는 중...</div>}
+      {!data && loading && <div className={styles.loading}>{t('common.loading')}</div>}
       {data && (
         <div style={{ opacity: loading ? 0.5 : 1, pointerEvents: loading ? 'none' : 'auto', transition: 'opacity .15s' }}>
           <p className={styles.resultInfo}>
-            총 <strong>{data.totalElements.toLocaleString()}</strong>건
+            {t('list.total')} <strong>{data.totalElements.toLocaleString()}</strong>{t('list.count')}
             {selectedTopic !== null && topics.length > 0 && (
-              <> · 토픽: <em>{topics.find(t => t.topicId === selectedTopic)?.topicKeywords?.split(', ').slice(0, 3).join(', ')}</em></>
+              <> · {t('list.topicLabel')} <em>{topics.find(tp => tp.topicId === selectedTopic)?.topicKeywords?.split(', ').slice(0, 3).join(', ')}</em></>
             )}
-            {query && selectedTopic === null && <> · '검색어': <em>"{query}"</em></>}
+            {query && selectedTopic === null && <> · {t('list.searchLabel')} <em>"{query}"</em></>}
           </p>
           <div className={styles.tableWrap}>
             <table className={styles.table}>
               <thead>
                 <tr>
-                  <th>목록ID</th>
-                  <SortTh field="listTitle" sort={sort} onSort={handleSort}>목록명</SortTh>
-                  <SortTh field="orgNm" sort={sort} onSort={handleSort}>제공기관</SortTh>
-                  <th>분류</th>
-                  <th>API유형</th>
-                  <SortTh field="isCharged" sort={sort} onSort={handleSort}>비용</SortTh>
-                  <SortTh field="requestCnt" sort={sort} onSort={handleSort} className={styles.num}>활용수</SortTh>
-                  <SortTh field="updatedAt" sort={sort} onSort={handleSort}>수정일</SortTh>
-                  <th style={{width:90,textAlign:"center"}}>신청</th>
+                  <th>{t('list.col.listId')}</th>
+                  <SortTh field="listTitle" sort={sort} onSort={handleSort}>{t('list.col.listTitle')}</SortTh>
+                  <SortTh field="orgNm" sort={sort} onSort={handleSort}>{t('list.col.orgNm')}</SortTh>
+                  <th>{t('list.col.category')}</th>
+                  <th>{t('list.col.apiType')}</th>
+                  <SortTh field="isCharged" sort={sort} onSort={handleSort}>{t('list.col.charge')}</SortTh>
+                  <SortTh field="requestCnt" sort={sort} onSort={handleSort} className={styles.num}>{t('list.col.useCount')}</SortTh>
+                  <SortTh field="updatedAt" sort={sort} onSort={handleSort}>{t('list.col.updated')}</SortTh>
+                  <th style={{width:90,textAlign:"center"}}>{t('list.col.apply')}</th>
                 </tr>
               </thead>
               <tbody>
                 {data.content.length === 0
-                  ? <tr><td colSpan={8} className={styles.empty}>검색 결과가 없습니다.</td></tr>
+                  ? <tr><td colSpan={8} className={styles.empty}>{t('list.empty')}</td></tr>
                   : data.content.map((row) => (
-                    <tr key={row.listId} className={styles.clickableRow} onClick={() => handleRowClick(row)} title="클릭하여 상세 보기">
-                      <td className={styles.mono} onClick={(e) => { e.stopPropagation(); copyToClipboard(row.listId, "listId"); }} title="클릭 시 복사" style={{cursor:"copy"}}>{row.listId}</td>
-                      <td className={styles.titleCell} title="클릭 시 복사" onClick={(e) => { e.stopPropagation(); copyToClipboard(row.listTitle, "listTitle"); }} style={{cursor:"copy"}}>{row.listTitle}</td>
+                    <tr key={row.listId} className={styles.clickableRow} onClick={() => handleRowClick(row)} title={t('list.detailClick')}>
+                      <td className={styles.mono} onClick={(e) => { e.stopPropagation(); copyToClipboard(row.listId, "listId"); }} title={t('list.copyClick')} style={{cursor:"copy"}}>{row.listId}</td>
+                      <td className={styles.titleCell} title={t('list.copyClick')} onClick={(e) => { e.stopPropagation(); copyToClipboard(row.listTitle, "listTitle"); }} style={{cursor:"copy"}}>{row.listTitle}</td>
                       <td>{row.orgNm}</td>
                       <td>{row.newCategoryNm}</td>
                       <td><span className={`${styles.badge} ${styles[row.apiType?.toLowerCase()]}`}>{row.apiType}</span></td>
@@ -309,10 +307,10 @@ function OpenApiTab() {
                       <td style={{textAlign:"center"}} onClick={(e)=>e.stopPropagation()}>
                         {(() => {
                           const s = subscribedMap[row.listId]
-                          if (s === 'APPROVED')          return <span style={{fontSize:11,color:'#15803d',fontWeight:600}}>🔑 승인</span>
-                          if (s === 'SUBMITTED')         return <span style={{fontSize:11,color:'#2563eb',fontWeight:600}}>✓ 제출됨</span>
-                          if (s === 'PENDING')           return <span style={{fontSize:11,color:'#92400e',fontWeight:600}}>⏳ 진행중</span>
-                          if (s === 'MANUAL_REGISTERED') return <span style={{fontSize:11,color:'#6d28d9',fontWeight:600}} title="data.go.kr에서 직접 신청한 데이터셋">✓ 신청 완료</span>
+                          if (s === 'APPROVED')          return <span style={{fontSize:11,color:'#15803d',fontWeight:600}}>{t('list.apply.approved')}</span>
+                          if (s === 'SUBMITTED')         return <span style={{fontSize:11,color:'#2563eb',fontWeight:600}}>{t('list.apply.submitted')}</span>
+                          if (s === 'PENDING')           return <span style={{fontSize:11,color:'#92400e',fontWeight:600}}>{t('list.apply.pending')}</span>
+                          if (s === 'MANUAL_REGISTERED') return <span style={{fontSize:11,color:'#6d28d9',fontWeight:600}} title={t('list.apply.doneTip')}>{t('list.apply.done')}</span>
                           return (
                             <button
                               style={{padding:'4px 10px',fontSize:11,background:'#2563eb',color:'#fff',border:'none',borderRadius:4,cursor:'pointer'}}
@@ -320,7 +318,7 @@ function OpenApiTab() {
                                 e.stopPropagation()
                                 // 활용신청 모달 (iframe) — 상세 페이지로 진입. 활용신청 직접 URL은 2026-05 deprecated
                                 setApplyRow({ listId: row.listId, listTitle: row.listTitle })
-                              }}>신청</button>
+                              }}>{t('list.apply.btn')}</button>
                           )
                         })()}
                       </td>
@@ -344,7 +342,7 @@ function OpenApiTab() {
       {(detailLoading || selectedApi) && (
         <div className={styles.detailOverlay} onClick={() => setSelectedApi(null)}>
           <div className={styles.detailModal} onClick={e => e.stopPropagation()}>
-            {detailLoading && <div className={styles.detailLoading}>불러오는 중...</div>}
+            {detailLoading && <div className={styles.detailLoading}>{t('common.loading')}</div>}
             {selectedApi && (
               <>
                 <div className={styles.detailHeader}>
@@ -364,17 +362,17 @@ function OpenApiTab() {
                 )}
 
                 {/* ── 유사 API ── */}
-                <h3 className={styles.sectionTitle}>유사 API</h3>
-                {similarLoading && <p className={styles.noDdl}>불러오는 중...</p>}
+                <h3 className={styles.sectionTitle}>{t('list.similar')}</h3>
+                {similarLoading && <p className={styles.noDdl}>{t('common.loading')}</p>}
                 {!similarLoading && similar.length === 0 && (
-                  <p className={styles.noDdl}>유사 API 데이터가 없습니다. 임베딩 스크립트를 먼저 실행해 주세요.</p>
+                  <p className={styles.noDdl}>{t('list.similar.none')}</p>
                 )}
                 {similar.length > 0 && (
                   <div className={styles.similarList}>
                     {similar.map(s => (
                       <div key={s.listId} className={styles.similarItem}
                         onClick={() => handleRowClick({ listId: s.listId })}
-                        title="클릭하여 상세 보기">
+                        title={t('list.detailClick')}>
                         <span className={styles.similarTitle}>{s.listTitle}</span>
                         <span className={styles.similarMeta}>{s.orgNm} · {s.categoryNm}</span>
                       </div>
@@ -383,15 +381,15 @@ function OpenApiTab() {
                 )}
 
                 <h3 className={styles.sectionTitle}>
-                  오퍼레이션 ({selectedApi.operations?.length ?? 0}개)
+                  {t('list.operations')} ({selectedApi.operations?.length ?? 0})
                 </h3>
                 {selectedApi.operations?.length === 0 && (
-                  <p className={styles.noDdl}>등록된 오퍼레이션이 없습니다.</p>
+                  <p className={styles.noDdl}>{t('list.operations.none')}</p>
                 )}
                 {selectedApi.operations?.map(op => (
                   <div key={op.operationSeq} className={styles.opCard}>
                     <div className={styles.opHeader} onClick={() => toggleOp(op.operationSeq)}>
-                      <span className={styles.opName}>{op.operationNm || '(이름 없음)'}</span>
+                      <span className={styles.opName}>{op.operationNm || t('list.opNoName')}</span>
                       <span className={styles.opUrl}>{op.operationUrl}</span>
                       {op.registerStatus && <span className={styles.opStatus}>{op.registerStatus}</span>}
                       <span className={styles.opToggle}>{openedOps.has(op.operationSeq) ? '▲' : '▼'}</span>
@@ -429,13 +427,13 @@ function OpenApiTab() {
               background:'#f8fafc', fontSize:13,
             }}>
               <span style={{fontWeight:600, color:'#0f172a', flex:1, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}}>
-                📝 활용신청 — {applyRow.listTitle}
+                📝 {t('list.apply.modalTitle')} — {applyRow.listTitle}
               </span>
               <a
                 href={`https://www.data.go.kr/data/${applyRow.listId}/openapi.do`}
                 target="_blank" rel="noreferrer"
                 style={{fontSize:12, color:'#2563eb', textDecoration:'none'}}>
-                새 탭으로 열기 ↗
+                {t('list.apply.openNewTab')}
               </a>
               <button
                 onClick={async () => {
@@ -445,10 +443,10 @@ function OpenApiTab() {
                     setSubscribedMap(prev => ({ ...prev, [applyRow.listId]: 'MANUAL_REGISTERED' }))
                     setPendingApplies(prev => prev.filter(x => x.listId !== applyRow.listId))
                     setApplyRow(null)
-                    window.toast?.success('신청 등록 완료')
+                    window.toast?.success(t('list.toast.registered'))
                   } catch (err) {
                     const detail = err?.response?.data?.detail || err?.response?.data?.error || err.message
-                    window.toast?.error('등록 실패: ' + String(detail).slice(0, 200))
+                    window.toast?.error(t('list.toast.registerFail') + String(detail).slice(0, 200))
                   }
                 }}
                 style={{
@@ -456,11 +454,11 @@ function OpenApiTab() {
                   background:'#16a34a', color:'#fff',
                   border:'none', borderRadius:6, cursor:'pointer',
                 }}>
-                신청 완료
+                {t('list.apply.complete')}
               </button>
               <button
                 onClick={() => {
-                  // 모달 닫기 — 상단 배너에 "완료/취소" 옵션이 그대로 남도록 pendingApplies 추가
+                  // 모달 닫기 — 상단 배너에 옵션이 그대로 남도록 pendingApplies 추가
                   setPendingApplies(prev =>
                     prev.some(x => x.listId === applyRow.listId)
                       ? prev
@@ -473,7 +471,7 @@ function OpenApiTab() {
                   background:'#e5e7eb', color:'#374151',
                   border:'none', borderRadius:6, cursor:'pointer',
                 }}>
-                나중에
+                {t('list.apply.later')}
               </button>
               <button
                 onClick={() => setApplyRow(null)}
@@ -487,7 +485,7 @@ function OpenApiTab() {
             </div>
             <iframe
               src={`https://www.data.go.kr/data/${applyRow.listId}/openapi.do`}
-              title={`활용신청 - ${applyRow.listTitle}`}
+              title={`${t('list.apply.modalTitle')} - ${applyRow.listTitle}`}
               style={{flex:1, width:'100%', border:'none'}}
               referrerPolicy="no-referrer"
             />
@@ -500,21 +498,22 @@ function OpenApiTab() {
 
 /* ── 파일 데이터 탭 — 파일 형식 ext 필터 + 유사도 ── */
 const FILE_FORMAT_OPTIONS = [
-  { value: '',                            label: '전체' },
+  { value: '',                            labelKey: 'list.fmt.all' },
   { value: 'csv',                         label: 'CSV' },
   { value: 'xlsx,xls',                    label: 'Excel (xlsx, xls)' },
   { value: 'json,JSON,JSON+XML',          label: 'JSON' },
   { value: 'xml,XML',                     label: 'XML' },
   { value: 'pdf',                         label: 'PDF' },
-  { value: 'hwp,hwpx',                    label: '한글 (hwp/hwpx)' },
-  { value: 'docx,doc,odt',                label: '워드 (docx/doc/odt)' },
-  { value: 'pptx',                        label: '파워포인트' },
-  { value: 'txt,TEXT',                    label: '텍스트 (txt)' },
-  { value: 'jpg,jpeg,png,gif,tiff',       label: '이미지' },
-  { value: 'mp4,mp3',                     label: '미디어' },
-  { value: 'zip,7z',                      label: '압축' },
+  { value: 'hwp,hwpx',                    labelKey: 'list.fmt.hwp' },
+  { value: 'docx,doc,odt',                labelKey: 'list.fmt.word' },
+  { value: 'pptx',                        labelKey: 'list.fmt.ppt' },
+  { value: 'txt,TEXT',                    labelKey: 'list.fmt.txt' },
+  { value: 'jpg,jpeg,png,gif,tiff',       labelKey: 'list.fmt.image' },
+  { value: 'mp4,mp3',                     labelKey: 'list.fmt.media' },
+  { value: 'zip,7z',                      labelKey: 'list.fmt.archive' },
 ]
 function DataItemTab() {
+  const { t } = useI18n()
   const [extFilter, setExtFilter] = useState('')
   const [data, setData]           = useState(null)
   const [search, setSearch]       = useState('')
@@ -565,53 +564,53 @@ function DataItemTab() {
     <>
       {/* 파일 형식 필터 */}
       <div style={{ marginBottom: 12 }}>
-        <label style={{ fontSize: 13, color: '#475569', marginRight: 8 }}>형식:</label>
+        <label style={{ fontSize: 13, color: '#475569', marginRight: 8 }}>{t('list.format.label')}</label>
         <select
           value={extFilter}
           onChange={(e) => { setExtFilter(e.target.value); setSearch(''); setQuery(''); }}
           style={{ padding: '6px 10px', fontSize: 13, border: '1px solid #cbd5e1', borderRadius: 6 }}
         >
           {FILE_FORMAT_OPTIONS.map(o => (
-            <option key={o.value} value={o.value}>{o.label}</option>
+            <option key={o.value} value={o.value}>{o.labelKey ? t(o.labelKey) : o.label}</option>
           ))}
         </select>
       </div>
 
       {/* 검색 */}
       <form className={styles.searchRow} onSubmit={handleSearch}>
-        <input className={styles.searchInput} placeholder="제목 검색..."
+        <input className={styles.searchInput} placeholder={t('list.search.filePlaceholder')}
           value={search} onChange={(e) => setSearch(e.target.value)} />
-        <button className={styles.btnSearch} type="submit">검색</button>
-        {query && <button className={styles.btnReset} type="button" onClick={handleReset}>초기화</button>}
+        <button className={styles.btnSearch} type="submit">{t('common.search')}</button>
+        {query && <button className={styles.btnReset} type="button" onClick={handleReset}>{t('common.reset')}</button>}
       </form>
 
-      {!data && loading && <div className={styles.loading}>불러오는 중...</div>}
+      {!data && loading && <div className={styles.loading}>{t('common.loading')}</div>}
       {data && (
         <div style={{ opacity: loading ? 0.5 : 1, pointerEvents: loading ? 'none' : 'auto', transition: 'opacity .15s' }}>
           <p className={styles.resultInfo}>
-            총 <strong>{data.totalElements.toLocaleString()}</strong>건
-            {query && <> · 검색어: <em>"{query}"</em></>}
+            {t('list.total')} <strong>{data.totalElements.toLocaleString()}</strong>{t('list.count')}
+            {query && <> · {t('list.searchLabel')} <em>"{query}"</em></>}
           </p>
           <div className={styles.tableWrap}>
             <table className={styles.table}>
               <thead>
                 <tr>
-                  <SortTh field="title" sort={sort} onSort={handleSort}>제목</SortTh>
-                  <SortTh field="orgNm" sort={sort} onSort={handleSort}>제공기관</SortTh>
-                  <th>분류</th>
-                  <th>형식</th>
-                  <th>갱신주기</th>
-                  <SortTh field="viewCnt" sort={sort} onSort={handleSort} className={styles.num}>조회수</SortTh>
-                  <SortTh field="downloadCnt" sort={sort} onSort={handleSort} className={styles.num}>다운로드</SortTh>
-                  <SortTh field="updatedAt" sort={sort} onSort={handleSort}>수정일</SortTh>
-                  <th>링크</th>
+                  <SortTh field="title" sort={sort} onSort={handleSort}>{t('list.col.title')}</SortTh>
+                  <SortTh field="orgNm" sort={sort} onSort={handleSort}>{t('list.col.orgNm')}</SortTh>
+                  <th>{t('list.col.category')}</th>
+                  <th>{t('list.col.format')}</th>
+                  <th>{t('list.col.cycle')}</th>
+                  <SortTh field="viewCnt" sort={sort} onSort={handleSort} className={styles.num}>{t('list.col.viewCnt')}</SortTh>
+                  <SortTh field="downloadCnt" sort={sort} onSort={handleSort} className={styles.num}>{t('list.col.downloadCnt')}</SortTh>
+                  <SortTh field="updatedAt" sort={sort} onSort={handleSort}>{t('list.col.updated')}</SortTh>
+                  <th>{t('list.col.link')}</th>
                 </tr>
               </thead>
               <tbody>
                 {data.content.length === 0
-                  ? <tr><td colSpan={9} className={styles.empty}>검색 결과가 없습니다.</td></tr>
+                  ? <tr><td colSpan={9} className={styles.empty}>{t('list.empty')}</td></tr>
                   : data.content.map((row) => (
-                    <tr key={row.id} className={styles.clickableRow} onClick={() => handleRowClick(row)} title="클릭하여 유사 데이터 보기">
+                    <tr key={row.id} className={styles.clickableRow} onClick={() => handleRowClick(row)} title={t('list.similarDataClick')}>
                       <td className={styles.titleCell} title={row.title}>{row.title}</td>
                       <td>{row.orgNm}</td>
                       <td>{row.newCategoryNm || row.categoryNm}</td>
@@ -622,7 +621,7 @@ function DataItemTab() {
                       <td>{row.updatedAt ?? '-'}</td>
                       <td onClick={(e) => e.stopPropagation()}>
                         {row.pageUrl
-                          ? <a href={row.pageUrl} target="_blank" rel="noreferrer" className={styles.linkBtn}>바로가기</a>
+                          ? <a href={row.pageUrl} target="_blank" rel="noreferrer" className={styles.linkBtn}>{t('list.linkGo')}</a>
                           : '-'
                         }
                       </td>
@@ -657,20 +656,20 @@ function DataItemTab() {
               {selectedItem.updatedAt && <span>📅 {selectedItem.updatedAt}</span>}
             </div>
             {selectedItem.pageUrl && (
-              <p><a href={selectedItem.pageUrl} target="_blank" rel="noreferrer" className={styles.linkBtn}>원본 페이지 바로가기 ↗</a></p>
+              <p><a href={selectedItem.pageUrl} target="_blank" rel="noreferrer" className={styles.linkBtn}>{t('list.origin')}</a></p>
             )}
 
-            <h3 className={styles.sectionTitle}>유사 데이터</h3>
-            {similarLoading && <p className={styles.noDdl}>불러오는 중...</p>}
+            <h3 className={styles.sectionTitle}>{t('list.similarData')}</h3>
+            {similarLoading && <p className={styles.noDdl}>{t('common.loading')}</p>}
             {!similarLoading && similar.length === 0 && (
-              <p className={styles.noDdl}>유사 데이터를 찾지 못했습니다. (임베딩 배치 진행 중일 수 있음)</p>
+              <p className={styles.noDdl}>{t('list.similarData.none')}</p>
             )}
             {similar.length > 0 && (
               <div className={styles.similarList}>
                 {similar.map(s => (
                   <div key={s.id} className={styles.similarItem}
                     onClick={() => handleRowClick(s)}
-                    title="클릭하여 유사 데이터 보기">
+                    title={t('list.similarDataClick')}>
                     <span className={styles.similarTitle}>{s.title}</span>
                     <span className={styles.similarMeta}>
                       {s.orgNm} · {s.newCategoryNm || s.categoryNm} · {s.ext || s.dataType || '-'}
@@ -688,20 +687,21 @@ function DataItemTab() {
 
 /* ── 메인 ── */
 export default function ListPage() {
+  const { t } = useI18n()
   const [activeTab, setActiveTab] = useState('openapi')
 
   return (
     <div className={styles.container}>
-      <h1 className={styles.title}>목록 조회</h1>
+      <h1 className={styles.title}>{t('list.title')}</h1>
 
       <div className={styles.tabBar}>
-        {TABS.map(t => (
+        {TABS.map(tab => (
           <button
-            key={t.key}
-            className={`${styles.tabBtn} ${activeTab === t.key ? styles.tabActive : ''}`}
-            onClick={() => setActiveTab(t.key)}
+            key={tab.key}
+            className={`${styles.tabBtn} ${activeTab === tab.key ? styles.tabActive : ''}`}
+            onClick={() => setActiveTab(tab.key)}
           >
-            {t.label}
+            {t(tab.labelKey)}
           </button>
         ))}
       </div>
@@ -713,4 +713,3 @@ export default function ListPage() {
     </div>
   )
 }
-

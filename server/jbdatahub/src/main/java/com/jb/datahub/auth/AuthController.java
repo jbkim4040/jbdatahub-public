@@ -36,13 +36,21 @@ public class AuthController {
     private final UserRepository       userRepository;
     private final PasswordEncoder      passwordEncoder;
     private final RefreshTokenService  refreshTokenService;
+    private final TokenBlacklist     tokenBlacklist;
 
     @PostMapping("/login")
     @Operation(summary = "로그인")
+    /** dummy BCrypt — timing leak 차단용 (실제로 매칭되지 않음) */
+    private static final String DUMMY_BCRYPT = "$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy";
+
     public ResponseEntity<?> login(@Valid @RequestBody LoginRequestDto request) {
         User user = userRepository.findByUsername(request.getUsername()).orElse(null);
-        if (user == null || !user.isActive()
-                || !passwordEncoder.matches(request.getPassword(), user.getPassword())) {
+        if (user == null || !user.isActive()) {
+            // 사용자 없음/비활성 — BCrypt 연산 수행하여 응답 시간을 정상 매칭과 동일하게 (CWE-204 차단)
+            passwordEncoder.matches(request.getPassword(), DUMMY_BCRYPT);
+            return ResponseEntity.status(401).body("아이디 또는 비밀번호가 올바르지 않습니다.");
+        }
+        if (!passwordEncoder.matches(request.getPassword(), user.getPassword())) {
             return ResponseEntity.status(401).body("아이디 또는 비밀번호가 올바르지 않습니다.");
         }
         user.setLastLoginAt(java.time.LocalDateTime.now());
@@ -98,15 +106,35 @@ public class AuthController {
     }
 
     @PostMapping("/logout")
-    @Operation(summary = "로그아웃 (cookie 제거 + refresh token 무효화)")
+    @Operation(summary = "로그아웃 (cookie 제거 + refresh token 무효화 + access token blacklist)")
     public ResponseEntity<Void> logout(@RequestBody(required = false) RefreshRequestDto request,
                                        HttpServletRequest httpReq) {
+        // Access token blacklist 등록 — 만료(1시간)까지 즉시 무효화
+        String accessToken = extractAccessToken(httpReq);
+        if (accessToken != null && jwtUtil.isValid(accessToken)) {
+            try {
+                java.time.Instant exp = jwtUtil.getExpiration(accessToken).toInstant();
+                tokenBlacklist.add(accessToken, exp);
+            } catch (Exception ignore) { /* 만료 등 — 어차피 무효 */ }
+        }
         String refreshToken = extractRefreshToken(request, httpReq);
         if (refreshToken != null) refreshTokenService.revoke(refreshToken);
         return ResponseEntity.ok()
                 .header(HttpHeaders.SET_COOKIE, expireCookie(TOKEN_COOKIE, "/").toString())
                 .header(HttpHeaders.SET_COOKIE, expireCookie(REFRESH_COOKIE, "/api/auth").toString())
                 .build();
+    }
+
+    /** Cookie 또는 Authorization 헤더에서 access token 추출 (JwtFilter와 동일 규칙) */
+    private String extractAccessToken(HttpServletRequest req) {
+        if (req.getCookies() != null) {
+            for (Cookie c : req.getCookies()) {
+                if (TOKEN_COOKIE.equals(c.getName())) return c.getValue();
+            }
+        }
+        String h = req.getHeader("Authorization");
+        if (h != null && h.startsWith("Bearer ")) return h.substring(7);
+        return null;
     }
 
     /** body의 refreshToken 우선, 없으면 cookie에서 추출 */

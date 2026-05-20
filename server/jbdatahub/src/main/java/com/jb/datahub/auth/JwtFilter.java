@@ -44,10 +44,15 @@ public class JwtFilter extends OncePerRequestFilter {
             String role     = jwtUtil.getRole(token);
             Instant issuedAt = jwtUtil.getIssuedAt(token);
 
-            boolean userActive = userRepository.findByUsername(username)
-                    .map(u -> u.isActive()).orElse(false);
+            var userOpt = userRepository.findByUsername(username);
+            boolean userActive = userOpt.map(u -> u.isActive()).orElse(false);
+            // Blue/Green 재시작 시 메모리 store 가 초기화되므로 DB tokensRevokedAt 으로 이중 검증 (M3)
+            boolean dbRevoked = userOpt.map(u -> {
+                java.time.Instant rev = u.getTokensRevokedAt();
+                return rev != null && !issuedAt.isAfter(rev);
+            }).orElse(false);
 
-            if (userActive && !userTokenRevocationStore.isRevoked(username, issuedAt)) {
+            if (userActive && !dbRevoked && !userTokenRevocationStore.isRevoked(username, issuedAt)) {
                 var auth = new UsernamePasswordAuthenticationToken(
                         username, null,
                         List.of(new SimpleGrantedAuthority("ROLE_" + role))

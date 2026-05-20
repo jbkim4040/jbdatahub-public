@@ -5,7 +5,7 @@ RUN npm install
 COPY frontend/ ./
 RUN npm run build
 
-FROM python:3.12-slim
+FROM python:3.12.9-slim
 WORKDIR /app
 
 # Playwright Chromium 시스템 의존성

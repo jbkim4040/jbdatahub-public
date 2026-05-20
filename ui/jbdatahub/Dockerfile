@@ -9,7 +9,7 @@ RUN --mount=type=cache,target=/root/.npm \
 COPY . .
 RUN npm run build
 
-FROM nginx:alpine
+FROM nginx:1.27-alpine
 
 RUN apk upgrade --no-cache nghttp2-libs
 

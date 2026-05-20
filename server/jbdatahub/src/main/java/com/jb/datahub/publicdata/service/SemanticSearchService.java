@@ -30,6 +30,9 @@ public class SemanticSearchService {
     @Value("${embed.url:http://localhost:8001}")
     private String embedUrl;
 
+    @Value("${embed.internalToken:}")
+    private String embedInternalToken;
+
     /**
      * 하이브리드 검색 — 키워드 매칭(pg_trgm ILIKE) 우선, 의미 매칭(임베딩) 후속.
      * embed_service 실패 시 키워드 결과만 반환 (안전 fallback).
@@ -440,9 +443,13 @@ public class SemanticSearchService {
 
     @SuppressWarnings("unchecked")
     private String getEmbedding(String query) {
+        // 길이 제한 — embed_service OOM/DoS 차단 (C2)
+        if (query == null) query = "";
+        if (query.length() > 200) query = query.substring(0, 200);
         try {
             Map<String, Object> resp = webClient.post()
                 .uri(embedUrl + "/embed")
+                .header("X-Internal-Token", embedInternalToken == null ? "" : embedInternalToken)
                 .bodyValue(Map.of("text", query))
                 .retrieve()
                 .bodyToMono(Map.class)

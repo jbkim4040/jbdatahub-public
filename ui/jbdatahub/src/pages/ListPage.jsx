@@ -7,6 +7,7 @@ import {
 import { useI18n } from '../context/I18nContext'
 import styles from './ListPage.module.css'
 import RelatedDatasets from '../components/RelatedDatasets'
+import ApiInvokeConsole from '../components/ApiInvokeConsole'
 
 const TABS = [
   { key: 'openapi', labelKey: 'list.tab.openapi' },
@@ -38,8 +39,7 @@ function OpenApiTab() {
   const [search, setSearch]       = useState('')
   const [subscribedMap, setSubscribedMap]   = useState({})  // list_id → status
   const [embedProgress, setEmbedProgress]   = useState(null)  // {done,total,percent,topics,similarPairs}
-  const [pendingApplies, setPendingApplies] = useState([])  // [{listId,listTitle}] — 신청 모달 닫힌 뒤 대기
-  const [applyRow, setApplyRow] = useState(null)  // 현재 활용신청 모달에 띄운 row (null이면 닫힘)
+  const [invokeRow, setInvokeRow] = useState(null)  // API 호출 콘솔에 띄운 row
 
   // 임베딩 배치 진행 상황 30초 폴링 (배치 완료까지)
   useEffect(() => {
@@ -186,52 +186,6 @@ function OpenApiTab() {
         </div>
       )}
 
-      {pendingApplies.length > 0 && (
-        <div style={{
-          padding: '12px 16px', marginBottom: 12,
-          background: '#fffbeb', border: '1px solid #fcd34d', borderRadius: 8,
-          fontSize: 13,
-        }}>
-          <div style={{ fontWeight: 600, marginBottom: 6 }}>📝 {t('list.applyInProgress')}</div>
-          <div style={{ color: '#78350f', marginBottom: 8, fontSize: 12 }}>
-            {t('list.applyBannerDesc')}
-          </div>
-          {pendingApplies.map(p => (
-            <div key={p.listId} style={{
-              display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-              padding: '6px 0', borderTop: '1px solid #fde68a',
-            }}>
-              <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                {p.listTitle}
-              </span>
-              <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
-                <button
-                  onClick={async () => {
-                    try {
-                      const { markManualSubscription } = await import('../api/publicApi')
-                      await markManualSubscription(p.listId)
-                      setSubscribedMap(prev => ({ ...prev, [p.listId]: 'MANUAL_REGISTERED' }))
-                      setPendingApplies(prev => prev.filter(x => x.listId !== p.listId))
-                      window.toast?.success(t('list.toast.registered'))
-                    } catch (err) {
-                      const detail = err?.response?.data?.detail || err?.response?.data?.error || err.message
-                      window.toast?.error(t('list.toast.registerFail') + String(detail).slice(0, 200))
-                    }
-                  }}
-                  style={{ padding: '4px 10px', fontSize: 12, background: '#16a34a', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer' }}>
-                  {t('list.apply.complete')}
-                </button>
-                <button
-                  onClick={() => setPendingApplies(prev => prev.filter(x => x.listId !== p.listId))}
-                  style={{ padding: '4px 10px', fontSize: 12, background: '#e5e7eb', color: '#374151', border: 'none', borderRadius: 4, cursor: 'pointer' }}>
-                  {t('common.cancel')}
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-
       {/* 검색 */}
       <RelatedDatasets query={query} onSelect={(it) => { setSearch(it.listTitle); setQuery(it.listTitle); loadList(0, it.listTitle, sort, null) }} />
       <form className={styles.searchRow} onSubmit={handleSearch}>
@@ -288,7 +242,7 @@ function OpenApiTab() {
                   <SortTh field="isCharged" sort={sort} onSort={handleSort}>{t('list.col.charge')}</SortTh>
                   <SortTh field="requestCnt" sort={sort} onSort={handleSort} className={styles.num}>{t('list.col.useCount')}</SortTh>
                   <SortTh field="updatedAt" sort={sort} onSort={handleSort}>{t('list.col.updated')}</SortTh>
-                  <th style={{width:90,textAlign:"center"}}>{t('list.col.apply')}</th>
+                  <th style={{width:90,textAlign:"center"}}>{t('list.invoke.col')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -316,9 +270,9 @@ function OpenApiTab() {
                               style={{padding:'4px 10px',fontSize:11,background:'#2563eb',color:'#fff',border:'none',borderRadius:4,cursor:'pointer'}}
                               onClick={(e) => {
                                 e.stopPropagation()
-                                // 활용신청 모달 (iframe) — 상세 페이지로 진입. 활용신청 직접 URL은 2026-05 deprecated
-                                setApplyRow({ listId: row.listId, listTitle: row.listTitle })
-                              }}>{t('list.apply.btn')}</button>
+                                // 신청 → API 호출 콘솔로 변경
+                                setInvokeRow({ listId: row.listId, listTitle: row.listTitle })
+                              }}>{t('list.invoke.btn')}</button>
                           )
                         })()}
                       </td>
@@ -402,102 +356,13 @@ function OpenApiTab() {
         </div>
       )}
 
-      {/* 활용신청 iframe 모달 */}
-      {applyRow && (
-        <div
-          style={{
-            position:'fixed', inset:0, zIndex:1000,
-            background:'rgba(0,0,0,0.55)',
-            display:'flex', alignItems:'center', justifyContent:'center',
-          }}
-          onClick={() => setApplyRow(null)}
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            style={{
-              width:'min(1480px, 98vw)', height:'min(980px, 96vh)',
-              background:'#fff', borderRadius:10, overflow:'hidden',
-              display:'flex', flexDirection:'column',
-              boxShadow:'0 20px 50px rgba(0,0,0,0.25)',
-            }}
-          >
-            <div style={{
-              display:'flex', alignItems:'center', gap:8,
-              padding:'10px 14px', borderBottom:'1px solid #e5e7eb',
-              background:'#f8fafc', fontSize:13,
-            }}>
-              <span style={{fontWeight:600, color:'#0f172a', flex:1, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}}>
-                📝 {t('list.apply.modalTitle')} — {applyRow.listTitle}
-              </span>
-              <a
-                href={`https://www.data.go.kr/data/${applyRow.listId}/openapi.do`}
-                target="_blank" rel="noreferrer"
-                style={{fontSize:12, color:'#2563eb', textDecoration:'none'}}>
-                {t('list.apply.openNewTab')}
-              </a>
-              <button
-                onClick={async () => {
-                  try {
-                    const { markManualSubscription } = await import('../api/publicApi')
-                    await markManualSubscription(applyRow.listId)
-                    setSubscribedMap(prev => ({ ...prev, [applyRow.listId]: 'MANUAL_REGISTERED' }))
-                    setPendingApplies(prev => prev.filter(x => x.listId !== applyRow.listId))
-                    setApplyRow(null)
-                    window.toast?.success(t('list.toast.registered'))
-                  } catch (err) {
-                    const detail = err?.response?.data?.detail || err?.response?.data?.error || err.message
-                    window.toast?.error(t('list.toast.registerFail') + String(detail).slice(0, 200))
-                  }
-                }}
-                style={{
-                  padding:'6px 14px', fontSize:12,
-                  background:'#16a34a', color:'#fff',
-                  border:'none', borderRadius:6, cursor:'pointer',
-                }}>
-                {t('list.apply.complete')}
-              </button>
-              <button
-                onClick={() => {
-                  // 모달 닫기 — 상단 배너에 옵션이 그대로 남도록 pendingApplies 추가
-                  setPendingApplies(prev =>
-                    prev.some(x => x.listId === applyRow.listId)
-                      ? prev
-                      : [...prev, { listId: applyRow.listId, listTitle: applyRow.listTitle }]
-                  )
-                  setApplyRow(null)
-                }}
-                style={{
-                  padding:'6px 12px', fontSize:12,
-                  background:'#e5e7eb', color:'#374151',
-                  border:'none', borderRadius:6, cursor:'pointer',
-                }}>
-                {t('list.apply.later')}
-              </button>
-              <button
-                onClick={() => setApplyRow(null)}
-                style={{
-                  padding:'4px 10px', fontSize:16, lineHeight:1,
-                  background:'transparent', color:'#64748b',
-                  border:'none', cursor:'pointer',
-                }}>
-                ✕
-              </button>
-            </div>
-            {/* iframe — 콘텐츠가 모달 안에 전부 보이도록 0.75배 축소 (가로 25% 더 노출) */}
-            <div style={{flex:1, overflow:'hidden', position:'relative'}}>
-              <iframe
-                src={`https://www.data.go.kr/data/${applyRow.listId}/openapi.do`}
-                title={`${t('list.apply.modalTitle')} - ${applyRow.listTitle}`}
-                style={{
-                  width:'133.33%', height:'133.33%',
-                  transform:'scale(0.75)', transformOrigin:'top left',
-                  border:'none',
-                }}
-                referrerPolicy="no-referrer"
-              />
-            </div>
-          </div>
-        </div>
+      {/* API 호출 콘솔 */}
+      {invokeRow && (
+        <ApiInvokeConsole
+          listId={invokeRow.listId}
+          listTitle={invokeRow.listTitle}
+          onClose={() => setInvokeRow(null)}
+        />
       )}
     </>
   )

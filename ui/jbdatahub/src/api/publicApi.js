@@ -90,6 +90,10 @@ export const getTopicList = (topicId, page = 0, size = 20) =>
 /** 신청 — 사용자가 data.go.kr에서 직접 신청한 후 수동 등록 (팝업 흐름) */
 export const markManualSubscription = (listId) =>
   http.post(`/public-data/${listId}/subscribe/manual`)
+
+/** API 호출(프록시) — 사용자 인증키로 공공 API 직접 호출 (백엔드 타임아웃 8s + 여유) */
+export const invokeApi = (body) => http.post('/public-data/invoke', body, { timeout: 12000 })
+
 /** 초기 배치 임베딩 진행 상황 */
 export const getEmbedProgress = () =>
   http.get('/public-data/embed-progress')

@@ -357,6 +357,52 @@ public class SemanticSearchService {
         }
     }
 
+    /**
+     * 단어 유사도 — 관련 검색어.
+     * 검색어를 임베딩 → 의미 유사 상위 50개 데이터셋의 keywords 를 빈도 집계 → 상위 N개 반환.
+     * 다국어 모델이라 한/영/중/일 입력 모두 동작 (cross-lingual).
+     */
+    public List<Map<String, Object>> getRelatedTerms(String query, int limit) {
+        if (query == null || query.isBlank()) return java.util.Collections.emptyList();
+        String q = query.trim();
+        String vec;
+        try {
+            vec = getEmbedding(q);
+        } catch (Exception e) {
+            log.warn("getRelatedTerms embed 실패: {}", e.getMessage());
+            return java.util.Collections.emptyList();
+        }
+        // 의미 유사 상위 50개 데이터셋의 keywords 수집
+        List<String> keywordRows = jdbcTemplate.query(
+            "SELECT keywords FROM public_api_list " +
+            "WHERE title_embedding IS NOT NULL AND keywords IS NOT NULL AND keywords <> '' " +
+            "  AND COALESCE(is_deleted,'N') = 'N' " +
+            "ORDER BY title_embedding <=> CAST(? AS vector) LIMIT 50",
+            (rs, rn) -> rs.getString("keywords"), vec);
+
+        // 콤마 분리 → 빈도 집계 (검색어 자신 / 너무 짧은 토큰 제외)
+        Map<String, Integer> freq = new java.util.LinkedHashMap<>();
+        String qLower = q.toLowerCase();
+        for (String row : keywordRows) {
+            for (String raw : row.split("[,\\s]+")) {
+                String kw = raw.trim();
+                if (kw.length() < 2) continue;
+                if (kw.toLowerCase().equals(qLower)) continue;
+                freq.merge(kw, 1, Integer::sum);
+            }
+        }
+        return freq.entrySet().stream()
+            .sorted((a, b) -> b.getValue() - a.getValue())
+            .limit(limit)
+            .map(e -> {
+                Map<String, Object> m = new java.util.LinkedHashMap<>();
+                m.put("term", e.getKey());
+                m.put("weight", e.getValue());
+                return m;
+            })
+            .collect(Collectors.toList());
+    }
+
     /** 70만 건 초기 배치 임베딩 진행 상황. */
     public Map<String, Object> getEmbedProgress() {
         try {

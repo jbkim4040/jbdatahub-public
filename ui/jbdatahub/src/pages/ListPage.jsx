@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback, useRef } from 'react'
 import {
   getList, getDataItems, getApiDetail,
   getSimilar, getDataItemSimilar, getTopics, getTopicList,
-  getEmbedProgress
+  getEmbedProgress, getRelatedTerms
 } from '../api/publicApi'
 import styles from './ListPage.module.css'
 import RelatedDatasets from '../components/RelatedDatasets'
@@ -62,6 +62,7 @@ function OpenApiTab() {
     return () => { cancelled = true }
   }, [])
   const [query, setQuery]         = useState('')
+  const [relatedTerms, setRelatedTerms] = useState([])
   const [page, setPage]           = useState(0)
   const [loading, setLoading]     = useState(false)
   const [sort, setSort]           = useState({ field: null, dir: null })
@@ -109,9 +110,14 @@ function OpenApiTab() {
     setSelectedTopic(null)
     setQuery(search)
     loadList(0, search, sort, null)
+    if (search && search.trim()) {
+      getRelatedTerms(search.trim()).then(r => setRelatedTerms(r.data || [])).catch(() => setRelatedTerms([]))
+    } else {
+      setRelatedTerms([])
+    }
   }
   const handleReset = () => {
-    setSearch(''); setQuery(''); setSelectedTopic(null)
+    setSearch(''); setQuery(''); setSelectedTopic(null); setRelatedTerms([])
     loadList(0, '', sort, null)
   }
   const handleSort   = (newSort) => { setSelectedTopic(null); setSort(newSort) }
@@ -231,13 +237,36 @@ function OpenApiTab() {
       {/* 검색 */}
       <RelatedDatasets query={query} onSelect={(it) => { setSearch(it.listTitle); setQuery(it.listTitle); loadList(0, it.listTitle, sort, null) }} />
       <form className={styles.searchRow} onSubmit={handleSearch}>
-        <input className={styles.searchInput} placeholder="목록명 검색..."
+        <input className={styles.searchInput} placeholder="목록명 검색... (한/영/중 입력 가능)"
           value={search} onChange={(e) => setSearch(e.target.value)} />
         <button className={styles.btnSearch} type="submit">검색</button>
         {(query || selectedTopic !== null) && (
           <button className={styles.btnReset} type="button" onClick={handleReset}>초기화</button>
         )}
       </form>
+
+      {relatedTerms.length > 0 && (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center', margin: '8px 0 4px' }}>
+          <span style={{ fontSize: 12, color: '#64748b', marginRight: 2 }}>관련 검색어:</span>
+          {relatedTerms.map(t => (
+            <button
+              key={t.term}
+              type="button"
+              onClick={() => {
+                setSearch(t.term); setQuery(t.term); setSelectedTopic(null)
+                loadList(0, t.term, sort, null)
+                getRelatedTerms(t.term).then(r => setRelatedTerms(r.data || [])).catch(() => {})
+              }}
+              style={{
+                padding: '3px 10px', fontSize: 12, cursor: 'pointer',
+                background: '#eff6ff', color: '#1d4ed8',
+                border: '1px solid #bfdbfe', borderRadius: 12,
+              }}>
+              {t.term}
+            </button>
+          ))}
+        </div>
+      )}
 
       {!data && loading && <div className={styles.loading}>불러오는 중...</div>}
       {data && (

@@ -94,3 +94,7 @@ export const markManualSubscription = (listId) =>
 export const getEmbedProgress = () =>
   http.get('/public-data/embed-progress')
 
+/** 관련 검색어 (단어 유사도) */
+export const getRelatedTerms = (q, limit = 8) =>
+  http.get('/public-data/related-terms', { params: { q, limit } })
+

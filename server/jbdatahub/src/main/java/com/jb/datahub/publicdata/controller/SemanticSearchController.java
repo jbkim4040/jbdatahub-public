@@ -45,6 +45,15 @@ public class SemanticSearchController {
         return ResponseEntity.ok(semanticSearchService.getSimilarDataItem(id));
     }
 
+    @GetMapping("/related-terms")
+    @Operation(summary = "관련 검색어 (단어 유사도)", description = "검색어와 의미적으로 연관된 키워드 목록. 다국어 입력 지원.")
+    public ResponseEntity<List<java.util.Map<String, Object>>> relatedTerms(
+            @RequestParam String q,
+            @RequestParam(defaultValue = "8") int limit) {
+        int safe = Math.min(Math.max(limit, 1), 20);
+        return ResponseEntity.ok(semanticSearchService.getRelatedTerms(q, safe));
+    }
+
     @GetMapping("/embed-progress")
     @Operation(summary = "초기 배치 임베딩 진행 상황", description = "title_embedding 완료/전체/퍼센트")
     public ResponseEntity<java.util.Map<String, Object>> embedProgress() {

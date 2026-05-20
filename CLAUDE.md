@@ -35,9 +35,16 @@ jb-workspace/
    - 리팩터링: `refactor/{설명}` → 예: `refactor/upsert-performance`
 2. 커밋 & 푸시: `git push https://jbkim4040:<PAT>@github.com/jbkim4040/jb-workspace.git <branch>`
 3. PR 생성: `POST /repos/jbkim4040/jb-workspace/pulls`
-4. **ultrareview 실행 (머지 전 필수)**: PR 번호로 `/ultrareview <PR번호>` 실행 → 에이전트 다수결 리뷰 완료 후 머지 진행
-   - 리뷰 결과 LGTM 또는 Minor 이슈만 있을 때 머지 허용
-   - Critical/Major 이슈 발견 시 수정 후 재리뷰
+4. **에이전트 코드리뷰 (머지 전 필수)**: 보안·성능·스타일 3개 에이전트를 병렬 실행
+   ```
+   # Claude Code 대화창에서 직접 요청:
+   "security-reviewer, performance-reviewer, style-reviewer 에이전트로 [파일경로] 코드리뷰해줘"
+   # → 3개 Agent 병렬 호출 → 결과 통합 → 발견 이슈 수정
+   ```
+   - Critical/High 이슈 → 수정 후 재리뷰
+   - Medium/Low 이슈 → 판단 후 수정 또는 승인
+   - **ultrareview** (`/ultrareview <PR번호>`)는 추가 검증이 필요할 때 선택적으로 사용
+   - 리뷰 결과는 Notion "📊 개선 이력 & 성능 수치 기록" 페이지에 PR별로 기록
 5. Squash merge: `PUT /repos/.../pulls/{n}/merge` (merge_method: squash)
 6. Jenkins 빌드 트리거: `POST /job/jb-workspace/build` (CSRF crumb 필요)
 - **절대 master에 직접 푸시 금지** (docs 전용 변경 제외 — CLAUDE.md 등)

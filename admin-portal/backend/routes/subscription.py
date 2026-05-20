@@ -19,6 +19,12 @@ from http.cookies import SimpleCookie
 from fastapi import APIRouter, BackgroundTasks, HTTPException
 from pydantic import BaseModel
 
+# 허용되는 status 값 — Pydantic 422 거절 (CWE-89 패턴 방어)
+SubscriptionStatus = Literal[
+    'PENDING', 'SUBMITTED', 'APPROVED', 'ERROR', 'REJECTED',
+    'MANUAL_REGISTERED', 'IN_PROGRESS', 'CANCELLED',
+]
+
 from database import get_pool
 
 logger = logging.getLogger(__name__)
@@ -230,7 +236,7 @@ async def mark_manual_subscription(req: ManualSubscriptionRequest):
 
 
 @router.get("/list")
-async def list_subscriptions(page: int = 1, limit: int = 50, status: Optional[str] = None, requested_by: Optional[str] = None):
+async def list_subscriptions(page: int = 1, limit: int = 50, status: Optional[SubscriptionStatus] = None, requested_by: Optional[str] = None):
     offset = (page - 1) * limit
     pool = get_pool()
     async with pool.acquire() as conn:
@@ -754,7 +760,7 @@ async def user_subscribed_ids(requested_by: str):
 
 
 @router.get("/grouped")
-async def list_grouped(limit: int = 100, status: Optional[str] = None, requested_by: Optional[str] = None):
+async def list_grouped(limit: int = 100, status: Optional[SubscriptionStatus] = None, requested_by: Optional[str] = None):
     """list_id 기준 그룹 + 시도 이력 (최신 status가 status 필터에 맞는 그룹만)."""
     pool = get_pool()
     async with pool.acquire() as conn:

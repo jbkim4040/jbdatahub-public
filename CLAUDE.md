@@ -28,25 +28,33 @@ jb-workspace/
 - 헬스체크: 300초(60회 × 5초) 타임아웃 — 앱 시작에 2~3분 소요
 - 배포 실패 시 이전 컨테이너(green/blue) 자동 유지
 
-## Git 워크플로우 (반드시 준수)
-1. 브랜치 생성: **기능 단위 명칭** 사용
-   - 기능 추가: `feature/{기능명}` → 예: `feature/semantic-search`, `feature/topic-grouping`
-   - 버그 수정: `fix/{설명}` → 예: `fix/cache-manager-missing`, `fix/scheduler-super-admin`
-   - 리팩터링: `refactor/{설명}` → 예: `refactor/upsert-performance`
-2. 커밋 & 푸시: `git push https://jbkim4040:<PAT>@github.com/jbkim4040/jb-workspace.git <branch>`
-3. PR 생성: `POST /repos/jbkim4040/jb-workspace/pulls`
-4. **에이전트 코드리뷰 (머지 전 필수)**: 보안·성능·스타일 3개 에이전트를 병렬 실행
+## Git 워크플로우 (자동 실행 — 사용자 별도 지시 불필요)
+
+작업 단위가 완료되면 아래 순서를 **자동으로** 실행한다.
+
+1. **브랜치 생성**: 기능 단위 명칭
+   - 기능 추가: `feature/{기능명}` / 버그 수정: `fix/{설명}` / 리팩터링: `refactor/{설명}`
+2. **커밋 & 푸시**: `git push https://jbkim4040:<PAT>@github.com/jbkim4040/jb-workspace.git <branch>`
+3. **PR 생성**: `POST /repos/jbkim4040/jb-workspace/pulls`
+4. **에이전트 코드리뷰 (자동 실행)**: security-reviewer · performance-reviewer · style-reviewer 3개 Agent 병렬 호출
+   - Critical/High 이슈 → 즉시 수정 후 재커밋 → 재리뷰
+   - Medium/Low 이슈 → 수정 또는 Notion에 후속 작업으로 기록 후 진행
+   - **ultrareview** (`/ultrareview <PR번호>`)는 사용자가 명시적으로 요청할 때만 사용
+   - 리뷰 결과 → Notion "📊 개선 이력 & 성능 수치 기록" 하위에 PR별 페이지로 자동 기록
+5. **Squash merge (자동)**: 리뷰 이슈 없으면 즉시 머지
+   `PUT /repos/jbkim4040/jb-workspace/pulls/{n}/merge` (merge_method: squash)
+6. **Jenkins 빌드 트리거 (자동)**: 머지 직후 실행 (CSRF crumb 필요, 201 반환 시 성공)
+   ```bash
+   ssh -i ~/Downloads/jb-manager.key ubuntu@168.107.20.90 "
+     CRUMB=\$(curl -s -c /tmp/jc -u 'jb-datahub-admin:@jbdatahubadminjenkins' \
+       'http://127.0.0.1:19090/crumbIssuer/api/json' | python3 -c \"import sys,json; print(json.load(sys.stdin)['crumb'])\")
+     curl -s -o /dev/null -w '%{http_code}' -X POST \
+       -b /tmp/jc -u 'jb-datahub-admin:@jbdatahubadminjenkins' \
+       -H \"Jenkins-Crumb: \$CRUMB\" -d 'json={}' \
+       'http://127.0.0.1:19090/job/jb-workspace/build'
+   "
    ```
-   # Claude Code 대화창에서 직접 요청:
-   "security-reviewer, performance-reviewer, style-reviewer 에이전트로 [파일경로] 코드리뷰해줘"
-   # → 3개 Agent 병렬 호출 → 결과 통합 → 발견 이슈 수정
-   ```
-   - Critical/High 이슈 → 수정 후 재리뷰
-   - Medium/Low 이슈 → 판단 후 수정 또는 승인
-   - **ultrareview** (`/ultrareview <PR번호>`)는 추가 검증이 필요할 때 선택적으로 사용
-   - 리뷰 결과는 Notion "📊 개선 이력 & 성능 수치 기록" 페이지에 PR별로 기록
-5. Squash merge: `PUT /repos/.../pulls/{n}/merge` (merge_method: squash)
-6. Jenkins 빌드 트리거: `POST /job/jb-workspace/build` (CSRF crumb 필요)
+
 - **절대 master에 직접 푸시 금지** (docs 전용 변경 제외 — CLAUDE.md 등)
 - git LFS hang 시 GitHub API로 직접 파일 푸시
 

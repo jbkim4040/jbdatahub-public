@@ -104,7 +104,18 @@ public class PublicApiInvokeService {
         } catch (URISyntaxException e) {
             return Mono.just(InvokeResultDto.fail("잘못된 URL 형식입니다."));
         }
-        if (!"https".equalsIgnoreCase(parsed.getScheme())) {
+        // DB에 http:// 로 저장된 공공 API URL을 https:// 로 자동 업그레이드
+        if ("http".equalsIgnoreCase(parsed.getScheme())) {
+            String host0 = parsed.getHost();
+            if (host0 != null && isAllowedHost(host0)) {
+                targetUrl = "https" + targetUrl.substring(4);
+                try { parsed = new URI(targetUrl); } catch (URISyntaxException e) {
+                    return Mono.just(InvokeResultDto.fail("잘못된 URL 형식입니다."));
+                }
+            } else {
+                return Mono.just(InvokeResultDto.fail("HTTPS 프로토콜만 허용됩니다."));
+            }
+        } else if (!"https".equalsIgnoreCase(parsed.getScheme())) {
             return Mono.just(InvokeResultDto.fail("HTTPS 프로토콜만 허용됩니다."));
         }
         final String host = parsed.getHost();

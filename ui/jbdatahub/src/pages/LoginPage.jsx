@@ -2,10 +2,12 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { login } from '../api/authApi'
 import { useAuth } from '../context/AuthContext'
+import { useI18n } from '../context/I18nContext'
 import styles from './LoginPage.module.css'
 
 export default function LoginPage() {
   const { login: setAuth } = useAuth()
+  const { t } = useI18n()
   const navigate = useNavigate()
   const [form, setForm] = useState({ username: '', password: '' })
   const [error, setError] = useState('')
@@ -20,7 +22,7 @@ export default function LoginPage() {
       setAuth(null, null, res.data.username, res.data.role)
       navigate('/')
     } catch {
-      setError('아이디 또는 비밀번호가 올바르지 않습니다.')
+      setError(t('login.error'))
     } finally {
       setLoading(false)
     }
@@ -29,9 +31,9 @@ export default function LoginPage() {
   return (
     <div className={styles.container}>
       <div className={styles.card}>
-        <h1 className={styles.title}>관리자 로그인</h1>
+        <h1 className={styles.title}>{t('login.title')}</h1>
         <form onSubmit={handleSubmit} className={styles.form}>
-          <label className={styles.label}>아이디</label>
+          <label className={styles.label}>{t('login.username')}</label>
           <input
             className={styles.input}
             value={form.username}
@@ -39,7 +41,7 @@ export default function LoginPage() {
             placeholder="username"
             required
           />
-          <label className={styles.label}>비밀번호</label>
+          <label className={styles.label}>{t('login.password')}</label>
           <input
             className={styles.input}
             type="password"
@@ -50,7 +52,7 @@ export default function LoginPage() {
           />
           {error && <p className={styles.error}>{error}</p>}
           <button className={styles.btn} type="submit" disabled={loading}>
-            {loading ? '로그인 중...' : '로그인'}
+            {loading ? t('login.submitting') : t('login.submit')}
           </button>
         </form>
       </div>

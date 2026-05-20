@@ -109,3 +109,19 @@
   .badge { font-size: 0.65rem; padding: .1rem .35rem; }
   .loginBtn, .logoutBtn { padding: .3rem .7rem; font-size: .75rem; }
 }
+
+
+.langToggle {
+  padding: 4px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  background: transparent;
+  color: #475569;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.langToggle:hover {
+  background: #f1f5f9;
+}

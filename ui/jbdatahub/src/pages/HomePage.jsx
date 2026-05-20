@@ -1,12 +1,14 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
+import { useI18n } from '../context/I18nContext'
 import { getStats } from '../api/publicApi'
 import styles from './HomePage.module.css'
 
 export default function HomePage() {
   const navigate = useNavigate()
   const { isAdmin } = useAuth()
+  const { t } = useI18n()
   const [stats, setStats] = useState(null)
 
   useEffect(() => {
@@ -14,25 +16,25 @@ export default function HomePage() {
   }, [])
 
   const cards = [
-    { icon: '📋', label: '목록 조회', desc: 'DB에 저장된 OpenAPI 목록을 검색·조회합니다.', path: '/list', show: true },
-    { icon: '📡', label: '데이터 수집', desc: '외부 API에서 OpenAPI 목록을 수집하여 DB에 저장합니다.', path: '/collect', show: isAdmin, admin: true },
+    { icon: '📋', label: t('home.card.list.label'), desc: t('home.card.list.desc'), path: '/list', show: true },
+    { icon: '📡', label: t('home.card.collect.label'), desc: t('home.card.collect.desc'), path: '/collect', show: isAdmin, admin: true },
   ]
 
   return (
     <div className={styles.container}>
-      <h1 className={styles.title}>jbDataHub</h1>
-      <p className={styles.desc}>공공데이터포털(data.go.kr) OpenAPI 목록을 수집하고 관리하는 허브입니다.</p>
+      <h1 className={styles.title}>{t('home.title')}</h1>
+      <p className={styles.desc}>{t('home.desc')}</p>
 
       {stats && (
         <div className={styles.statsRow}>
           <div className={styles.statCard}>
             <div className={styles.statNum}>{stats.totalCount?.toLocaleString() ?? '-'}</div>
-            <div className={styles.statLabel}>OpenAPI 서비스</div>
+            <div className={styles.statLabel}>{t('home.stat.openapi')}</div>
           </div>
           {stats.countByApiType && Object.entries(stats.countByApiType).map(([type, count]) => (
             <div key={type} className={styles.statCard}>
               <div className={styles.statNum}>{Number(count).toLocaleString()}</div>
-              <div className={styles.statLabel}>{type || '미분류'}</div>
+              <div className={styles.statLabel}>{type || t('common.uncategorized')}</div>
             </div>
           ))}
         </div>
@@ -43,7 +45,7 @@ export default function HomePage() {
           <div key={card.path} className={`${styles.card} ${card.admin ? styles.adminCard : ''}`} onClick={() => navigate(card.path)}>
             <div className={styles.icon}>{card.icon}</div>
             <h2>{card.label}</h2>
-            {card.admin && <span className={styles.badge}>관리자 전용</span>}
+            {card.admin && <span className={styles.badge}>{t('home.adminOnly')}</span>}
             <p>{card.desc}</p>
           </div>
         ))}

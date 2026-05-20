@@ -415,7 +415,7 @@ function OpenApiTab() {
           <div
             onClick={(e) => e.stopPropagation()}
             style={{
-              width:'min(1180px, 96vw)', height:'min(880px, 94vh)',
+              width:'min(1480px, 98vw)', height:'min(980px, 96vh)',
               background:'#fff', borderRadius:10, overflow:'hidden',
               display:'flex', flexDirection:'column',
               boxShadow:'0 20px 50px rgba(0,0,0,0.25)',
@@ -483,12 +483,19 @@ function OpenApiTab() {
                 ✕
               </button>
             </div>
-            <iframe
-              src={`https://www.data.go.kr/data/${applyRow.listId}/openapi.do`}
-              title={`${t('list.apply.modalTitle')} - ${applyRow.listTitle}`}
-              style={{flex:1, width:'100%', border:'none'}}
-              referrerPolicy="no-referrer"
-            />
+            {/* iframe — 콘텐츠가 모달 안에 전부 보이도록 0.75배 축소 (가로 25% 더 노출) */}
+            <div style={{flex:1, overflow:'hidden', position:'relative'}}>
+              <iframe
+                src={`https://www.data.go.kr/data/${applyRow.listId}/openapi.do`}
+                title={`${t('list.apply.modalTitle')} - ${applyRow.listTitle}`}
+                style={{
+                  width:'133.33%', height:'133.33%',
+                  transform:'scale(0.75)', transformOrigin:'top left',
+                  border:'none',
+                }}
+                referrerPolicy="no-referrer"
+              />
+            </div>
           </div>
         </div>
       )}

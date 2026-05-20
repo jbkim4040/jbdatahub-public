@@ -28,11 +28,11 @@ public class JwtFilter extends OncePerRequestFilter {
     private final UserTokenRevocationStore userTokenRevocationStore;
     private final UserRepository userRepository;
 
-    @Value("${jwt.expiration:3600000}")
+    @Value("${jwt.expiration:900000}")
     private long jwtExpirationMs;
 
-    /** 잔여 시간이 이 값보다 작으면 새 토큰 발급 (sliding window) */
-    private static final long SLIDING_THRESHOLD_MS = 30 * 60 * 1000L;  // 30분
+    /** 잔여 시간이 이 값보다 작으면 새 토큰 발급 (sliding window) — TTL의 1/3 */
+    private static final long SLIDING_THRESHOLD_MS = 5 * 60 * 1000L;   // 5분
 
     @Override
     protected void doFilterInternal(HttpServletRequest request,
@@ -65,6 +65,7 @@ public class JwtFilter extends OncePerRequestFilter {
                     if (remaining < SLIDING_THRESHOLD_MS) {
                         String newToken = jwtUtil.generateToken(username, role);
                         ResponseCookie cookie = ResponseCookie.from("jb_token", newToken)
+                                .domain(".jbdatahub.com")
                                 .httpOnly(true).secure(true).sameSite("Lax")
                                 .path("/").maxAge(jwtExpirationMs / 1000).build();
                         response.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());

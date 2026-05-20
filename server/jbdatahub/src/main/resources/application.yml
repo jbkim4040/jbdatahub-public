@@ -33,6 +33,9 @@ spring:
         order_updates: true
     show-sql: false
 
+jwt:
+  expiration: 900000  # 15분 (ms) — 로컬 기본값
+
 server:
   port: 8080
   forward-headers-strategy: framework

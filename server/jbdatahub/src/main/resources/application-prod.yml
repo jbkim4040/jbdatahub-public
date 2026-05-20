@@ -46,7 +46,10 @@ management:
 
 jwt:
   secret: ${JWT_SECRET}
-  expiration: 3600000   # 1시간 (ms)
+  expiration: 900000    # 15분 (ms) — 짧은 access token + 7일 refresh token 사용
+
+service-key:
+  encryption-secret: ${SERVICE_KEY_ENCRYPTION_SECRET}
 
 logging:
   level:

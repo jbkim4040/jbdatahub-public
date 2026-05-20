@@ -29,14 +29,15 @@ public class AuthController {
 
     private static final String TOKEN_COOKIE = "jb_token";
     private static final String REFRESH_COOKIE = "jb_refresh";
-    private static final int    TOKEN_MAX_AGE   = 60 * 60;           // 1시간
+    private static final int    TOKEN_MAX_AGE   = 15 * 60;            // 15분
     private static final int    REFRESH_MAX_AGE = 7 * 24 * 60 * 60;   // 7일
 
     private final JwtUtil              jwtUtil;
     private final UserRepository       userRepository;
     private final PasswordEncoder      passwordEncoder;
     private final RefreshTokenService  refreshTokenService;
-    private final TokenBlacklist     tokenBlacklist;
+    private final TokenBlacklist       tokenBlacklist;
+    private final ServiceKeyEncryptor  serviceKeyEncryptor;
 
     /** dummy BCrypt — timing leak 차단용 (실제로 매칭되지 않음) */
     private static final String DUMMY_BCRYPT = "$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy";
@@ -134,7 +135,8 @@ public class AuthController {
                 .map(a -> a.substring(5))
                 .findFirst().orElse("USER");
         String serviceKey = userRepository.findByUsername(auth.getName())
-                .map(u -> u.getServiceKey() != null ? u.getServiceKey() : "")
+                .map(u -> u.getServiceKey() != null
+                        ? serviceKeyEncryptor.decrypt(u.getServiceKey()) : "")
                 .orElse("");
         return ResponseEntity.ok(java.util.Map.of(
                 "username", auth.getName(),
@@ -153,7 +155,7 @@ public class AuthController {
             return ResponseEntity.badRequest().body(java.util.Map.of("error", "serviceKey가 너무 깁니다."));
         }
         userRepository.findByUsername(auth.getName()).ifPresent(user -> {
-            user.setServiceKey(key.isBlank() ? null : key);
+            user.setServiceKey(key.isBlank() ? null : serviceKeyEncryptor.encrypt(key));
             userRepository.save(user);
         });
         return ResponseEntity.ok(java.util.Map.of("ok", true));
@@ -163,7 +165,7 @@ public class AuthController {
     @Operation(summary = "로그아웃 (cookie 제거 + refresh token 무효화 + access token blacklist)")
     public ResponseEntity<Void> logout(@RequestBody(required = false) RefreshRequestDto request,
                                        HttpServletRequest httpReq) {
-        // Access token blacklist 등록 — 만료(1시간)까지 즉시 무효화
+        // Access token blacklist 등록 — 만료(15분)까지 즉시 무효화
         String accessToken = extractAccessToken(httpReq);
         if (accessToken != null && jwtUtil.isValid(accessToken)) {
             try {

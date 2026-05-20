@@ -14,6 +14,29 @@
 5. **Squash merge (자동)**: 리뷰 이슈 없으면 즉시 머지
    `PUT /repos/jbkim4040/jb-workspace/pulls/{n}/merge` (merge_method: squash)
 6. **Jenkins 빌드 트리거 (자동)**: 머지 직후 실행 → `docs/claude/infra.md` 참조
+7. **Jenkins 빌드 완료 대기 + 스모크 테스트 (자동)**:
+   ```bash
+   # 1) 빌드 번호 확인 후 완료 폴링 (최대 5분)
+   BUILD_NUM=$(ssh -i ~/Downloads/jb-manager.key ubuntu@168.107.20.90 \
+     "curl -s -u 'jb-datahub-admin:@jbdatahubadminjenkins' \
+     'http://127.0.0.1:19090/job/jb-workspace/lastBuild/api/json' \
+     | python3 -c \"import sys,json; print(json.load(sys.stdin)['number'])\"")
+
+   for i in $(seq 1 30); do
+     RESULT=$(ssh -i ~/Downloads/jb-manager.key ubuntu@168.107.20.90 \
+       "curl -s -u 'jb-datahub-admin:@jbdatahubadminjenkins' \
+       'http://127.0.0.1:19090/job/jb-workspace/$BUILD_NUM/api/json' \
+       | python3 -c \"import sys,json; d=json.load(sys.stdin); print(d.get('result','BUILDING'))\"")
+     [ "$RESULT" != "BUILDING" ] && [ "$RESULT" != "None" ] && break
+     sleep 10
+   done
+
+   # 2) 스모크 테스트 실행
+   scp -i ~/Downloads/jb-service.key scripts/smoke-test.sh ubuntu@140.245.74.59:/tmp/smoke-test.sh
+   ssh -i ~/Downloads/jb-service.key ubuntu@140.245.74.59 "bash /tmp/smoke-test.sh"
+   ```
+   - 스모크 테스트 실패 시 → 즉시 로그 분석 후 hotfix
+   - 테스트 파일: `scripts/smoke-test.sh` (9개 케이스)
 
 - **절대 master에 직접 푸시 금지** (docs 전용 변경 제외 — CLAUDE.md 등)
 - git LFS hang 시 GitHub API로 직접 파일 푸시

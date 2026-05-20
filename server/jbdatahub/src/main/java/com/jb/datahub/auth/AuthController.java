@@ -40,8 +40,6 @@ public class AuthController {
     private final RefreshTokenService  refreshTokenService;
     private final TokenBlacklist     tokenBlacklist;
 
-    @PostMapping("/login")
-    @Operation(summary = "로그인")
     /** dummy BCrypt — timing leak 차단용 (실제로 매칭되지 않음) */
     private static final String DUMMY_BCRYPT = "$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy";
 
@@ -68,7 +66,8 @@ public class AuthController {
             (old, n) -> new long[]{old[0] + 1, System.currentTimeMillis()});
     }
 
-
+    @PostMapping("/login")
+    @Operation(summary = "로그인")
     public ResponseEntity<?> login(@Valid @RequestBody LoginRequestDto request) {
         // L2 — username 기반 lockout (5분 내 5회 실패 시 차단)
         if (isLockedOut(request.getUsername())) {

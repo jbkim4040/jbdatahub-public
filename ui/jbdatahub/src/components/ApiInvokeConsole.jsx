@@ -1,5 +1,6 @@
+import axios from 'axios'
 import { useEffect, useRef, useState } from 'react'
-import { getApiDetail, invokeApi, getMe, saveServiceKey } from '../api/publicApi'
+import { getApiDetail, invokeApi, saveServiceKey } from '../api/publicApi'
 
 const SERVICE_KEY_ALIASES = new Set(['servicekey', 'service_key', 'serviceKey'])
 const PARAM_DEFAULTS = { numofrows: '10', pageNo: '1', pageno: '1', _type: 'json', datatype: 'JSON' }
@@ -47,9 +48,9 @@ export default function ApiInvokeConsole({ listId, listTitle, onClose }) {
   const [result, setResult]   = useState(null)
   const [error, setError]     = useState('')
 
-  // 저장된 serviceKey 불러오기
+  // 저장된 serviceKey 불러오기 — axios 직접 호출로 전역 인터셉터(logout 흐름) 우회
   useEffect(() => {
-    getMe()
+    axios.get('/api/auth/me', { withCredentials: true })
       .then(r => { if (r.data?.serviceKey) setServiceKey(r.data.serviceKey) })
       .catch(() => {})
   }, [])
@@ -94,8 +95,9 @@ export default function ApiInvokeConsole({ listId, listTitle, onClose }) {
       await saveServiceKey(serviceKey.trim())
       setKeySaved(true)
       setTimeout(() => setKeySaved(false), 2000)
-    } catch { /* 저장 실패 무시 */ }
-    finally { setKeySaving(false) }
+    } catch {
+      setError('인증키 저장에 실패했습니다. 다시 시도해주세요.')
+    } finally { setKeySaving(false) }
   }
 
   const hasOps = operations.length > 0

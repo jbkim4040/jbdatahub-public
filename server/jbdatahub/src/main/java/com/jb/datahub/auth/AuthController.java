@@ -135,7 +135,30 @@ public class AuthController {
                 .filter(a -> a.startsWith("ROLE_"))
                 .map(a -> a.substring(5))
                 .findFirst().orElse("USER");
-        return ResponseEntity.ok(java.util.Map.of("username", auth.getName(), "role", role));
+        String serviceKey = userRepository.findByUsername(auth.getName())
+                .map(u -> u.getServiceKey() != null ? u.getServiceKey() : "")
+                .orElse("");
+        return ResponseEntity.ok(java.util.Map.of(
+                "username", auth.getName(),
+                "role", role,
+                "serviceKey", serviceKey));
+    }
+
+    @PatchMapping("/me/service-key")
+    public ResponseEntity<?> updateServiceKey(@RequestBody Map<String, String> body) {
+        var auth = org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null || !auth.isAuthenticated() || "anonymousUser".equals(auth.getName())) {
+            return ResponseEntity.status(401).body(java.util.Map.of("error", "unauthenticated"));
+        }
+        String key = body.getOrDefault("serviceKey", "").strip();
+        if (key.length() > 1000) {
+            return ResponseEntity.badRequest().body(java.util.Map.of("error", "serviceKey가 너무 깁니다."));
+        }
+        userRepository.findByUsername(auth.getName()).ifPresent(user -> {
+            user.setServiceKey(key.isBlank() ? null : key);
+            userRepository.save(user);
+        });
+        return ResponseEntity.ok(java.util.Map.of("ok", true));
     }
 
     @PostMapping("/logout")

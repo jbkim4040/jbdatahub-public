@@ -43,4 +43,7 @@ public class User {
     @Column(name = "created_at", nullable = false)
     @Builder.Default
     private LocalDateTime createdAt = LocalDateTime.now();
+
+    @Column(name = "service_key", length = 1000)
+    private String serviceKey;
 }

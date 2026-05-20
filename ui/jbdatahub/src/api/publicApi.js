@@ -102,3 +102,9 @@ export const getEmbedProgress = () =>
 export const getRelatedTerms = (q, limit = 8) =>
   http.get('/public-data/related-terms', { params: { q, limit } })
 
+/** 내 프로필 조회 (serviceKey 포함) */
+export const getMe = () => http.get('/auth/me')
+
+/** 내 serviceKey 저장 */
+export const saveServiceKey = (key) => http.patch('/auth/me/service-key', { serviceKey: key })
+

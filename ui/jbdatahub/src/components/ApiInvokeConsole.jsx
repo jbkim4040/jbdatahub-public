@@ -1,11 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
-import { getApiDetail, invokeApi } from '../api/publicApi'
+import { getApiDetail, invokeApi, getMe, saveServiceKey } from '../api/publicApi'
 
-/*
- * API 호출 콘솔
- * 목록 화면의 'API 호출' 버튼이 띄우는 모달.
- * 사용자가 자신의 공공데이터포털 인증키로 해당 API를 직접 호출하고 응답을 확인한다.
- */
+const SERVICE_KEY_ALIASES = new Set(['servicekey', 'service_key', 'serviceKey'])
+const PARAM_DEFAULTS = { numofrows: '10', pageNo: '1', pageno: '1', _type: 'json', datatype: 'JSON' }
 
 const overlay = {
   position: 'fixed', inset: 0, zIndex: 1000,
@@ -18,13 +15,22 @@ const panel = {
   display: 'flex', flexDirection: 'column',
   boxShadow: '0 20px 50px rgba(0,0,0,0.25)',
 }
-const labelStyle = {
-  fontSize: 12, fontWeight: 600, color: '#475569',
-  display: 'block', marginBottom: 4,
-}
+const labelStyle = { fontSize: 12, fontWeight: 600, color: '#475569', display: 'block', marginBottom: 4 }
 const inputStyle = {
   width: '100%', padding: '7px 9px', fontSize: 13,
   border: '1px solid #cbd5e1', borderRadius: 6, boxSizing: 'border-box',
+}
+
+function parseParams(rawEn) {
+  if (!rawEn) return []
+  return rawEn.split(',')
+    .map(s => s.trim())
+    .filter(s => s && !SERVICE_KEY_ALIASES.has(s.toLowerCase()))
+    .map((key, i) => ({
+      id: i + 1,
+      key,
+      value: PARAM_DEFAULTS[key] ?? PARAM_DEFAULTS[key.toLowerCase()] ?? '',
+    }))
 }
 
 export default function ApiInvokeConsole({ listId, listTitle, onClose }) {
@@ -33,13 +39,22 @@ export default function ApiInvokeConsole({ listId, listTitle, onClose }) {
   const [selectedSeq, setSelectedSeq] = useState('')
   const [endpointUrl, setEndpointUrl] = useState('')
   const [serviceKey, setServiceKey]   = useState('')
+  const [keySaved, setKeySaved]       = useState(false)
+  const [keySaving, setKeySaving]     = useState(false)
   const [params, setParams]   = useState([{ id: 1, key: '', value: '' }])
   const nextParamId = useRef(2)
   const [running, setRunning] = useState(false)
   const [result, setResult]   = useState(null)
   const [error, setError]     = useState('')
 
-  // 오퍼레이션 목록 로드 (호출 대상 선택용)
+  // 저장된 serviceKey 불러오기
+  useEffect(() => {
+    getMe()
+      .then(r => { if (r.data?.serviceKey) setServiceKey(r.data.serviceKey) })
+      .catch(() => {})
+  }, [])
+
+  // 오퍼레이션 목록 로드
   useEffect(() => {
     let cancelled = false
     getApiDetail(listId)
@@ -47,18 +62,48 @@ export default function ApiInvokeConsole({ listId, listTitle, onClose }) {
         if (cancelled) return
         const ops = r.data?.operations || []
         setOperations(ops)
-        if (ops.length > 0) setSelectedSeq(String(ops[0].operationSeq))
+        if (ops.length > 0) {
+          setSelectedSeq(String(ops[0].operationSeq))
+          const defaultParams = parseParams(ops[0].requestParamNmEn)
+          if (defaultParams.length > 0) {
+            nextParamId.current = defaultParams.length + 1
+            setParams(defaultParams)
+          }
+        }
       })
       .catch(() => {})
       .finally(() => { if (!cancelled) setOpLoading(false) })
     return () => { cancelled = true }
   }, [listId])
 
+  const handleOpChange = (seq) => {
+    setSelectedSeq(seq)
+    const op = operations.find(o => String(o.operationSeq) === seq)
+    if (!op) return
+    const defaultParams = parseParams(op.requestParamNmEn)
+    if (defaultParams.length > 0) {
+      nextParamId.current = defaultParams.length + 1
+      setParams(defaultParams)
+    }
+  }
+
+  const handleSaveKey = async () => {
+    if (!serviceKey.trim()) return
+    setKeySaving(true)
+    try {
+      await saveServiceKey(serviceKey.trim())
+      setKeySaved(true)
+      setTimeout(() => setKeySaved(false), 2000)
+    } catch { /* 저장 실패 무시 */ }
+    finally { setKeySaving(false) }
+  }
+
   const hasOps = operations.length > 0
 
   const updateParam = (i, field, val) =>
     setParams(prev => prev.map((p, idx) => (idx === i ? { ...p, [field]: val } : p)))
-  const addParam = () => setParams(prev => [...prev, { id: nextParamId.current++, key: '', value: '' }])
+  const addParam = () =>
+    setParams(prev => [...prev, { id: nextParamId.current++, key: '', value: '' }])
   const removeParam = (i) => setParams(prev => prev.filter((_, idx) => idx !== i))
 
   const run = async () => {
@@ -81,7 +126,6 @@ export default function ApiInvokeConsole({ listId, listTitle, onClose }) {
       const r = await invokeApi(body)
       setResult(r.data)
     } catch (e) {
-      // 백엔드는 실패 시 400 + { status:'fail', message } 형태로 응답
       const data = e?.response?.data
       if (data && data.status) setResult(data)
       else setError(data?.message || data?.error || e.message || '호출에 실패했습니다.')
@@ -133,7 +177,7 @@ export default function ApiInvokeConsole({ listId, listTitle, onClose }) {
           ) : hasOps ? (
             <div>
               <label style={labelStyle}>오퍼레이션</label>
-              <select style={inputStyle} value={selectedSeq} onChange={e => setSelectedSeq(e.target.value)}>
+              <select style={inputStyle} value={selectedSeq} onChange={e => handleOpChange(e.target.value)}>
                 {operations.map(op => (
                   <option key={op.operationSeq} value={op.operationSeq}>
                     {op.operationNm || '(이름 없음)'}
@@ -152,9 +196,21 @@ export default function ApiInvokeConsole({ listId, listTitle, onClose }) {
           {/* 인증키 */}
           <div>
             <label style={labelStyle}>인증키 (serviceKey · Encoding)</label>
-            <input style={inputStyle} type="password" autoComplete="off"
-              value={serviceKey} onChange={e => setServiceKey(e.target.value)}
-              placeholder="data.go.kr Encoding 인증키" />
+            <div style={{ display: 'flex', gap: 6 }}>
+              <input style={{ ...inputStyle, flex: 1 }} type="password" autoComplete="off"
+                value={serviceKey} onChange={e => { setServiceKey(e.target.value); setKeySaved(false) }}
+                placeholder="data.go.kr Encoding 인증키" />
+              <button onClick={handleSaveKey} disabled={keySaving || !serviceKey.trim()} style={{
+                padding: '0 12px', fontSize: 12, fontWeight: 600,
+                border: '1px solid #cbd5e1', borderRadius: 6,
+                background: keySaved ? '#dcfce7' : '#fff',
+                color: keySaved ? '#15803d' : '#475569',
+                cursor: keySaving || !serviceKey.trim() ? 'default' : 'pointer',
+                whiteSpace: 'nowrap', flexShrink: 0,
+              }}>
+                {keySaved ? '✓ 저장됨' : keySaving ? '저장 중…' : '저장'}
+              </button>
+            </div>
           </div>
 
           {/* 파라미터 */}

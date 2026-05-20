@@ -1,6 +1,8 @@
 spring:
   application:
     name: jbDataHub
+  lifecycle:
+    timeout-per-shutdown-phase: 25s
   profiles:
     active: local
   cache:
@@ -31,6 +33,7 @@ spring:
 server:
   port: 8080
   forward-headers-strategy: framework
+  shutdown: graceful
 
 springdoc:
   api-docs:

@@ -66,8 +66,9 @@ docker exec nginx nginx -t && docker exec nginx nginx -s reload
 echo "✅ nginx → jbdatahub-${INACTIVE}"
 
 # ── 6. 이전 컨테이너 중지 & 제거 ────────────────────────────────────
-docker stop jbdatahub-${ACTIVE} 2>/dev/null || true
-docker rm   jbdatahub-${ACTIVE} 2>/dev/null || true
+# -t 30: graceful shutdown 을 위해 SIGTERM 후 30초 대기 (in-flight 요청 처리 완료)
+docker stop -t 30 jbdatahub-${ACTIVE} 2>/dev/null || true
+docker rm        jbdatahub-${ACTIVE} 2>/dev/null || true
 echo "✅ jbdatahub-${ACTIVE} 중지 및 제거"
 
 # ── 7. 상태 저장 ─────────────────────────────────────────────────────

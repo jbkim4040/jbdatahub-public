@@ -119,9 +119,15 @@ print(len(d) if isinstance(d, list) else 0)
             steps {
                 sh '''
                     cp $ENV_FILE $WORKSPACE/.env
-                    scp -o StrictHostKeyChecking=no $WORKSPACE/.env $APP_SERVER:/tmp/.env
+                    # /tmp 는 world-writable — 권한 제한된 전용 경로로 복사
+                    ssh -o StrictHostKeyChecking=no $APP_SERVER \
+                        "mkdir -p /home/ubuntu/.secrets && chmod 700 /home/ubuntu/.secrets"
+                    scp -o StrictHostKeyChecking=no $WORKSPACE/.env \
+                        $APP_SERVER:/home/ubuntu/.secrets/jbdatahub.env
+                    ssh -o StrictHostKeyChecking=no $APP_SERVER \
+                        "chmod 600 /home/ubuntu/.secrets/jbdatahub.env"
                 '''
-                echo "✅ 시크릿 파일 복사 완료 (Jenkins + WAS)"
+                echo "✅ 시크릿 파일 복사 완료 (Jenkins + WAS /home/ubuntu/.secrets/)"
             }
         }
 

@@ -1,9 +1,12 @@
 import axios from 'axios'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { getApiDetail, invokeApi, saveServiceKey } from '../api/publicApi'
 
 const SERVICE_KEY_ALIASES = new Set(['servicekey', 'service_key', 'serviceKey'])
 const PARAM_DEFAULTS = { numofrows: '10', pageNo: '1', pageno: '1', _type: 'json', datatype: 'JSON' }
+const isHttpSuccess = (r) =>
+  r?.status === 'success' && (r.httpStatus == null || (r.httpStatus >= 200 && r.httpStatus < 300))
+const safeUrl = (url) => (url && /^https?:\/\//.test(url) ? url : '')
 
 const overlay = {
   position: 'fixed', inset: 0, zIndex: 1000,
@@ -150,6 +153,70 @@ export default function ApiInvokeConsole({ listId, listTitle, onClose }) {
     if (!body) return ''
     try { return JSON.stringify(JSON.parse(body), null, 2) } catch { return body }
   }
+
+  const resultBlock = useMemo(() => {
+    if (!result) return null
+    const ok = isHttpSuccess(result)
+    return (
+      <div style={{
+        border: `1px solid ${ok ? '#86efac' : '#fca5a5'}`,
+        borderRadius: 8, overflow: 'hidden',
+      }}>
+        <div style={{
+          display: 'flex', gap: 10, alignItems: 'center',
+          padding: '8px 12px', flexWrap: 'wrap',
+          background: ok ? '#f0fdf4' : '#fef2f2',
+        }}>
+          <span style={{ fontWeight: 700, fontSize: 13, color: ok ? '#15803d' : '#b91c1c' }}>
+            {ok ? '✓ 성공' : '✕ 실패'}
+          </span>
+          {result.httpStatus != null && (
+            <span style={{
+              fontSize: 12, fontWeight: 600, padding: '1px 7px', borderRadius: 4,
+              background: ok ? '#dcfce7' : '#fee2e2',
+              color: ok ? '#166534' : '#991b1b',
+            }}>
+              HTTP {result.httpStatus}
+            </span>
+          )}
+          {result.elapsedMs != null && (
+            <span style={{ fontSize: 12, color: '#64748b', marginLeft: 'auto' }}>
+              {result.elapsedMs}ms
+            </span>
+          )}
+          {result.contentType && (
+            <span style={{ fontSize: 11, color: '#94a3b8' }}>{result.contentType}</span>
+          )}
+        </div>
+        {result.message && (
+          <div style={{ fontSize: 12, color: '#b91c1c', padding: '6px 12px', background: '#fef2f2' }}>
+            {result.message}
+          </div>
+        )}
+        {safeUrl(result.requestUrl) && (
+          <div style={{
+            fontSize: 11, color: '#94a3b8', padding: '4px 12px',
+            borderTop: '1px solid #f1f5f9', wordBreak: 'break-all',
+          }}>
+            {safeUrl(result.requestUrl)}
+          </div>
+        )}
+        {result.body && (
+          <pre style={{
+            fontSize: 12, background: '#0f172a', color: '#e2e8f0',
+            padding: 12, margin: 0, overflowX: 'auto',
+            maxHeight: ok ? 400 : 200,
+            overflowY: 'auto',
+          }}>{prettyBody(result.body)}</pre>
+        )}
+        {ok && !result.body && (
+          <div style={{ fontSize: 12, color: '#64748b', padding: '8px 12px' }}>
+            응답 바디 없음
+          </div>
+        )}
+      </div>
+    )
+  }, [result])
 
   const canGoBack = operations.length > 1
 
@@ -305,32 +372,7 @@ export default function ApiInvokeConsole({ listId, listTitle, onClose }) {
             )}
 
             {/* 결과 */}
-            {result && (
-              <div>
-                <div style={{ display: 'flex', gap: 10, fontSize: 12, marginBottom: 6, flexWrap: 'wrap' }}>
-                  <span style={{ fontWeight: 700, color: result.status === 'success' ? '#15803d' : '#b91c1c' }}>
-                    {result.status === 'success' ? '✓ 성공' : '✕ 실패'}
-                  </span>
-                  {result.httpStatus != null && <span style={{ color: '#475569' }}>HTTP {result.httpStatus}</span>}
-                  {result.elapsedMs != null && <span style={{ color: '#64748b' }}>{result.elapsedMs}ms</span>}
-                  {result.contentType && <span style={{ color: '#64748b' }}>{result.contentType}</span>}
-                </div>
-                {result.message && (
-                  <div style={{ fontSize: 12, color: '#b91c1c', marginBottom: 6 }}>{result.message}</div>
-                )}
-                {result.requestUrl && (
-                  <div style={{ fontSize: 11, color: '#94a3b8', marginBottom: 6, wordBreak: 'break-all' }}>
-                    {result.requestUrl}
-                  </div>
-                )}
-                {result.body && (
-                  <pre style={{
-                    fontSize: 12, background: '#0f172a', color: '#e2e8f0',
-                    padding: 12, borderRadius: 6, overflowX: 'auto', maxHeight: 300, margin: 0,
-                  }}>{prettyBody(result.body)}</pre>
-                )}
-              </div>
-            )}
+            {resultBlock}
           </div>
         )}
       </div>

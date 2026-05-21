@@ -157,11 +157,18 @@ export default function ApiInvokeConsole({ listId, listTitle, onClose }) {
   const resultBlock = useMemo(() => {
     if (!result) return null
     const ok = isHttpSuccess(result)
+    const hint401 = !ok && result.httpStatus === 401
+      ? '인증키(serviceKey)가 유효하지 않거나 해당 API의 활용 신청이 필요합니다. data.go.kr에서 활용 신청 후 Encoding 키를 입력해 주세요.'
+      : null
+    const hint403 = !ok && result.httpStatus === 403
+      ? '해당 API에 대한 접근 권한이 없습니다. data.go.kr에서 활용 신청 여부를 확인해 주세요.'
+      : null
     return (
       <div style={{
         border: `1px solid ${ok ? '#86efac' : '#fca5a5'}`,
         borderRadius: 8, overflow: 'hidden',
       }}>
+        {/* 상태 헤더 */}
         <div style={{
           display: 'flex', gap: 10, alignItems: 'center',
           padding: '8px 12px', flexWrap: 'wrap',
@@ -188,31 +195,51 @@ export default function ApiInvokeConsole({ listId, listTitle, onClose }) {
             <span style={{ fontSize: 11, color: '#94a3b8' }}>{result.contentType}</span>
           )}
         </div>
+
+        {/* 서버 측 실패 메시지 */}
         {result.message && (
           <div style={{ fontSize: 12, color: '#b91c1c', padding: '6px 12px', background: '#fef2f2' }}>
             {result.message}
           </div>
         )}
-        {safeUrl(result.requestUrl) && (
+
+        {/* 401/403 안내 */}
+        {(hint401 || hint403) && (
           <div style={{
-            fontSize: 11, color: '#94a3b8', padding: '4px 12px',
-            borderTop: '1px solid #f1f5f9', wordBreak: 'break-all',
+            fontSize: 12, color: '#92400e', background: '#fffbeb',
+            borderTop: '1px solid #fde68a', padding: '8px 12px',
           }}>
-            {safeUrl(result.requestUrl)}
+            {hint401 || hint403}
           </div>
         )}
-        {result.body && (
+
+        {/* 실패 시: 에러 응답 본문 먼저 표시 */}
+        {!ok && result.body && (
           <pre style={{
-            fontSize: 12, background: '#0f172a', color: '#e2e8f0',
-            padding: 12, margin: 0, overflowX: 'auto',
-            maxHeight: ok ? 400 : 200,
-            overflowY: 'auto',
+            fontSize: 12, background: '#1e0a0a', color: '#fca5a5',
+            padding: 12, margin: 0, overflowX: 'auto', overflowY: 'auto', maxHeight: 200,
           }}>{prettyBody(result.body)}</pre>
         )}
-        {ok && !result.body && (
-          <div style={{ fontSize: 12, color: '#64748b', padding: '8px 12px' }}>
-            응답 바디 없음
-          </div>
+
+        {/* 성공 시: requestUrl → 응답 바디 순서 */}
+        {ok && (
+          <>
+            {safeUrl(result.requestUrl) && (
+              <div style={{
+                fontSize: 11, color: '#94a3b8', padding: '4px 12px',
+                borderTop: '1px solid #f1f5f9', wordBreak: 'break-all',
+              }}>
+                {safeUrl(result.requestUrl)}
+              </div>
+            )}
+            {result.body
+              ? <pre style={{
+                  fontSize: 12, background: '#0f172a', color: '#e2e8f0',
+                  padding: 12, margin: 0, overflowX: 'auto', overflowY: 'auto', maxHeight: 400,
+                }}>{prettyBody(result.body)}</pre>
+              : <div style={{ fontSize: 12, color: '#64748b', padding: '8px 12px' }}>응답 바디 없음</div>
+            }
+          </>
         )}
       </div>
     )

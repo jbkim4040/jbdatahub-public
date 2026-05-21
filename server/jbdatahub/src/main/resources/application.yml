@@ -1,6 +1,7 @@
 spring:
   application:
     name: jbDataHub
+    # required/example param fields deployed
   mvc:
     async:
       request-timeout: 15000   # 비동기(Mono) 컨트롤러 응답 타임아웃(ms) — invoke 8s + 마진

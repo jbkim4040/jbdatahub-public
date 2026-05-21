@@ -274,7 +274,6 @@ export default function ApiInvokeConsole({ listId, listTitle, onClose }) {
             <div>
               <label className={styles.label}>요청 파라미터</label>
               {params.map((p, i) => (
-<<<<<<< HEAD
                 <div key={p.id} className={`${styles.paramRow} ${p.required ? styles.paramRowRequired : ''}`}>
                   <div className={styles.paramKeyWrap}>
                     <input
@@ -300,14 +299,6 @@ export default function ApiInvokeConsole({ listId, listTitle, onClose }) {
                     disabled={p.required}
                     style={p.required ? { opacity: 0.3, cursor: 'not-allowed' } : undefined}
                   >−</button>
-=======
-                <div key={p.id} className={styles.paramRow}>
-                  <input className={styles.input} style={{ flex: 1 }} placeholder="키 (예: numOfRows)"
-                    value={p.key} onChange={e => updateParam(i, 'key', e.target.value)} />
-                  <input className={styles.input} style={{ flex: 1 }} placeholder="값"
-                    value={p.value} onChange={e => updateParam(i, 'value', e.target.value)} />
-                  <button className={styles.removeBtn} onClick={() => removeParam(i)}>−</button>
->>>>>>> f06d5ba9ba6d8e1bc6f4d18459241694eb7454cb
                 </div>
               ))}
               <button className={styles.addParamBtn} onClick={addParam}>+ 파라미터 추가</button>

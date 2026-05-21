@@ -84,6 +84,8 @@
 
 .errorMsg { font-size: 12px; color: #b91c1c; background: #fef2f2; border: 1px solid #fecaca; border-radius: 6px; padding: 8px 10px; }
 
+.resultPane { padding: 16px; overflow-y: auto; flex: 1; }
+
 /* ── 결과 블록 ────────────────────────────────── */
 .result { border-radius: 8px; overflow: hidden; }
 .resultSuccess { border: 1px solid #86efac; }

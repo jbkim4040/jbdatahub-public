@@ -128,13 +128,14 @@ export default function ApiInvokeConsole({ listId, listTitle, onClose }) {
     try {
       const r = await invokeApi(body)
       setResult(r.data)
+      setStep('result')
     } catch (e) {
       const status = e?.response?.status
       if (status === 401 || status === 403) {
         setError('API를 호출하려면 로그인이 필요합니다.')
       } else {
         const data = e?.response?.data
-        if (data && data.status) setResult(data)
+        if (data && data.status) { setResult(data); setStep('result') }
         else setError(data?.message || data?.error || e.message || '호출에 실패했습니다.')
       }
     } finally {
@@ -197,6 +198,11 @@ export default function ApiInvokeConsole({ listId, listTitle, onClose }) {
       <div className={styles.panel} onClick={e => e.stopPropagation()}>
         {/* 헤더 */}
         <div className={styles.header}>
+          {step === 'result' && (
+            <button className={styles.backBtn} onClick={() => setStep('invoke')}>
+              ← 뒤로
+            </button>
+          )}
           {step === 'invoke' && canGoBack && (
             <button className={styles.backBtn}
               onClick={() => { setStep('select'); setResult(null); setError('') }}>
@@ -204,9 +210,11 @@ export default function ApiInvokeConsole({ listId, listTitle, onClose }) {
             </button>
           )}
           <span className={styles.headerTitle}>
-            🔌 {step === 'invoke' && selectedOp
-              ? `${selectedOp.operationNm || '(이름 없음)'}`
-              : `API 호출 — ${listTitle}`}
+            🔌 {step === 'result'
+              ? `결과 — ${selectedOp?.operationNm || listTitle}`
+              : step === 'invoke' && selectedOp
+                ? `${selectedOp.operationNm || '(이름 없음)'}`
+                : `API 호출 — ${listTitle}`}
           </span>
           <button className={styles.closeBtn} onClick={onClose}>✕</button>
         </div>
@@ -309,7 +317,12 @@ export default function ApiInvokeConsole({ listId, listTitle, onClose }) {
             </button>
 
             {error && <div className={styles.errorMsg}>{error}</div>}
+          </div>
+        )}
 
+        {/* ── Step 3: 결과 ── */}
+        {step === 'result' && (
+          <div className={styles.resultPane}>
             {resultBlock}
           </div>
         )}

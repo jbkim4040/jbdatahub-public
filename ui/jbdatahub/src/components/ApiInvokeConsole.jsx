@@ -4,20 +4,35 @@ import { getApiDetail, invokeApi, saveServiceKey } from '../api/publicApi'
 import styles from './ApiInvokeConsole.module.css'
 
 const SERVICE_KEY_ALIASES = new Set(['servicekey', 'service_key', 'serviceKey'])
-const PARAM_DEFAULTS = { numofrows: '10', pageNo: '1', pageno: '1', _type: 'json', datatype: 'JSON' }
+const PARAM_DEFAULTS = {
+  numofrows: '10', numOfRows: '10', pageNo: '1', pageno: '1',
+  _type: 'json', datatype: 'JSON',
+  MobileOS: 'IOS', MobileApp: 'AppTest',
+}
 const isHttpSuccess = (r) =>
   r?.status === 'success' && (r.httpStatus == null || (r.httpStatus >= 200 && r.httpStatus < 300))
 const safeUrl = (url) => (url && /^https?:\/\//.test(url) ? url : '')
 
-function parseParams(rawEn) {
+function parseExamples(exampleJson) {
+  if (!exampleJson) return {}
+  try { return JSON.parse(exampleJson) } catch { return {} }
+}
+
+function parseParams(rawEn, requiredRaw, exampleJson) {
   if (!rawEn) return []
+  const requiredSet = new Set(
+    (requiredRaw || '').split(',').map(s => s.trim()).filter(Boolean)
+  )
+  const examples = parseExamples(exampleJson)
   return rawEn.split(',')
     .map(s => s.trim())
     .filter(s => s && !SERVICE_KEY_ALIASES.has(s.toLowerCase()))
     .map((key, i) => ({
       id: i + 1,
       key,
-      value: PARAM_DEFAULTS[key] ?? PARAM_DEFAULTS[key.toLowerCase()] ?? '',
+      required: requiredSet.has(key),
+      value: PARAM_DEFAULTS[key] ?? PARAM_DEFAULTS[key.toLowerCase()] ?? examples[key] ?? '',
+      placeholder: examples[key] ?? '',
     }))
 }
 
@@ -62,7 +77,7 @@ export default function ApiInvokeConsole({ listId, listTitle, onClose }) {
 
   const selectOp = (op) => {
     setSelectedOp(op)
-    const defaultParams = parseParams(op.requestParamNmEn)
+    const defaultParams = parseParams(op.requestParamNmEn, op.requiredParamNmEn, op.exampleParamNmEn)
     if (defaultParams.length > 0) {
       nextParamId.current = defaultParams.length + 1
       setParams(defaultParams)
@@ -259,12 +274,40 @@ export default function ApiInvokeConsole({ listId, listTitle, onClose }) {
             <div>
               <label className={styles.label}>요청 파라미터</label>
               {params.map((p, i) => (
+<<<<<<< HEAD
+                <div key={p.id} className={`${styles.paramRow} ${p.required ? styles.paramRowRequired : ''}`}>
+                  <div className={styles.paramKeyWrap}>
+                    <input
+                      className={`${styles.input} ${p.required ? styles.inputRequired : ''}`}
+                      style={{ flex: 1 }}
+                      placeholder="키 (예: numOfRows)"
+                      value={p.key}
+                      onChange={e => updateParam(i, 'key', e.target.value)}
+                      readOnly={p.required}
+                    />
+                    {p.required && <span className={styles.requiredBadge}>필수</span>}
+                  </div>
+                  <input
+                    className={`${styles.input} ${p.required ? styles.inputRequired : ''}`}
+                    style={{ flex: 1 }}
+                    placeholder={p.placeholder || '값'}
+                    value={p.value}
+                    onChange={e => updateParam(i, 'value', e.target.value)}
+                  />
+                  <button
+                    className={styles.removeBtn}
+                    onClick={() => removeParam(i)}
+                    disabled={p.required}
+                    style={p.required ? { opacity: 0.3, cursor: 'not-allowed' } : undefined}
+                  >−</button>
+=======
                 <div key={p.id} className={styles.paramRow}>
                   <input className={styles.input} style={{ flex: 1 }} placeholder="키 (예: numOfRows)"
                     value={p.key} onChange={e => updateParam(i, 'key', e.target.value)} />
                   <input className={styles.input} style={{ flex: 1 }} placeholder="값"
                     value={p.value} onChange={e => updateParam(i, 'value', e.target.value)} />
                   <button className={styles.removeBtn} onClick={() => removeParam(i)}>−</button>
+>>>>>>> f06d5ba9ba6d8e1bc6f4d18459241694eb7454cb
                 </div>
               ))}
               <button className={styles.addParamBtn} onClick={addParam}>+ 파라미터 추가</button>

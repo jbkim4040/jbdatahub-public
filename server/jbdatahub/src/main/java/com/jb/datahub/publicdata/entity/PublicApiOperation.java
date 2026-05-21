@@ -46,6 +46,14 @@ public class PublicApiOperation {
     @Column(name = "request_param_nm_en", columnDefinition = "TEXT")
     private String requestParamNmEn;
 
+    /** 필수 요청변수 영문명 (콤마 구분) */
+    @Column(name = "required_param_nm_en", columnDefinition = "TEXT")
+    private String requiredParamNmEn;
+
+    /** 요청변수 예시값 (JSON: {"key":"val"}) */
+    @Column(name = "example_param_nm_en", columnDefinition = "TEXT")
+    private String exampleParamNmEn;
+
     /** 응답변수명 (한글) */
     @Column(name = "response_param_nm", columnDefinition = "TEXT")
     private String responseParamNm;

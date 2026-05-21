@@ -67,7 +67,15 @@
 .saveBtn:disabled { cursor: default; opacity: .65; }
 .saveBtnSaved { background: #dcfce7; color: #15803d; }
 
-.paramRow { display: flex; gap: 6px; margin-bottom: 6px; }
+.paramRow { display: flex; gap: 6px; margin-bottom: 6px; align-items: center; }
+.paramRowRequired { background: #f8faff; border-radius: 6px; padding: 4px 6px; margin-left: -6px; }
+.paramKeyWrap { flex: 1; position: relative; display: flex; align-items: center; gap: 4px; }
+.inputRequired { border-color: #3b82f6 !important; background: #eff6ff !important; }
+.requiredBadge {
+  flex-shrink: 0; font-size: 10px; font-weight: 700;
+  background: #3b82f6; color: #fff;
+  padding: 1px 5px; border-radius: 3px; white-space: nowrap;
+}
 .removeBtn { padding: 0 10px; border: 1px solid #cbd5e1; border-radius: 6px; background: #fff; cursor: pointer; color: #64748b; }
 .addParamBtn { font-size: 12px; padding: 4px 10px; border: 1px dashed #cbd5e1; border-radius: 6px; background: #fff; cursor: pointer; color: #475569; }
 

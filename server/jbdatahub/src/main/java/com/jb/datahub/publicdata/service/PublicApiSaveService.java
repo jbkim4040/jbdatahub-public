@@ -69,8 +69,9 @@ public class PublicApiSaveService {
     private static final String UPSERT_OP = """
         INSERT INTO public_api_operation (
             operation_seq, list_id, operation_nm, operation_url, register_status,
-            request_param_nm, request_param_nm_en, response_param_nm, response_param_nm_en
-        ) VALUES (?,?,?,?,?,?,?,?,?)
+            request_param_nm, request_param_nm_en, response_param_nm, response_param_nm_en,
+            required_param_nm_en, example_param_nm_en
+        ) VALUES (?,?,?,?,?,?,?,?,?,?,?)
         ON CONFLICT (operation_seq) DO UPDATE SET
             list_id = EXCLUDED.list_id,
             operation_nm = EXCLUDED.operation_nm,
@@ -79,7 +80,9 @@ public class PublicApiSaveService {
             request_param_nm = EXCLUDED.request_param_nm,
             request_param_nm_en = EXCLUDED.request_param_nm_en,
             response_param_nm = EXCLUDED.response_param_nm,
-            response_param_nm_en = EXCLUDED.response_param_nm_en
+            response_param_nm_en = EXCLUDED.response_param_nm_en,
+            required_param_nm_en = COALESCE(public_api_operation.required_param_nm_en, EXCLUDED.required_param_nm_en),
+            example_param_nm_en  = COALESCE(public_api_operation.example_param_nm_en,  EXCLUDED.example_param_nm_en)
         """;
 
     @CacheEvict(value = {"stats", "dataItemStats", "itemCount", "itemCountAll", "listCountAll"}, allEntries = true)
@@ -157,6 +160,8 @@ public class PublicApiSaveService {
                 ps.setString(7, dto.getRequestParamNmEn());
                 ps.setString(8, dto.getResponseParamNm());
                 ps.setString(9, dto.getResponseParamNmEn());
+                ps.setNull(10, java.sql.Types.VARCHAR); // required_param_nm_en: 수집 시 null, COALESCE로 기존 값 보존
+                ps.setNull(11, java.sql.Types.VARCHAR); // example_param_nm_en: 수집 시 null, COALESCE로 기존 값 보존
             });
         }
 

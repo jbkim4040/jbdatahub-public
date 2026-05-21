@@ -70,6 +70,8 @@ CREATE TABLE IF NOT EXISTS public_api_operation (
     register_status      VARCHAR(50),                          -- 상태명
     request_param_nm     TEXT,                                 -- 요청변수명 (한글)
     request_param_nm_en  TEXT,                                 -- 요청변수 영문명
+    required_param_nm_en TEXT,                                 -- 필수 요청변수 영문명 (콤마 구분)
+    example_param_nm_en  TEXT,                                 -- 요청변수 예시값 (JSON: {"key":"val"})
     response_param_nm    TEXT,                                 -- 응답변수명 (한글)
     response_param_nm_en TEXT,                                 -- 응답변수 영문명
 

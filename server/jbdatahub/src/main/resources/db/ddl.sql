@@ -97,3 +97,29 @@ CREATE INDEX IF NOT EXISTS idx_pal_updated_at      ON public_api_list (updated_a
 
 -- public_api_operation
 CREATE INDEX IF NOT EXISTS idx_pao_list_id         ON public_api_operation (list_id);
+
+
+-- ─────────────────────────────────────────
+-- 4. token_blacklist  (로그아웃 토큰 무효화)
+-- ─────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS token_blacklist (
+    token_hash  TEXT        NOT NULL PRIMARY KEY,   -- Access Token SHA-256
+    expires_at  TIMESTAMPTZ NOT NULL,               -- 원 토큰 만료 시각 (이후 자동 정리)
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_token_blacklist_expires ON token_blacklist (expires_at);
+
+COMMENT ON TABLE token_blacklist IS 'JWT Access Token 블랙리스트 — 로그아웃 시 즉시 무효화';
+
+
+-- ─────────────────────────────────────────
+-- 5. scheduler_lock  (Blue/Green 중복 실행 방지)
+-- ─────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS scheduler_lock (
+    lock_name    TEXT        NOT NULL PRIMARY KEY,  -- 스케줄러 고유 이름
+    locked_until TIMESTAMPTZ NOT NULL,              -- 락 만료 시각
+    locked_by    TEXT        NOT NULL               -- 인스턴스 ID (UUID 앞 8자리)
+);
+
+COMMENT ON TABLE scheduler_lock IS 'Blue/Green 배포 오버랩 구간 스케줄러 중복 실행 방지 락';

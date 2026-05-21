@@ -8,6 +8,7 @@ import com.jb.datahub.auth.entity.User;
 import com.jb.datahub.auth.repository.UserRepository;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import com.jb.datahub.auth.entity.User;
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -124,7 +125,7 @@ public class AuthController {
 
 
     @GetMapping("/me")
-    public ResponseEntity<?> me() {
+    public ResponseEntity<?> me(HttpServletRequest httpReq) {
         var auth = org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
         if (auth == null || !auth.isAuthenticated() || "anonymousUser".equals(auth.getName())) {
             return ResponseEntity.status(401).body(java.util.Map.of("error", "unauthenticated"));
@@ -134,10 +135,18 @@ public class AuthController {
                 .filter(a -> a.startsWith("ROLE_"))
                 .map(a -> a.substring(5))
                 .findFirst().orElse("USER");
-        String serviceKey = userRepository.findByUsername(auth.getName())
-                .map(u -> u.getServiceKey() != null
-                        ? serviceKeyEncryptor.decrypt(u.getServiceKey()) : "")
-                .orElse("");
+        // JwtFilter가 이미 로드한 User 재사용 — DB 재조회 생략
+        User cachedUser = (User) httpReq.getAttribute("jb.user");
+        String serviceKey;
+        if (cachedUser != null) {
+            serviceKey = cachedUser.getServiceKey() != null
+                    ? serviceKeyEncryptor.decrypt(cachedUser.getServiceKey()) : "";
+        } else {
+            serviceKey = userRepository.findByUsername(auth.getName())
+                    .map(u -> u.getServiceKey() != null
+                            ? serviceKeyEncryptor.decrypt(u.getServiceKey()) : "")
+                    .orElse("");
+        }
         return ResponseEntity.ok(java.util.Map.of(
                 "username", auth.getName(),
                 "role", role,

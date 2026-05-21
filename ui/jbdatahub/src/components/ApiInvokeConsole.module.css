@@ -1,0 +1,105 @@
+/* ── 모달 ────────────────────────────────────── */
+.overlay {
+  position: fixed; inset: 0; z-index: 1000;
+  background: rgba(0,0,0,.55);
+  display: flex; align-items: center; justify-content: center;
+}
+.panel {
+  width: min(720px, 96vw); max-height: 92vh;
+  background: #fff; border-radius: 10px; overflow: hidden;
+  display: flex; flex-direction: column;
+  box-shadow: 0 20px 50px rgba(0,0,0,.25);
+}
+
+/* ── 헤더 ────────────────────────────────────── */
+.header {
+  display: flex; align-items: center; gap: 8px;
+  padding: 12px 16px; border-bottom: 1px solid #e5e7eb; background: #f8fafc;
+}
+.headerTitle {
+  font-weight: 700; color: #0f172a; flex: 1;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.backBtn {
+  background: transparent; border: none; font-size: 14px;
+  color: #2563eb; cursor: pointer; padding: 0 4px; flex-shrink: 0;
+}
+.closeBtn {
+  background: transparent; border: none; font-size: 18px;
+  color: #64748b; cursor: pointer;
+}
+
+/* ── 공통 폼 요소 ────────────────────────────── */
+.label { font-size: 12px; font-weight: 600; color: #475569; display: block; margin-bottom: 4px; }
+.input {
+  width: 100%; padding: 7px 9px; font-size: 13px;
+  border: 1px solid #cbd5e1; border-radius: 6px; box-sizing: border-box;
+}
+
+/* ── Step 1: 오퍼레이션 선택 ─────────────────── */
+.stepPane { padding: 16px; overflow-y: auto; }
+.loadingMsg { font-size: 13px; color: #64748b; padding: 24px 0; text-align: center; }
+.emptyMsg { font-size: 13px; color: #64748b; }
+.opHint { font-size: 12px; color: #64748b; margin-bottom: 12px; }
+.opList { display: flex; flex-direction: column; gap: 8px; }
+.opBtn {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 4px;
+  padding: 12px 14px; text-align: left;
+  background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px;
+  cursor: pointer; transition: border-color .15s, background .15s;
+}
+.opBtn:hover { border-color: #2563eb; background: #eff6ff; }
+.opBtnTitle { font-size: 13px; font-weight: 600; color: #0f172a; }
+.opBtnUrl { font-size: 11px; color: #64748b; word-break: break-all; }
+
+/* ── Step 2: 파라미터 입력 ───────────────────── */
+.invokePane { padding: 16px; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; }
+.hint { font-size: 12px; color: #64748b; background: #f1f5f9; border-radius: 6px; padding: 8px 10px; }
+.hintLink { color: #2563eb; }
+
+.keyRow { display: flex; gap: 6px; }
+.saveBtn {
+  padding: 0 12px; font-size: 12px; font-weight: 600;
+  border: 1px solid #cbd5e1; border-radius: 6px;
+  background: #fff; color: #475569;
+  cursor: pointer; white-space: nowrap; flex-shrink: 0;
+}
+.saveBtn:disabled { cursor: default; opacity: .65; }
+.saveBtnSaved { background: #dcfce7; color: #15803d; }
+
+.paramRow { display: flex; gap: 6px; margin-bottom: 6px; }
+.removeBtn { padding: 0 10px; border: 1px solid #cbd5e1; border-radius: 6px; background: #fff; cursor: pointer; color: #64748b; }
+.addParamBtn { font-size: 12px; padding: 4px 10px; border: 1px dashed #cbd5e1; border-radius: 6px; background: #fff; cursor: pointer; color: #475569; }
+
+.runBtn { padding: 9px 14px; font-size: 13px; font-weight: 700; background: #2563eb; color: #fff; border: none; border-radius: 6px; cursor: pointer; }
+.runBtn:disabled { background: #93c5fd; cursor: default; }
+
+.errorMsg { font-size: 12px; color: #b91c1c; background: #fef2f2; border: 1px solid #fecaca; border-radius: 6px; padding: 8px 10px; }
+
+/* ── 결과 블록 ────────────────────────────────── */
+.result { border-radius: 8px; overflow: hidden; }
+.resultSuccess { border: 1px solid #86efac; }
+.resultFailure { border: 1px solid #fca5a5; }
+
+.resultHeader { display: flex; gap: 10px; align-items: center; padding: 8px 12px; flex-wrap: wrap; }
+.resultHeaderSuccess { background: #f0fdf4; }
+.resultHeaderFailure { background: #fef2f2; }
+
+.statusLabel { font-weight: 700; font-size: 13px; }
+.statusSuccess { color: #15803d; }
+.statusFailure { color: #b91c1c; }
+
+.httpBadge { font-size: 12px; font-weight: 600; padding: 1px 7px; border-radius: 4px; }
+.httpBadgeSuccess { background: #dcfce7; color: #166534; }
+.httpBadgeFailure { background: #fee2e2; color: #991b1b; }
+
+.elapsed { font-size: 12px; color: #64748b; margin-left: auto; }
+.contentType { font-size: 11px; color: #94a3b8; }
+
+.resultMsg { font-size: 12px; color: #b91c1c; padding: 6px 12px; background: #fef2f2; }
+.resultHint { font-size: 12px; color: #92400e; background: #fffbeb; border-top: 1px solid #fde68a; padding: 8px 12px; }
+
+.bodyError { font-size: 12px; background: #1e0a0a; color: #fca5a5; padding: 12px; margin: 0; overflow-x: auto; overflow-y: auto; max-height: 200px; }
+.requestUrl { font-size: 11px; color: #94a3b8; padding: 4px 12px; border-top: 1px solid #f1f5f9; word-break: break-all; }
+.bodySuccess { font-size: 12px; background: #0f172a; color: #e2e8f0; padding: 12px; margin: 0; overflow-x: auto; overflow-y: auto; max-height: 400px; }
+.noBody { font-size: 12px; color: #64748b; padding: 8px 12px; }

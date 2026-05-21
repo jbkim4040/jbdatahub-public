@@ -26,15 +26,22 @@ public class ServiceKeyEncryptor {
     private static final int TAG_BITS = 128;
     private static final SecureRandom SECURE_RANDOM = new SecureRandom();
 
+    static final String DEV_DEFAULT_SECRET = "jb-local-dev-secret-do-not-use-in-prod";
+
     private final SecretKeySpec secretKey;
+    /** prod에서 환경변수 없이 기본값 사용 중인지 판별 — ServiceKeyMigration 가드용 */
+    private final boolean usingDefaultSecret;
 
     public ServiceKeyEncryptor(
-            @Value("${service-key.encryption-secret:jb-local-dev-secret-do-not-use-in-prod}") String secret)
+            @Value("${service-key.encryption-secret:" + DEV_DEFAULT_SECRET + "}") String secret)
             throws Exception {
+        this.usingDefaultSecret = DEV_DEFAULT_SECRET.equals(secret);
         byte[] raw = MessageDigest.getInstance("SHA-256")
                 .digest(secret.getBytes(StandardCharsets.UTF_8));
         secretKey = new SecretKeySpec(raw, "AES");
     }
+
+    public boolean isUsingDefaultSecret() { return usingDefaultSecret; }
 
     public String encrypt(String plaintext) {
         if (plaintext == null || plaintext.isBlank()) return plaintext;

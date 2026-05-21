@@ -53,6 +53,7 @@ public class JwtFilter extends OncePerRequestFilter {
             }).orElse(false);
 
             if (userActive && !dbRevoked && !userTokenRevocationStore.isRevoked(username, issuedAt)) {
+                request.setAttribute("jb.user", userOpt.get()); // me() 에서 재조회 생략용
                 var auth = new UsernamePasswordAuthenticationToken(
                         username, null,
                         List.of(new SimpleGrantedAuthority("ROLE_" + role))

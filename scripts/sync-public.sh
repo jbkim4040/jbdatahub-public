@@ -3,7 +3,7 @@
 
 set -e
 
-PAT="GH_PAT_REDACTED"
+PAT="${GH_PAT:?GH_PAT environment variable is required}"
 PRIVATE_REPO="https://jbkim4040:${PAT}@github.com/jbkim4040/jb-workspace.git"
 PUBLIC_REPO="https://jbkim4040:${PAT}@github.com/jbkim4040/jbdatahub-public.git"
 WORK_DIR="/tmp/jb-mirror-$$"

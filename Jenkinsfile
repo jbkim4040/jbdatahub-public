@@ -199,7 +199,7 @@ pipeline {
             echo "배포 성공: Build #${BUILD_NUMBER}"
             sh '''
                 GITHUB_TOKEN=$(grep ^GITHUB_TOKEN= /var/jenkins_home/secrets/.env | cut -d= -f2-)
-                curl -sf -X POST -H "Authorization: token ${GITHUB_TOKEN}" -H "Content-Type: application/json" \
+                curl -s -X POST -H "Authorization: token ${GITHUB_TOKEN}" -H "Content-Type: application/json" \
                   https://api.github.com/repos/jbkim4040/jb-workspace/statuses/${GIT_COMMIT} \
                   -d "{\"state\":\"success\",\"description\":\"Build #${BUILD_NUMBER} passed\",\"context\":\"jenkins/build\"}" \
                   -o /dev/null || true
@@ -209,7 +209,7 @@ pipeline {
             echo "배포 실패: Build #${BUILD_NUMBER}"
             sh '''
                 GITHUB_TOKEN=$(grep ^GITHUB_TOKEN= /var/jenkins_home/secrets/.env | cut -d= -f2-)
-                curl -sf -X POST -H "Authorization: token ${GITHUB_TOKEN}" -H "Content-Type: application/json" \
+                curl -s -X POST -H "Authorization: token ${GITHUB_TOKEN}" -H "Content-Type: application/json" \
                   https://api.github.com/repos/jbkim4040/jb-workspace/statuses/${GIT_COMMIT} \
                   -d "{\"state\":\"failure\",\"description\":\"Build #${BUILD_NUMBER} failed\",\"context\":\"jenkins/build\"}" \
                   -o /dev/null || true

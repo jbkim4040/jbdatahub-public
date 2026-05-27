@@ -2,6 +2,7 @@
 import httpx
 import logging
 import os
+import time
 from fastapi import Request, HTTPException
 from fastapi.responses import JSONResponse
 
@@ -17,6 +18,11 @@ SKIP_PREFIXES = ("/assets/", "/favicon", "/index.html")
 SKIP_API_PREFIXES = ("/api/portal-login/",)
 ALLOWED_MUTATION_PATHS = {"/api/auth/login", "/api/auth/logout"}
 
+# token → (role, expiry_monotonic): /api/auth/me 호출 결과를 60초 캐시하여
+# 매 요청마다 Spring Boot를 호출하는 레이턴시·장애 전파를 방지
+_role_cache: dict[str, tuple[str, float]] = {}
+_CACHE_TTL = 60.0
+
 
 def require_roles(*allowed: str):
     """라우트 레벨 역할 검증 Depends — middleware가 주입한 request.state.role 사용."""
@@ -30,6 +36,28 @@ def require_roles(*allowed: str):
             )
         return role
     return _dep
+
+
+async def _resolve_role(token: str) -> str | None:
+    now = time.monotonic()
+    cached = _role_cache.get(token)
+    if cached and now < cached[1]:
+        return cached[0]
+
+    try:
+        async with httpx.AsyncClient(timeout=3.0) as client:
+            r = await client.get(
+                f"{JBDATAHUB_URL}/api/auth/me",
+                cookies={"jb_token": token},
+            )
+        if r.status_code == 200:
+            role = r.json().get("role")
+            if role:
+                _role_cache[token] = (role, now + _CACHE_TTL)
+            return role
+    except Exception as e:
+        logger.warning(f"admin auth /me 위임 실패: {e}")
+    return None
 
 
 async def admin_auth_middleware(request: Request, call_next):
@@ -52,18 +80,7 @@ async def admin_auth_middleware(request: Request, call_next):
         if auth_header.lower().startswith("bearer "):
             token = auth_header.split(None, 1)[1]
 
-    role = None
-    if token:
-        try:
-            async with httpx.AsyncClient(timeout=3.0) as client:
-                r = await client.get(
-                    f"{JBDATAHUB_URL}/api/auth/me",
-                    cookies={"jb_token": token},
-                )
-            if r.status_code == 200:
-                role = r.json().get("role")
-        except Exception as e:
-            logger.warning(f"admin auth /me 위임 실패: {e}")
+    role = await _resolve_role(token) if token else None
 
     if role not in ALLOWED_ROLES:
         status = 403 if role else 401

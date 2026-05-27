@@ -275,3 +275,38 @@
   color: #52525b;
   border-top: 1px solid rgba(255, 255, 255, 0.04);
 }
+
+/* GUEST(뷰어) 역할 뱃지 */
+.roleGuest {
+  background: rgba(168, 85, 247, 0.12);
+  color: #c084fc;
+  border: 1px solid rgba(168, 85, 247, 0.3);
+}
+
+/* 준비중(disabled) 카드 */
+.cardDisabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+.cardDisabled:hover {
+  transform: none;
+  background: #15151f;
+  border-color: rgba(255, 255, 255, 0.06);
+}
+
+/* "준비중" 인라인 뱃지 */
+.comingSoon {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 8px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  font-size: 0.62rem;
+  font-weight: 700;
+  color: #71717a;
+  letter-spacing: 0.04em;
+  vertical-align: middle;
+}

@@ -87,9 +87,10 @@ export default function HomePage() {
                 <span className={`${styles.roleBadge} ${
                   isSuperAdmin ? styles.roleSuper :
                   isAdmin      ? styles.roleAdmin :
+                  isGuest      ? styles.roleGuest :
                                  styles.rolePublic
                 }`}>
-                  {isSuperAdmin ? '슈퍼관리자' : isAdmin ? '관리자' : '회원'}
+                  {isSuperAdmin ? '슈퍼관리자' : isAdmin ? '관리자' : isGuest ? '뷰어' : '회원'}
                 </span>
                 <button onClick={handleLogout} className={styles.logoutBtn}>
                   로그아웃

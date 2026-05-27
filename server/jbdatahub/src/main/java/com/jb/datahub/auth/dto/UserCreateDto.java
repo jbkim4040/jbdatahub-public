@@ -17,6 +17,7 @@ public class UserCreateDto {
     @Size(min = 8, max = 100, message = "password 8자 이상")
     private String password;
 
-    @Pattern(regexp = "^(ADMIN|USER|GUEST)$", message = "role 는 ADMIN/USER/GUEST")
+    // SUPER_ADMIN 생성은 resolveRole()에서 requestingRole 기반으로 제어
+    @Pattern(regexp = "^(ADMIN|USER|GUEST)$", message = "role 은 ADMIN/USER/GUEST 중 하나")
     private String role;
 }

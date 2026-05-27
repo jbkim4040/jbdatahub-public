@@ -1,6 +1,7 @@
 package com.jb.datahub.auth;
 
 import com.jb.datahub.auth.dto.*;
+import com.jb.datahub.auth.entity.Role;
 import com.jb.datahub.auth.entity.User;
 import com.jb.datahub.auth.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
@@ -30,7 +31,7 @@ public class UserService {
         if (userRepository.existsByUsername(dto.getUsername())) {
             throw new IllegalArgumentException("이미 존재하는 사용자명입니다: " + dto.getUsername());
         }
-        String role = resolveRole(dto.getRole(), requestingRole);
+        Role role = resolveRole(dto.getRole(), requestingRole);
         User user = User.builder()
                 .username(dto.getUsername())
                 .password(passwordEncoder.encode(dto.getPassword()))
@@ -53,7 +54,6 @@ public class UserService {
         if (dto.getActive() != null) {
             user.setActive(dto.getActive());
             if (!dto.getActive()) {
-                // 비활성화 시 리프레시 토큰 폐기 + 액세스 토큰 즉시 무효화
                 refreshTokenService.revokeByUsername(user.getUsername());
                 userTokenRevocationStore.revoke(user.getUsername());
             }
@@ -66,7 +66,6 @@ public class UserService {
         User user = getUser(id);
         checkCanManage(user.getRole(), requestingRole);
         user.setPassword(passwordEncoder.encode(dto.getNewPassword()));
-        // 비밀번호 변경 시 기존 토큰 모두 무효화
         refreshTokenService.revokeByUsername(user.getUsername());
         userTokenRevocationStore.revoke(user.getUsername());
     }
@@ -77,12 +76,11 @@ public class UserService {
         if (user.getUsername().equals(requestingUsername)) {
             throw new IllegalArgumentException("자기 자신은 삭제할 수 없습니다.");
         }
-        if (requestingRole.equals(user.getRole())) {
+        if (user.getRole().name().equals(requestingRole)) {
             throw new IllegalArgumentException("같은 권한(" + requestingRole + ")의 계정은 삭제할 수 없습니다.");
         }
         checkCanManage(user.getRole(), requestingRole);
 
-        // 삭제 전 토큰 즉시 무효화 (DB + memory)
         refreshTokenService.revokeByUsername(user.getUsername());
         user.setTokensRevokedAt(java.time.Instant.now());
         userRepository.save(user);
@@ -90,19 +88,17 @@ public class UserService {
         userRepository.delete(user);
     }
 
-    /** 강제 로그아웃: 리프레시 토큰 폐기 + 액세스 토큰 즉시 무효화 */
     @Transactional
     public void revokeTokens(Long id, String requestingUsername, String requestingRole) {
         User user = getUser(id);
         if (user.getUsername().equals(requestingUsername)) {
             throw new IllegalArgumentException("자기 자신에게 강제 로그아웃을 적용할 수 없습니다.");
         }
-        if (user.getRole().equals(requestingRole)) {
+        if (user.getRole().name().equals(requestingRole)) {
             throw new IllegalArgumentException("같은 권한(" + requestingRole + ")의 계정에 강제 로그아웃을 적용할 수 없습니다.");
         }
         checkCanManage(user.getRole(), requestingRole);
         refreshTokenService.revokeByUsername(user.getUsername());
-        // DB 영속화 — Blue/Green 컨테이너 간 공유 가능
         user.setTokensRevokedAt(java.time.Instant.now());
         userRepository.save(user);
         userTokenRevocationStore.revoke(user.getUsername());
@@ -113,22 +109,27 @@ public class UserService {
                 .orElseThrow(() -> new IllegalArgumentException("사용자를 찾을 수 없습니다: " + id));
     }
 
-    private void checkCanManage(String targetRole, String requestingRole) {
+    private void checkCanManage(Role targetRole, String requestingRole) {
         if (!"SUPER_ADMIN".equals(requestingRole) &&
-                ("ADMIN".equals(targetRole) || "SUPER_ADMIN".equals(targetRole))) {
+                (targetRole == Role.ADMIN || targetRole == Role.SUPER_ADMIN)) {
             throw new IllegalArgumentException("해당 계정을 관리할 권한이 없습니다.");
         }
     }
 
-    private String resolveRole(String requestedRole, String requestingRole) {
+    private Role resolveRole(String requestedRole, String requestingRole) {
+        Role requested;
+        try {
+            requested = Role.valueOf(requestedRole != null ? requestedRole : "USER");
+        } catch (IllegalArgumentException e) {
+            throw new IllegalArgumentException("유효하지 않은 역할입니다: " + requestedRole);
+        }
         if ("SUPER_ADMIN".equals(requestingRole)) {
-            if ("SUPER_ADMIN".equals(requestedRole) || "ADMIN".equals(requestedRole) || "USER".equals(requestedRole)) {
-                return requestedRole;
-            }
+            return requested;
         }
-        if ("ADMIN".equals(requestedRole)) {
-            throw new IllegalArgumentException("ADMIN 계정을 생성/변경할 권한이 없습니다.");
+        if ("ADMIN".equals(requestingRole)) {
+            if (requested == Role.USER || requested == Role.GUEST) return requested;
+            throw new IllegalArgumentException("ADMIN은 USER/GUEST 계정만 생성/변경할 수 있습니다.");
         }
-        return "USER";
+        return Role.USER;
     }
 }

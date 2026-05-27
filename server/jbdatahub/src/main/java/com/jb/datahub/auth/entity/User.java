@@ -31,10 +31,10 @@ public class User {
     @Column(nullable = false)
     private String password; // BCrypt
 
-    /** ADMIN / USER */
+    @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
     @Builder.Default
-    private String role = "USER";
+    private Role role = Role.USER;
 
     @Column(nullable = false)
     @Builder.Default

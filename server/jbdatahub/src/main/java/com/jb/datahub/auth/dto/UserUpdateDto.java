@@ -1,9 +1,11 @@
 package com.jb.datahub.auth.dto;
 
+import jakarta.validation.constraints.Pattern;
 import lombok.Getter;
 
 @Getter
 public class UserUpdateDto {
-    private String role;    // ADMIN / USER (null = 변경 안 함)
+    @Pattern(regexp = "^(ADMIN|USER|GUEST)$", message = "role 은 ADMIN/USER/GUEST 중 하나")
+    private String role;    // null = 변경 안 함
     private Boolean active; // null = 변경 안 함
 }

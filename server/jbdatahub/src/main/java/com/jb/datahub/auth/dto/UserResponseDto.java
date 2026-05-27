@@ -17,7 +17,7 @@ public class UserResponseDto {
     public UserResponseDto(User u) {
         this.id        = u.getId();
         this.username  = u.getUsername();
-        this.role      = u.getRole();
+        this.role      = u.getRole().name();
         this.active    = u.isActive();
         this.createdAt = u.getCreatedAt();
         this.lastLoginAt = u.getLastLoginAt();

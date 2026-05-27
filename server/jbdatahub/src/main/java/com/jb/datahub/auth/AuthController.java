@@ -88,13 +88,13 @@ public class AuthController {
         failCounter.remove(request.getUsername());  // 성공 시 카운터 리셋
         user.setLastLoginAt(java.time.LocalDateTime.now());
         userRepository.save(user);
-        String token = jwtUtil.generateToken(user.getUsername(), user.getRole());
+        String token = jwtUtil.generateToken(user.getUsername(), user.getRole().name());
         RefreshToken rt = refreshTokenService.create(user.getUsername());
 
         return ResponseEntity.ok()
                 .header(HttpHeaders.SET_COOKIE, authCookie(TOKEN_COOKIE, token, TOKEN_MAX_AGE, "/").toString())
                 .header(HttpHeaders.SET_COOKIE, authCookie(REFRESH_COOKIE, rt.getToken(), REFRESH_MAX_AGE, "/api/auth").toString())
-                .body(new LoginResponseDto(user.getUsername(), user.getRole()));
+                .body(new LoginResponseDto(user.getUsername(), user.getRole().name()));
     }
 
     @PostMapping("/refresh")

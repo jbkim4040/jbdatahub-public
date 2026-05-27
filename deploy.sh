@@ -78,7 +78,7 @@ fi
 # 임시 파일에 생성 → 토큰 치환 검증 → nginx -t 통과 후에만 교체 (TOCTOU 방지)
 NGINX_CONF_TMP=$(mktemp)
 sed "s/ACTIVE_COLOR/jbdatahub-${INACTIVE}/" \
-    "$WORKSPACE_DIR/nginx/conf.d/default.conf.tmpl" > "$NGINX_CONF_TMP"
+    "$WORKSPACE_DIR/nginx/conf.d/was.conf.tmpl" > "$NGINX_CONF_TMP"
 if grep -q "ACTIVE_COLOR" "$NGINX_CONF_TMP"; then
     echo "❌ nginx 템플릿 치환 실패 — ACTIVE_COLOR 토큰 미치환"
     rm -f "$NGINX_CONF_TMP"; docker stop "jbdatahub-${INACTIVE}" 2>/dev/null || true; exit 1

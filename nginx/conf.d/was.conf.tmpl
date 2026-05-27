@@ -27,9 +27,10 @@ server {
 # HTTPS
 server {
     listen 443 ssl;
+    http2  on;
     server_name jbdatahub.com;
 
-    # Let's Encrypt origin cert (cert.pem/key.pem 는 호스트의 /home/ubuntu/nginx-ssl/ 에서 마운트)
+    # Let's Encrypt origin cert
     ssl_certificate     /etc/nginx/ssl/cert.pem;
     ssl_certificate_key /etc/nginx/ssl/key.pem;
     ssl_protocols       TLSv1.2 TLSv1.3;

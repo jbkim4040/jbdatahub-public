@@ -15,6 +15,7 @@ pipeline {
         DOCKER_BUILDKIT = "1"
         APP_SERVER      = "ubuntu@140.245.74.59"
         PROMETHEUS_URL  = "http://168.107.20.90:9091"
+        CI_SERVER       = "ubuntu@168.107.20.90"
         TRIVY_CACHE     = "/tmp/trivy-cache"
     }
 
@@ -40,15 +41,16 @@ pipeline {
                         echo "변경 파일:\n${changed}"
                         env.BUILD_SERVER = changed.split('\n').any { it.startsWith('server/jbdatahub/') } ? 'true' : 'false'
                         env.BUILD_UI = changed.split('\n').any { it.startsWith('ui/jbdatahub/') } ? 'true' : 'false'
-                        if (changed.split('\n').any { it.startsWith('nginx/') || it == 'Jenkinsfile' || it == 'docker-compose.yml' || it.startsWith('deploy') }) {
+                        env.BUILD_NGINX_CI = changed.split('\n').any { it == 'nginx/conf.d/ci.conf' } ? 'true' : 'false'
+                        if (changed.split('\n').any { it == 'nginx/conf.d/was.conf.tmpl' || it == 'Jenkinsfile' || it == 'docker-compose.yml' || it.startsWith('deploy') }) {
                             env.BUILD_SERVER = 'true'
                             env.BUILD_UI = 'true'
                         }
-                        if (env.BUILD_SERVER == 'false' && env.BUILD_UI == 'false') {
+                        if (env.BUILD_SERVER == 'false' && env.BUILD_UI == 'false' && env.BUILD_NGINX_CI == 'false') {
                             env.BUILD_SERVER = 'true'
                         }
                     }
-                    echo "BUILD_SERVER=${env.BUILD_SERVER}  BUILD_UI=${env.BUILD_UI}"
+                    echo "BUILD_SERVER=${env.BUILD_SERVER}  BUILD_UI=${env.BUILD_UI}  BUILD_NGINX_CI=${env.BUILD_NGINX_CI}"
                 }
             }
         }
@@ -162,6 +164,26 @@ pipeline {
                              -v /home/ubuntu/jb-workspace-deploy/certbot/www:/var/www/certbot:ro \
                              --network jb-workspace_app-network nginx:alpine)"
                 '''
+            }
+        }
+
+
+        stage('CI Nginx 업데이트') {
+            when { expression { return env.BUILD_NGINX_CI == 'true' } }
+            steps {
+                sh '''
+                    scp -o StrictHostKeyChecking=no \
+                        $WORKSPACE/nginx/conf.d/ci.conf \
+                        $CI_SERVER:/tmp/jb-ci-nginx.conf
+                    ssh -o StrictHostKeyChecking=no $CI_SERVER \
+                        "docker cp /tmp/jb-ci-nginx.conf nginx-ssl:/etc/nginx/conf.d/ssl.conf && \
+                         docker exec nginx-ssl nginx -t && \
+                         docker exec nginx-ssl nginx -s reload && \
+                         rm -f /tmp/jb-ci-nginx.conf"
+                '''
+            }
+            post {
+                failure { error 'CI Nginx 업데이트 실패 — nginx -t 결과를 확인하세요.' }
             }
         }
 

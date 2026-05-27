@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Request, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException, Request, BackgroundTasks
 from typing import Optional
 import httpx
 import hmac
@@ -12,6 +12,7 @@ logger = logging.getLogger(__name__)
 logger = logging.getLogger(__name__)
 
 from config import settings
+from middleware.admin_auth import require_roles
 # from database import get_db  # replaced by get_pool
 
 router = APIRouter()
@@ -240,7 +241,7 @@ async def review_pr(pr_number: int):
 
 
 @router.post("/{pr_number}/merge")
-async def merge_pr(pr_number: int):
+async def merge_pr(pr_number: int, _: str = Depends(require_roles("SUPER_ADMIN"))):
     """PR squash merge"""
     repo = settings.github_repo
     pr = await gh_get(f"/repos/{repo}/pulls/{pr_number}")

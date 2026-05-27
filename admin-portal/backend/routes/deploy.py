@@ -1,7 +1,8 @@
 import asyncio
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 import httpx
 from config import settings
+from middleware.admin_auth import require_roles
 
 router = APIRouter()
 
@@ -43,12 +44,13 @@ async def get_build(build_number: int):
         )
     d = detail.json()
     lines = log.text.splitlines()
-    d["console_tail"] = "\n".join(lines[-50:])
+    d["console_tail"] = "
+".join(lines[-50:])
     return d
 
 
 @router.post("/trigger")
-async def trigger_deploy():
+async def trigger_deploy(_: str = Depends(require_roles("SUPER_ADMIN"))):
     async with httpx.AsyncClient(timeout=10) as client:
         crumb = await _get_crumb(client)
         r = await client.post(
@@ -62,7 +64,7 @@ async def trigger_deploy():
 
 
 @router.post("/security-scan")
-async def trigger_security_scan():
+async def trigger_security_scan(_: str = Depends(require_roles("ADMIN", "SUPER_ADMIN"))):
     async with httpx.AsyncClient(timeout=10) as client:
         crumb = await _get_crumb(client)
         r = await client.post(
@@ -79,7 +81,6 @@ async def trigger_security_scan():
 
 @router.get("/status")
 async def deployment_status():
-    # 컨테이너 내부에서 SSH 불가 — 별도 endpoint로 받거나 unknown
     active_slot = "unknown"
     try:
         proc = await asyncio.create_subprocess_exec(
@@ -93,7 +94,7 @@ async def deployment_status():
         stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=3)
         active_slot = stdout.decode().strip() or "unknown"
     except Exception:
-        pass  # SSH 불가 시 unknown
+        pass
 
     async with httpx.AsyncClient(timeout=10) as client:
         r = await client.get(

@@ -3,7 +3,7 @@ import { logout as logoutApi } from '../api/authApi'
 
 const STORAGE_KEY = 'jb_user'
 
-const defaultValue = { auth: null, isAdmin: false, login: () => {}, logout: () => {} }
+const defaultValue = { auth: null, isAdmin: false, isSuperAdmin: false, isGuest: false, login: () => {}, logout: () => {} }
 const AuthContext = createContext(defaultValue)
 
 function readSavedUser() {
@@ -31,9 +31,10 @@ export function AuthProvider({ children }) {
 
   const isAdmin = auth?.role === 'ADMIN' || auth?.role === 'SUPER_ADMIN'
   const isSuperAdmin = auth?.role === 'SUPER_ADMIN'
+  const isGuest = auth?.role === 'GUEST'
 
   return (
-    <AuthContext.Provider value={{ auth, isAdmin, isSuperAdmin, login, logout }}>
+    <AuthContext.Provider value={{ auth, isAdmin, isSuperAdmin, isGuest, login, logout }}>
       {children}
     </AuthContext.Provider>
   )

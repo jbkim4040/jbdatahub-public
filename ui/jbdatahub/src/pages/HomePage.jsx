@@ -12,6 +12,7 @@ const SERVICES = [
     name: 'Compass',
     desc: 'KRX·NASDAQ 종목 검색, 지표 분석, AI 리포트, 모의투자',
     role: 'public',
+    disabled: true,
   },
   {
     category: 'APP',      accent: '#f97316',
@@ -58,12 +59,12 @@ const ROLE_LABEL = {
 
 export default function HomePage() {
   const navigate = useNavigate()
-  const { auth, isAdmin, isSuperAdmin, logout } = useAuth()
+  const { auth, isAdmin, isSuperAdmin, isGuest, logout } = useAuth()
   const isAuthed = !!auth
 
   const visible = SERVICES.filter(s => {
     if (s.role === 'public')      return true
-    if (s.role === 'admin')       return isAdmin
+    if (s.role === 'admin')       return isAdmin || isGuest
     if (s.role === 'super_admin') return isSuperAdmin
     return false
   })
@@ -123,16 +124,18 @@ export default function HomePage() {
           {visible.map(s => (
             <a
               key={s.host}
-              href={`https://${s.host}`}
-              target="_blank"
+              href={s.disabled ? undefined : `https://${s.host}`}
+              target={s.disabled ? undefined : '_blank'}
               rel="noreferrer"
-              className={styles.card}
+              className={`${styles.card}${s.disabled ? ' ' + styles.cardDisabled : ''}`}
               style={{ '--accent': s.accent }}
+              aria-disabled={s.disabled}
+              onClick={s.disabled ? (e) => e.preventDefault() : undefined}
             >
               <div className={styles.cardTopLine} aria-hidden />
               <div className={styles.cardIcon}>{s.icon}</div>
               <div className={styles.cardCategory}>{s.category}</div>
-              <div className={styles.cardName}>{s.name}</div>
+              <div className={styles.cardName}>{s.name}{s.disabled && <span className={styles.comingSoon}>준비중</span>}</div>
               <p className={styles.cardDesc}>{s.desc}</p>
               <div className={styles.cardFoot}>
                 <span className={`${styles.pill} ${styles[ROLE_LABEL[s.role].className]}`}>
@@ -161,3 +164,4 @@ export default function HomePage() {
     </div>
   )
 }
+

@@ -7,6 +7,7 @@ import Deploy from './pages/Deploy'
 import RequestPage from './pages/RequestPage'
 import ReportsPage from './pages/ReportsPage'
 import SubscriptionPage from './pages/SubscriptionPage'
+import GeminiUsage from './pages/GeminiUsage'
 
 export default function App() {
   return (
@@ -19,6 +20,7 @@ export default function App() {
         <Route path="request/*"  element={<RequestPage />} />
         <Route path="reports/*"  element={<ReportsPage />} />
         <Route path="subscriptions/*" element={<SubscriptionPage />} />
+        <Route path="gemini/*"   element={<GeminiUsage />} />
       </Route>
     </Routes>
   )

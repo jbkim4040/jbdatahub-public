@@ -36,4 +36,10 @@ export const reportsApi = {
   docxUrl:(id)             => `/api/reports/${id}/docx`,
 }
 
+export const geminiUsageApi = {
+  summary:        ()             => api.get('/gemini-usage/summary'),
+  timeseries:     (days = 30)    => api.get(`/gemini-usage/timeseries?days=${days}`),
+  recentFailures: (limit = 20)   => api.get(`/gemini-usage/recent-failures?limit=${limit}`),
+}
+
 export default api

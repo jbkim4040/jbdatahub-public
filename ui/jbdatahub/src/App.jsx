@@ -15,8 +15,11 @@ export default function App() {
     <ToastProvider>
       <AuthProvider>
       <Routes>
+        {/* 포털 홈 — 자체 헤더 + 다크 테마 (Layout 미적용) */}
+        <Route index element={<HomePage />} />
+
+        {/* 그 외 페이지 — 기존 Layout (네비 + 푸터) */}
         <Route path="/" element={<Layout />}>
-          <Route index element={<HomePage />} />
           <Route path="login" element={<LoginPage />} />
           <Route path="list" element={<ListPage />} />
           <Route

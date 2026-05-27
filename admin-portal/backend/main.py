@@ -8,7 +8,7 @@ from fastapi.staticfiles import StaticFiles
 from pathlib import Path
 from database import init_pool, close_pool
 import asyncio
-from routes import pr, security, deploy, request, reports, subscription, errors, portal_login, gemini_usage
+from routes import pr, security, deploy, request, reports, subscription, errors, portal_login, gemini_usage, photo_reports
 from routes.portal_login import session_expiry_scheduler
 
 
@@ -62,6 +62,7 @@ app.include_router(subscription.router, prefix="/api/subscription", tags=["Subsc
 app.include_router(portal_login.router, prefix="/api/portal-login", tags=["PortalLogin"])
 app.include_router(errors.router,   prefix="/api/errors",   tags=["Errors"])
 app.include_router(gemini_usage.router, prefix="/api/gemini-usage", tags=["GeminiUsage"])
+app.include_router(photo_reports.router, prefix="/api/photo-reports", tags=["PhotoReports"])
 
 
 @app.get("/api/health")

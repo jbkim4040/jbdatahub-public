@@ -8,7 +8,6 @@ import com.jb.datahub.auth.entity.User;
 import com.jb.datahub.auth.repository.UserRepository;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import com.jb.datahub.auth.entity.User;
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -153,6 +152,28 @@ public class AuthController {
                 "serviceKey", serviceKey));
     }
 
+    @GetMapping("/validate-key")
+    @Operation(summary = "서비스 키 검증 (recipe-saver 등 외부 서비스용, 인증 불필요)")
+    public ResponseEntity<?> validateKey(HttpServletRequest httpReq) {
+        String rawKey = httpReq.getHeader("X-Service-Key");
+        if (rawKey == null || rawKey.isBlank()) {
+            return ResponseEntity.status(401).body(Map.of("error", "X-Service-Key 헤더가 없습니다."));
+        }
+        return userRepository.findByServiceKeyNotNull().stream()
+                .filter(u -> {
+                    try {
+                        return rawKey.equals(serviceKeyEncryptor.decrypt(u.getServiceKey()));
+                    } catch (Exception ignored) {
+                        return false;
+                    }
+                })
+                .findFirst()
+                .map(u -> ResponseEntity.ok((Object) Map.of(
+                        "username", u.getUsername(),
+                        "role", u.getRole().name())))
+                .orElse(ResponseEntity.status(401).body(Map.of("error", "유효하지 않은 서비스 키입니다.")));
+    }
+
     @PatchMapping("/me/service-key")
     public ResponseEntity<?> updateServiceKey(@RequestBody Map<String, String> body) {
         var auth = org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
@@ -237,4 +258,3 @@ public class AuthController {
                 .build();
     }
 }
-

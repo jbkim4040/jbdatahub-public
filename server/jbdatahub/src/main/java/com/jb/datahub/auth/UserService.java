@@ -1,5 +1,6 @@
 package com.jb.datahub.auth;
 
+import com.jb.datahub.audit.AuditLogService;
 import com.jb.datahub.auth.dto.*;
 import com.jb.datahub.auth.entity.Role;
 import com.jb.datahub.auth.entity.User;
@@ -19,6 +20,7 @@ public class UserService {
     private final PasswordEncoder            passwordEncoder;
     private final RefreshTokenService        refreshTokenService;
     private final UserTokenRevocationStore   userTokenRevocationStore;
+    private final AuditLogService            auditLogService;
 
     public List<UserResponseDto> findAll() {
         return userRepository.findAll().stream()
@@ -37,7 +39,10 @@ public class UserService {
                 .password(passwordEncoder.encode(dto.getPassword()))
                 .role(role)
                 .build();
-        return new UserResponseDto(userRepository.save(user));
+        UserResponseDto result = new UserResponseDto(userRepository.save(user));
+        auditLogService.log("USER_CREATE", dto.getUsername(),
+                "created by=" + requestingRole + " role=" + role.name());
+        return result;
     }
 
     @Transactional
@@ -48,14 +53,22 @@ public class UserService {
         if (dto.getRole() != null && user.getUsername().equals(requestingUsername)) {
             throw new IllegalArgumentException("자기 자신의 권한은 변경할 수 없습니다.");
         }
+        String oldRole = user.getRole().name();
         if (dto.getRole() != null) {
-            user.setRole(resolveRole(dto.getRole(), requestingRole));
+            Role newRole = resolveRole(dto.getRole(), requestingRole);
+            user.setRole(newRole);
+            if (!oldRole.equals(newRole.name())) {
+                auditLogService.log("ROLE_CHANGE", user.getUsername(),
+                        "by=" + requestingUsername + " " + oldRole + "->" + newRole.name());
+            }
         }
         if (dto.getActive() != null) {
             user.setActive(dto.getActive());
             if (!dto.getActive()) {
                 refreshTokenService.revokeByUsername(user.getUsername());
                 userTokenRevocationStore.revoke(user.getUsername());
+                auditLogService.log("USER_DEACTIVATE", user.getUsername(),
+                        "by=" + requestingUsername);
             }
         }
         return new UserResponseDto(user);
@@ -68,6 +81,8 @@ public class UserService {
         user.setPassword(passwordEncoder.encode(dto.getNewPassword()));
         refreshTokenService.revokeByUsername(user.getUsername());
         userTokenRevocationStore.revoke(user.getUsername());
+        auditLogService.log("PASSWORD_CHANGE", user.getUsername(),
+                "by_role=" + requestingRole);
     }
 
     @Transactional
@@ -81,6 +96,8 @@ public class UserService {
         }
         checkCanManage(user.getRole(), requestingRole);
 
+        auditLogService.log("USER_DELETE", user.getUsername(),
+                "by=" + requestingUsername + " role=" + user.getRole().name());
         refreshTokenService.revokeByUsername(user.getUsername());
         user.setTokensRevokedAt(java.time.Instant.now());
         userRepository.save(user);
@@ -102,6 +119,8 @@ public class UserService {
         user.setTokensRevokedAt(java.time.Instant.now());
         userRepository.save(user);
         userTokenRevocationStore.revoke(user.getUsername());
+        auditLogService.log("TOKEN_REVOKE", user.getUsername(),
+                "by=" + requestingUsername);
     }
 
     private User getUser(Long id) {

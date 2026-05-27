@@ -46,6 +46,7 @@ public class SecurityConfig {
             .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/api/auth/login", "/api/auth/refresh", "/api/auth/logout", "/api/health").permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/auth/validate-key").permitAll()
                 .requestMatchers("/api/auth/me").authenticated()
                 // actuator — 운영에선 nginx allow 127.0.0.1 으로 차단되지만 Docker 내부 우회 대비 인증 강제
                 .requestMatchers("/actuator/**").hasAnyRole("ADMIN", "SUPER_ADMIN")
@@ -83,4 +84,3 @@ public class SecurityConfig {
         return source;
     }
 }
-

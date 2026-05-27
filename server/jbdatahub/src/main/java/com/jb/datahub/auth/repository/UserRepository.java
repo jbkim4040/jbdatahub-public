@@ -10,6 +10,7 @@ import java.util.Optional;
 public interface UserRepository extends JpaRepository<User, Long> {
     Optional<User> findByUsername(String username);
     boolean existsByUsername(String username);
+    List<User> findByServiceKeyNotNull();
 
     @Query("SELECT u FROM User u WHERE u.serviceKey IS NOT NULL AND u.serviceKey NOT LIKE 'enc:%'")
     List<User> findUsersWithPlaintextServiceKey();

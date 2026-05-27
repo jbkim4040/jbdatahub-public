@@ -48,6 +48,8 @@ public class SecurityConfig {
                 .requestMatchers("/api/auth/login", "/api/auth/refresh", "/api/auth/logout", "/api/health").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/auth/validate-key").permitAll()
                 .requestMatchers("/api/auth/me").authenticated()
+                // Prometheus scraping: internal network only, no auth needed
+                .requestMatchers("/actuator/prometheus").permitAll()
                 .requestMatchers("/actuator/**").hasAnyRole("ADMIN", "SUPER_ADMIN")
                 .requestMatchers(HttpMethod.GET, "/api/public-data/**").permitAll()
                 .requestMatchers(HttpMethod.POST, "/api/public-data/invoke").permitAll()

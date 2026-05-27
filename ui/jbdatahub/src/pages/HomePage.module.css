@@ -28,6 +28,112 @@
   margin-top: 0.2rem;
 }
 
+/* ── 서브도메인 서비스 섹션 ── */
+.servicesSection {
+  max-width: 1080px;
+  margin: 0 auto 3rem;
+  padding: 0 0.5rem;
+}
+.sectionTitle {
+  font-size: 1.4rem;
+  color: #1e3a5f;
+  font-weight: 700;
+  margin-bottom: 0.4rem;
+  text-align: left;
+}
+.sectionDesc {
+  font-size: 0.9rem;
+  color: #6b7c93;
+  margin-bottom: 1.4rem;
+  text-align: left;
+}
+.serviceGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 1rem;
+}
+.serviceCard {
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+  padding: 1.1rem 1.2rem;
+  background: linear-gradient(135deg, #fafbfc 0%, #f0f5ff 100%);
+  border: 1px solid #d8e3f5;
+  border-radius: 14px;
+  text-decoration: none;
+  color: inherit;
+  text-align: left;
+  position: relative;
+  transition: transform 0.2s, box-shadow 0.2s, border-color 0.2s;
+}
+.serviceCard:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 8px 20px rgba(30, 58, 95, 0.12);
+  border-color: #5b8ad6;
+}
+.serviceCardAdmin {
+  background: linear-gradient(135deg, #fdf6ef 0%, #fdebd2 100%);
+  border-color: #f0c896;
+}
+.serviceCardAdmin:hover {
+  border-color: #e67e22;
+}
+.serviceIcon {
+  font-size: 2rem;
+  flex-shrink: 0;
+  line-height: 1;
+}
+.serviceMeta {
+  flex: 1;
+  min-width: 0;
+}
+.serviceLabel {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #1e3a5f;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-bottom: 0.15rem;
+}
+.serviceCardAdmin .serviceLabel {
+  color: #7a3e0a;
+}
+.serviceBadge {
+  font-size: 0.62rem;
+  background: #e67e22;
+  color: #fff;
+  padding: 0.1rem 0.4rem;
+  border-radius: 4px;
+  font-weight: 600;
+}
+.serviceHost {
+  font-size: 0.75rem;
+  color: #6b7c93;
+  font-family: ui-monospace, 'SF Mono', Consolas, monospace;
+  margin-bottom: 0.35rem;
+}
+.serviceDesc {
+  font-size: 0.82rem;
+  color: #555;
+  line-height: 1.45;
+}
+.serviceArrow {
+  font-size: 1.1rem;
+  color: #b0bfd6;
+  flex-shrink: 0;
+  margin-top: 0.2rem;
+  transition: color 0.2s, transform 0.2s;
+}
+.serviceCard:hover .serviceArrow {
+  color: #5b8ad6;
+  transform: translate(2px, -2px);
+}
+.serviceCardAdmin:hover .serviceArrow {
+  color: #e67e22;
+}
+
+/* ── 기존 데이터허브 카드 ── */
 .cards { display: flex; justify-content: center; gap: 1.5rem; flex-wrap: wrap; }
 .card { background: #fff; border: 1px solid #e0e6ef; border-radius: 12px; padding: 2rem 2.5rem; width: 220px; cursor: pointer; transition: transform .2s, box-shadow .2s; }
 .card:hover { transform: translateY(-4px); box-shadow: 0 8px 20px rgba(0,0,0,.1); }

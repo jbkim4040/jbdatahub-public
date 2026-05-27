@@ -53,6 +53,19 @@ pipeline {
             }
         }
 
+        // Controller ↔ ControllerTest 1:1 대응 검사 (면제 목록: server/jbdatahub/.test-skip)
+        stage('Test Coverage Gate') {
+            when { expression { return env.BUILD_SERVER == 'true' } }
+            steps {
+                sh 'chmod +x tools/check-controller-tests.sh && bash tools/check-controller-tests.sh'
+            }
+            post {
+                failure {
+                    error 'Test Coverage Gate 실패 — 새 컨트롤러에 테스트 파일을 추가하거나 .test-skip에 면제 사유를 기재하세요.'
+                }
+            }
+        }
+
         // server 코드 변경 시 배포 전 전체 테스트 통과 필수
         stage('API 검증 (테스트)') {
             when { expression { return env.BUILD_SERVER == 'true' } }

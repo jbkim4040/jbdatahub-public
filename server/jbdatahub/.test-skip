@@ -1,0 +1,7 @@
+# Test Coverage Gate 면제 목록
+# 형식: ControllerName  # 사유
+# 이 파일에 추가하려면 PR에 팀원 승인이 필요합니다.
+
+PublicApiController  # 공공데이터 포털 API 목록 조회만 하는 Read-only 위임 컨트롤러. 
+                     # Service 레이어(PublicApiService)에서 실질 로직 테스트 커버.
+                     # Controller 단독 테스트 추가 예정 (TODO: Sprint 다음 회차)

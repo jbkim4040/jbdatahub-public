@@ -88,7 +88,7 @@ export default function HomePage() {
             {isAuthed ? (
               <>
                 <span className={styles.username}>{auth.username}</span>
-                <span className={}>
+                <span className={styles.roleBadge}>
                   {isSuperAdmin ? '코어팀' : isAdmin ? '팀원' : isGuest ? '뷰어' : '회원'}
                 </span>
                 <button onClick={handleLogout} className={styles.logoutBtn}>
@@ -121,10 +121,10 @@ export default function HomePage() {
           {visible.map(s => (
             <a
               key={s.host}
-              href={s.disabled ? undefined : }
+              href={s.disabled ? undefined : `https://${s.host}`}
               target={s.disabled ? undefined : '_blank'}
               rel="noreferrer"
-              className={}
+              className={`${styles.card}${s.disabled ? ' ' + styles.cardDisabled : ''}`}
               style={{ '--accent': s.accent }}
               aria-disabled={s.disabled}
               onClick={s.disabled ? (e) => e.preventDefault() : undefined}
@@ -135,7 +135,7 @@ export default function HomePage() {
               <div className={styles.cardName}>{s.name}{s.disabled && <span className={styles.comingSoon}>준비중</span>}</div>
               <p className={styles.cardDesc}>{s.desc}</p>
               <div className={styles.cardFoot}>
-                <span className={}>
+                <span className={`${styles.roleBadge} ${styles[ROLE_LABEL[s.role].className]}`}>
                   {ROLE_LABEL[s.role].text}
                 </span>
                 <span className={styles.cardArrow}>→</span>

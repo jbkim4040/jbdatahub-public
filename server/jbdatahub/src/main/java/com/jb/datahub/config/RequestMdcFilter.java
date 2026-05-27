@@ -1,34 +1,59 @@
 package com.jb.datahub.config;
 
-import jakarta.servlet.Filter;
+import com.jb.datahub.auth.JwtUtil;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
-import jakarta.servlet.ServletRequest;
-import jakarta.servlet.ServletResponse;
+import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import lombok.RequiredArgsConstructor;
 import org.slf4j.MDC;
+import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
+import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
 import java.util.UUID;
 
 @Component
-@Order(1)
-public class RequestMdcFilter implements Filter {
+@RequiredArgsConstructor
+@Order(Ordered.HIGHEST_PRECEDENCE)
+public class RequestMdcFilter extends OncePerRequestFilter {
+
+    private final JwtUtil jwtUtil;
 
     @Override
-    public void doFilter(ServletRequest req, ServletResponse res, FilterChain chain)
-            throws IOException, ServletException {
-        HttpServletRequest request = (HttpServletRequest) req;
-        String requestId = UUID.randomUUID().toString().replace("-", "").substring(0, 8);
-        MDC.put("requestId", requestId);
+    protected void doFilterInternal(HttpServletRequest request,
+                                    HttpServletResponse response,
+                                    FilterChain filterChain) throws ServletException, IOException {
+        String traceId = UUID.randomUUID().toString().replace("-", "").substring(0, 8);
+        MDC.put("traceId", traceId);
         MDC.put("method", request.getMethod());
         MDC.put("path", request.getRequestURI());
-        ((HttpServletResponse) res).setHeader("X-Request-ID", requestId);
+        response.setHeader("X-Request-ID", traceId);
+
+        String userId = "GUEST";
+        String userRole = "GUEST";
+        if (request.getCookies() != null) {
+            for (Cookie c : request.getCookies()) {
+                if ("jb_token".equals(c.getName())) {
+                    try {
+                        String token = c.getValue();
+                        if (jwtUtil.isValid(token)) {
+                            userId = jwtUtil.getUsername(token);
+                            userRole = jwtUtil.getRole(token);
+                        }
+                    } catch (Exception ignored) {}
+                    break;
+                }
+            }
+        }
+        MDC.put("userId", userId);
+        MDC.put("userRole", userRole);
+
         try {
-            chain.doFilter(req, res);
+            filterChain.doFilter(request, response);
         } finally {
             MDC.clear();
         }

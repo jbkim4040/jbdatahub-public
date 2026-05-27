@@ -57,9 +57,9 @@ const SERVICES = [
 ]
 
 const ROLE_LABEL = {
-  public:      { text: '공개',     className: 'rolePublic' },
-  admin:       { text: '관리자',   className: 'roleAdmin' },
-  super_admin: { text: '슈퍼관리자', className: 'roleSuper' },
+  public:      { text: '공개',  className: 'rolePublic' },
+  admin:       { text: '내부',  className: 'roleAdmin' },
+  super_admin: { text: '내부',  className: 'roleSuper' },
 }
 
 export default function HomePage() {
@@ -70,7 +70,6 @@ export default function HomePage() {
   const visible = SERVICES.filter(s => {
     if (s.role === 'public')      return true
     if (s.role === 'admin')       return isAdmin || isGuest
-    // GUEST는 전체 서비스 구경 가능 (수정 권한 없음)
     if (s.role === 'super_admin') return isSuperAdmin || isGuest
     return false
   })
@@ -89,13 +88,8 @@ export default function HomePage() {
             {isAuthed ? (
               <>
                 <span className={styles.username}>{auth.username}</span>
-                <span className={`${styles.roleBadge} ${
-                  isSuperAdmin ? styles.roleSuper :
-                  isAdmin      ? styles.roleAdmin :
-                  isGuest      ? styles.roleGuest :
-                                 styles.rolePublic
-                }`}>
-                  {isSuperAdmin ? '슈퍼관리자' : isAdmin ? '관리자' : isGuest ? '뷰어' : '회원'}
+                <span className={}>
+                  {isSuperAdmin ? '코어팀' : isAdmin ? '팀원' : isGuest ? '뷰어' : '회원'}
                 </span>
                 <button onClick={handleLogout} className={styles.logoutBtn}>
                   로그아웃
@@ -127,10 +121,10 @@ export default function HomePage() {
           {visible.map(s => (
             <a
               key={s.host}
-              href={s.disabled ? undefined : `https://${s.host}`}
+              href={s.disabled ? undefined : }
               target={s.disabled ? undefined : '_blank'}
               rel="noreferrer"
-              className={`${styles.card}${s.disabled ? ' ' + styles.cardDisabled : ''}`}
+              className={}
               style={{ '--accent': s.accent }}
               aria-disabled={s.disabled}
               onClick={s.disabled ? (e) => e.preventDefault() : undefined}
@@ -141,7 +135,7 @@ export default function HomePage() {
               <div className={styles.cardName}>{s.name}{s.disabled && <span className={styles.comingSoon}>준비중</span>}</div>
               <p className={styles.cardDesc}>{s.desc}</p>
               <div className={styles.cardFoot}>
-                <span className={`${styles.pill} ${styles[ROLE_LABEL[s.role].className]}`}>
+                <span className={}>
                   {ROLE_LABEL[s.role].text}
                 </span>
                 <span className={styles.cardArrow}>→</span>
@@ -153,8 +147,8 @@ export default function HomePage() {
         {!isSuperAdmin && !isGuest && (
           <p className={styles.hint}>
             ※ {!isAdmin
-              ? '관리자·슈퍼관리자 서비스는 로그인·권한이 부여된 계정에서만 표시됩니다.'
-              : '슈퍼관리자 서비스(Jenkins·Prometheus)는 슈퍼관리자 권한 계정에서만 표시됩니다.'}
+              ? '일부 서비스는 로그인 및 권한이 부여된 계정에서만 표시됩니다.'
+              : '일부 서비스는 추가 권한이 필요한 계정에서만 표시됩니다.'}
           </p>
         )}
       </main>

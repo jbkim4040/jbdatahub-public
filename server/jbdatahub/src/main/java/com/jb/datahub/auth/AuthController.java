@@ -13,8 +13,10 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import java.util.concurrent.ConcurrentHashMap;
+import java.time.Instant;
+import java.time.LocalDateTime;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
@@ -84,8 +86,13 @@ public class AuthController {
             recordFailure(request.getUsername());
             return ResponseEntity.status(401).body("아이디 또는 비밀번호가 올바르지 않습니다.");
         }
+        // 비밀번호 검증 이후 만료 체크 — 메시지 통일로 계정 존재 여부 노출 방지 (CWE-204)
+        if (user.getExpiresAt() != null && user.getExpiresAt().isBefore(Instant.now())) {
+            recordFailure(request.getUsername());
+            return ResponseEntity.status(401).body("아이디 또는 비밀번호가 올바르지 않습니다.");
+        }
         failCounter.remove(request.getUsername());  // 성공 시 카운터 리셋
-        user.setLastLoginAt(java.time.LocalDateTime.now());
+        user.setLastLoginAt(LocalDateTime.now());
         userRepository.save(user);
         String token = jwtUtil.generateToken(user.getUsername(), user.getRole().name());
         RefreshToken rt = refreshTokenService.create(user.getUsername());
@@ -110,6 +117,10 @@ public class AuthController {
                     if (user == null || !user.isActive()) {
                         refreshTokenService.revoke(refreshToken);
                         return ResponseEntity.status(401).<Object>body("사용자를 찾을 수 없습니다.");
+                    }
+                    if (user.getExpiresAt() != null && user.getExpiresAt().isBefore(Instant.now())) {
+                        refreshTokenService.revoke(refreshToken);
+                        return ResponseEntity.status(401).<Object>body("만료된 계정입니다.");
                     }
                     refreshTokenService.revoke(refreshToken);
                     RefreshToken newRt = refreshTokenService.create(user.getUsername());

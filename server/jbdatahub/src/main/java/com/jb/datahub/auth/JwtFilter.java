@@ -51,8 +51,11 @@ public class JwtFilter extends OncePerRequestFilter {
                 java.time.Instant rev = u.getTokensRevokedAt();
                 return rev != null && !issuedAt.isAfter(rev);
             }).orElse(false);
+            boolean notExpired = userOpt.map(u ->
+                u.getExpiresAt() == null || u.getExpiresAt().isAfter(Instant.now())
+            ).orElse(false);
 
-            if (userActive && !dbRevoked && !userTokenRevocationStore.isRevoked(username, issuedAt)) {
+            if (userActive && notExpired && !dbRevoked && !userTokenRevocationStore.isRevoked(username, issuedAt)) {
                 request.setAttribute("jb.user", userOpt.get()); // me() 에서 재조회 생략용
                 var auth = new UsernamePasswordAuthenticationToken(
                         username, null,

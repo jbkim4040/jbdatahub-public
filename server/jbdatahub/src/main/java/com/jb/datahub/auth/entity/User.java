@@ -46,4 +46,7 @@ public class User {
 
     @Column(name = "service_key", length = 1000)
     private String serviceKey;
+
+    @Column(name = "expires_at")
+    private Instant expiresAt;
 }

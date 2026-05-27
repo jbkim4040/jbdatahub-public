@@ -10,6 +10,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
 import java.util.List;
 
 @Service
@@ -69,6 +70,15 @@ public class UserService {
                 userTokenRevocationStore.revoke(user.getUsername());
                 auditLogService.log("USER_DEACTIVATE", user.getUsername(),
                         "by=" + requestingUsername);
+            }
+        }
+        if (dto.getExpiresAt() != null) {
+            user.setExpiresAt(dto.getExpiresAt());
+            if (dto.getExpiresAt().isBefore(Instant.now())) {
+                // 이미 만료된 시각으로 설정 시 기존 토큰 즉시 무효화
+                refreshTokenService.revokeByUsername(user.getUsername());
+                user.setTokensRevokedAt(Instant.now());
+                userTokenRevocationStore.revoke(user.getUsername());
             }
         }
         return new UserResponseDto(user);

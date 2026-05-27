@@ -69,6 +69,7 @@ class AuthMeServiceKeyTest {
     @DisplayName("GET /api/auth/me — 인증된 사용자, serviceKey 포함 응답")
     void me_authenticated_returnsServiceKey() throws Exception {
         when(userRepository.findByUsername(USERNAME)).thenReturn(Optional.of(adminUser));
+        when(serviceKeyEncryptor.decrypt(SERVICE_KEY)).thenReturn(SERVICE_KEY);
 
         mockMvc.perform(get("/api/auth/me")
                         .with(SecurityMockMvcRequestPostProcessors.authentication(adminAuth())))

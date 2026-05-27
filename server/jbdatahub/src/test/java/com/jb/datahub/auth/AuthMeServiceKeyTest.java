@@ -41,6 +41,7 @@ class AuthMeServiceKeyTest {
     @MockBean RefreshTokenService refreshTokenService;
     @MockBean TokenBlacklist tokenBlacklist;
     @MockBean UserTokenRevocationStore userTokenRevocationStore;
+    @MockBean ServiceKeyEncryptor serviceKeyEncryptor;
 
     private static final String USERNAME = "admin";
     private static final String SERVICE_KEY = "testServiceKey123";

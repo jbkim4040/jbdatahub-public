@@ -39,6 +39,7 @@ class AuthControllerTest {
     @MockBean RefreshTokenService refreshTokenService;
     @MockBean TokenBlacklist tokenBlacklist;
     @MockBean UserTokenRevocationStore userTokenRevocationStore;
+    @MockBean ServiceKeyEncryptor serviceKeyEncryptor;
 
     private User activeAdmin;
 

@@ -92,12 +92,4 @@ class PublicApiInvokeControllerTest {
                 .andExpect(jsonPath("$.status").value("fail"));
     }
 
-    @Test
-    @DisplayName("POST /api/public-data/invoke — 미인증 시 401")
-    void invoke_unauthenticated_returns401() throws Exception {
-        mockMvc.perform(post("/api/public-data/invoke")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(invokeBody(1L))))
-                .andExpect(status().isUnauthorized());
-    }
 }

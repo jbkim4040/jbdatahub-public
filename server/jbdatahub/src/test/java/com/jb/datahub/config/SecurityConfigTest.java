@@ -35,7 +35,6 @@ class SecurityConfigTest {
     @MockBean TokenBlacklist tokenBlacklist;
     @MockBean UserTokenRevocationStore userTokenRevocationStore;
     @MockBean UserRepository userRepository;
-    @MockBean com.jb.datahub.auth.GuestReadOnlyFilter guestReadOnlyFilter;
 
     @Test
     @DisplayName("/actuator/prometheus — 인증 없이 접근 시 401/403 아님")

@@ -114,7 +114,7 @@ public class AuthController {
                     }
                     refreshTokenService.revoke(refreshToken);
                     RefreshToken newRt = refreshTokenService.create(user.getUsername());
-                    String newToken = jwtUtil.generateToken(user.getUsername(), user.getRole());
+                    String newToken = jwtUtil.generateToken(user.getUsername(), user.getRole().name());
                     return ResponseEntity.ok()
                             .header(HttpHeaders.SET_COOKIE, authCookie(TOKEN_COOKIE, newToken, TOKEN_MAX_AGE, "/").toString())
                             .header(HttpHeaders.SET_COOKIE, authCookie(REFRESH_COOKIE, newRt.getToken(), REFRESH_MAX_AGE, "/api/auth").toString())

@@ -1,5 +1,6 @@
 package com.jb.datahub;
 
+import com.jb.datahub.auth.entity.Role;
 import com.jb.datahub.auth.entity.User;
 import com.jb.datahub.auth.repository.UserRepository;
 import org.springframework.boot.CommandLineRunner;
@@ -34,7 +35,7 @@ public class JbDataHubApplication {
                 User admin = User.builder()
                         .username(username)
                         .password(passwordEncoder.encode(rawPassword))
-                        .role("ADMIN")
+                        .role(Role.ADMIN)
                         .build();
                 userRepository.save(admin);
                 System.out.println("[DataInitializer] 기본 관리자 계정 생성: " + username);

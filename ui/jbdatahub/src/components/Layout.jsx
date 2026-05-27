@@ -23,21 +23,6 @@ export default function Layout() {
         <nav className={`${styles.nav} ${menuOpen ? styles.navOpen : ''}`} onClick={() => setMenuOpen(false)}>
           <NavLink to="/" end className={({ isActive }) => isActive ? styles.active : ''}>{t('nav.home')}</NavLink>
           <NavLink to="/list" className={({ isActive }) => isActive ? styles.active : ''}>{t('nav.list')}</NavLink>
-          {isAdmin && (
-            <NavLink to="/collect" className={({ isActive }) => isActive ? styles.active : ''}>
-              {t('nav.collect')}
-            </NavLink>
-          )}
-          {isAdmin && (
-            <NavLink to="/admin/scheduler" className={({ isActive }) => isActive ? styles.active : ''}>
-              {t('nav.scheduler')}
-            </NavLink>
-          )}
-          {isAdmin && (
-            <NavLink to="/admin/users" className={({ isActive }) => isActive ? styles.active : ''}>
-              {t('nav.users')}
-            </NavLink>
-          )}
         </nav>
         <div className={styles.authArea}>
           <button

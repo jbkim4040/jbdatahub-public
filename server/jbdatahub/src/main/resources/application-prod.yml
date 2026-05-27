@@ -33,7 +33,7 @@ embed:
   internalToken: ${EMBED_INTERNAL_TOKEN:}
 
 cors:
-  allowed-origins: ${CORS_ALLOWED_ORIGINS:https://jbdatahub.com}
+  allowed-origins: ${CORS_ALLOWED_ORIGINS:https://jbdatahub.com,https://admin.jbdatahub.com}
 
 management:
   endpoints:

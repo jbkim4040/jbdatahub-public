@@ -2,9 +2,7 @@ import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import styles from './HomePage.module.css'
 
-// 서비스 카탈로그 — 스크린샷 디자인과 동일
-// role  : 'public' (누구나) | 'admin' (ADMIN/SUPER_ADMIN) | 'super_admin' (SUPER_ADMIN만)
-// accent: 카테고리별 상단 보더 색
+// role: 'public' | 'admin' (ADMIN/SUPER_ADMIN/GUEST) | 'super_admin' (SUPER_ADMIN만)
 const SERVICES = [
   {
     category: 'FINANCE',  accent: '#22d3ee',
@@ -19,6 +17,13 @@ const SERVICES = [
     host: 'recipe.jbdatahub.com',  icon: '🍽️',
     name: '레시피 저장소',
     desc: 'URL 붙여넣기로 레시피 자동 추출·저장, 단계별 요리 모드',
+    role: 'public',
+  },
+  {
+    category: 'DATA',     accent: '#10b981',
+    host: 'datahub.jbdatahub.com', icon: '🗄️',
+    name: '공공데이터허브',
+    desc: '공공 API 목록 조회·수집 현황, 스케줄러 모니터링',
     role: 'public',
   },
   {
@@ -65,7 +70,8 @@ export default function HomePage() {
   const visible = SERVICES.filter(s => {
     if (s.role === 'public')      return true
     if (s.role === 'admin')       return isAdmin || isGuest
-    if (s.role === 'super_admin') return isSuperAdmin
+    // GUEST는 전체 서비스 구경 가능 (수정 권한 없음)
+    if (s.role === 'super_admin') return isSuperAdmin || isGuest
     return false
   })
 
@@ -76,7 +82,6 @@ export default function HomePage() {
 
   return (
     <div className={styles.page}>
-      {/* ── 상단 헤더 (portal 전용 미니) ── */}
       <header className={styles.header}>
         <div className={styles.headerInner}>
           <div className={styles.logo}>JB DataHub</div>
@@ -105,20 +110,17 @@ export default function HomePage() {
         </div>
       </header>
 
-      {/* ── 글로우 배경 ── */}
       <div className={styles.glow} aria-hidden />
 
-      {/* ── 타이틀 ── */}
       <section className={styles.titleSection}>
         <h1 className={styles.title}>서비스 포털</h1>
         <p className={styles.subtitle}>
           {isAuthed
-            ? <>안녕하세요, <strong>{auth.username}</strong>님</>
+            ? <><strong>{auth.username}</strong>님, 안녕하세요</>
             : '아래 서비스를 둘러보거나 로그인 후 더 많은 기능에 접근하세요'}
         </p>
       </section>
 
-      {/* ── 서비스 그리드 ── */}
       <main className={styles.main}>
         <div className={styles.sectionLabel}>전체 서비스</div>
         <div className={styles.grid}>
@@ -148,8 +150,7 @@ export default function HomePage() {
           ))}
         </div>
 
-        {/* 보이지 않는 서비스 안내 */}
-        {!isSuperAdmin && (
+        {!isSuperAdmin && !isGuest && (
           <p className={styles.hint}>
             ※ {!isAdmin
               ? '관리자·슈퍼관리자 서비스는 로그인·권한이 부여된 계정에서만 표시됩니다.'
@@ -158,11 +159,9 @@ export default function HomePage() {
         )}
       </main>
 
-      {/* ── 푸터 ── */}
       <footer className={styles.footer}>
         jbdatahub.com — infrastructure by JB
       </footer>
     </div>
   )
 }
-

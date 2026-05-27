@@ -48,14 +48,12 @@ public class SecurityConfig {
                 .requestMatchers("/api/auth/login", "/api/auth/refresh", "/api/auth/logout", "/api/health").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/auth/validate-key").permitAll()
                 .requestMatchers("/api/auth/me").authenticated()
-                // actuator — 운영에선 nginx allow 127.0.0.1 으로 차단되지만 Docker 내부 우회 대비 인증 강제
                 .requestMatchers("/actuator/**").hasAnyRole("ADMIN", "SUPER_ADMIN")
                 .requestMatchers(HttpMethod.GET, "/api/public-data/**").permitAll()
                 .requestMatchers(HttpMethod.POST, "/api/public-data/invoke").permitAll()
                 .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").hasAnyRole("ADMIN", "SUPER_ADMIN")
-                // GUEST 는 명시적 read-only 운영 엔드포인트만 (status / history)
-                .requestMatchers(HttpMethod.GET, "/api/admin/collect/status", "/api/admin/collect/history",
-                                 "/api/admin/scheduler").hasAnyRole("ADMIN", "SUPER_ADMIN", "GUEST")
+                // GUEST: 모든 admin GET 읽기 허용 (수정은 GuestReadOnlyFilter가 차단)
+                .requestMatchers(HttpMethod.GET, "/api/admin/**").hasAnyRole("ADMIN", "SUPER_ADMIN", "GUEST")
                 .requestMatchers("/api/admin/**").hasAnyRole("ADMIN", "SUPER_ADMIN")
                 .anyRequest().authenticated())
             .exceptionHandling(eh -> eh

@@ -2,6 +2,7 @@ package com.jb.datahub.auth;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.jb.datahub.auth.entity.RefreshToken;
+import com.jb.datahub.auth.entity.Role;
 import com.jb.datahub.auth.entity.User;
 import com.jb.datahub.auth.repository.UserRepository;
 import com.jb.datahub.config.SecurityConfig;
@@ -46,7 +47,7 @@ class AuthControllerTest {
         activeAdmin = User.builder()
                 .username("admin")
                 .password("$2a$10$encodedPassword")
-                .role("ADMIN")
+                .role(Role.ADMIN)
                 .build();
     }
 
@@ -101,7 +102,7 @@ class AuthControllerTest {
     @Test
     @DisplayName("비활성화된 계정 로그인 — 401 반환")
     void login_inactiveUser_returns401() throws Exception {
-        User inactive = User.builder().username("blocked").password("pw").role("USER")
+        User inactive = User.builder().username("blocked").password("pw").role(Role.USER)
                 .active(false).build();
         when(userRepository.findByUsername("blocked")).thenReturn(Optional.of(inactive));
         when(passwordEncoder.matches(anyString(), anyString())).thenReturn(true);

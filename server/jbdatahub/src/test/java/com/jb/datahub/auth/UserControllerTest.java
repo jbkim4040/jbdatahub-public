@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.jb.datahub.auth.dto.UserCreateDto;
 import com.jb.datahub.auth.dto.UserResponseDto;
 import com.jb.datahub.auth.dto.UserUpdateDto;
+import com.jb.datahub.auth.entity.Role;
 import com.jb.datahub.auth.entity.User;
 import com.jb.datahub.auth.repository.UserRepository;
 import com.jb.datahub.config.SecurityConfig;
@@ -45,7 +46,7 @@ class UserControllerTest {
 
     @BeforeEach
     void setUp() {
-        User u = User.builder().id(1L).username("user1").role("USER").build();
+        User u = User.builder().id(1L).username("user1").role(Role.USER).build();
         sampleDto = new UserResponseDto(u);
     }
 

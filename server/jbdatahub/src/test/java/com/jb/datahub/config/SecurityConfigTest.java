@@ -14,6 +14,7 @@ import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
 
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -40,7 +41,11 @@ class SecurityConfigTest {
     @DisplayName("/actuator/prometheus — 인증 없이 접근 시 401/403 아님")
     void actuator_prometheus_no_auth_not_blocked() throws Exception {
         mockMvc.perform(get("/actuator/prometheus"))
-                .andExpect(status().isNotIn(401, 403));
+                .andExpect(result -> {
+                    int s = result.getResponse().getStatus();
+                    assertNotEquals(401, s, "Security should not block /actuator/prometheus with 401");
+                    assertNotEquals(403, s, "Security should not block /actuator/prometheus with 403");
+                });
     }
 
     @Test

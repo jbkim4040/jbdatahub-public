@@ -1,6 +1,7 @@
 package com.jb.datahub.auth;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.jb.datahub.auth.entity.Role;
 import com.jb.datahub.auth.entity.User;
 import com.jb.datahub.auth.repository.UserRepository;
 import com.jb.datahub.config.SecurityConfig;
@@ -51,7 +52,7 @@ class AuthMeServiceKeyTest {
         adminUser = User.builder()
                 .username(USERNAME)
                 .password("encodedPwd")
-                .role("ADMIN")
+                .role(Role.ADMIN)
                 .serviceKey(SERVICE_KEY)
                 .build();
     }
@@ -79,7 +80,7 @@ class AuthMeServiceKeyTest {
     @Test
     @DisplayName("GET /api/auth/me — serviceKey 없는 사용자, 빈 문자열 반환")
     void me_noServiceKey_returnsEmpty() throws Exception {
-        User noKey = User.builder().username(USERNAME).password("pwd").role("USER").build();
+        User noKey = User.builder().username(USERNAME).password("pwd").role(Role.USER).build();
         when(userRepository.findByUsername(USERNAME)).thenReturn(Optional.of(noKey));
 
         mockMvc.perform(get("/api/auth/me")

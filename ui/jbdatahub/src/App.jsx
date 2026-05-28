@@ -22,17 +22,14 @@ export default function App() {
   return (
     <ToastProvider>
       <AuthProvider>
-      <Routes>
-        {/* 포털 홈 — datahub 서브도메인이면 /list로 자동 이동 */}
-        <Route index element={<DatahubRedirect />} />
-
-        {/* 그 외 페이지 — 기존 Layout (네비 + 푸터) */}
-        <Route path="/" element={<Layout />}>
-          <Route path="login" element={<LoginPage />} />
-          <Route path="list" element={<ListPage />} />
-        </Route>
-      </Routes>
-    </AuthProvider>
+        <Routes>
+          <Route path="/" element={<Layout />}>
+            <Route index element={<DatahubRedirect />} />
+            <Route path="login" element={<LoginPage />} />
+            <Route path="list" element={<ListPage />} />
+          </Route>
+        </Routes>
+      </AuthProvider>
     </ToastProvider>
   )
 }

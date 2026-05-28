@@ -20,7 +20,7 @@ const SERVICES = [
   },
   {
     category: 'DATA',     accent: '#10b981',
-    host: 'datahub.jbdatahub.com', icon: '🗄️',
+    host: 'jbdatahub.com', url: 'https://jbdatahub.com/list', icon: '🗄️',
     name: '공공데이터허브',
     desc: '공공 API 목록 조회·수집 현황, 스케줄러 모니터링',
     role: 'public',
@@ -120,7 +120,7 @@ export default function HomePage() {
           {visible.map(s => (
             <a
               key={s.host}
-              href={s.disabled ? undefined : `https://${s.host}`}
+              href={s.disabled ? undefined : (s.url || `https://${s.host}`)}
               target={s.disabled ? undefined : '_blank'}
               rel="noreferrer"
               className={`${styles.card}${s.disabled ? ' ' + styles.cardDisabled : ''}`}

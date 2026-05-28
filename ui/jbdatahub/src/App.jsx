@@ -23,10 +23,13 @@ export default function App() {
     <ToastProvider>
       <AuthProvider>
         <Routes>
+          {/* 서비스 포털 홈 — 자체 레이아웃 (nav bar 없음) */}
+          <Route index element={<DatahubRedirect />} />
+
+          {/* 내부 페이지 — Layout nav bar 사용 */}
           <Route path="/" element={<Layout />}>
-            <Route index element={<DatahubRedirect />} />
             <Route path="login" element={<LoginPage />} />
-            <Route path="list" element={<ListPage />} />
+            <Route path="list"  element={<ListPage />} />
           </Route>
         </Routes>
       </AuthProvider>

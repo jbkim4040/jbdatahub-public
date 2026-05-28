@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { login } from '../api/authApi'
 import { useAuth } from '../context/AuthContext'
 import { useI18n } from '../context/I18nContext'
@@ -9,6 +9,7 @@ export default function LoginPage() {
   const { login: setAuth } = useAuth()
   const { t } = useI18n()
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const [form, setForm] = useState({ username: '', password: '' })
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
@@ -20,7 +21,12 @@ export default function LoginPage() {
     try {
       const res = await login(form.username, form.password)
       setAuth(null, null, res.data.username, res.data.role)
-      navigate('/')
+      const returnUrl = searchParams.get('returnUrl')
+      if (returnUrl && /^https:\/\/[^/]*\.jbdatahub\.com/.test(returnUrl)) {
+        window.location.href = returnUrl
+      } else {
+        navigate('/')
+      }
     } catch {
       setError(t('login.error'))
     } finally {

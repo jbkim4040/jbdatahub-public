@@ -1,3 +1,22 @@
+## 절대 금지 가드레일 (운영 매뉴얼 준수)
+
+다음 항목은 **어떠한 상황에서도 자동 실행 불가** — 사용자 명시적 동의 필요:
+
+| 분류 | 금지 행위 |
+|------|-----------|
+| **DB** | `ALTER TABLE`, `DROP TABLE`, `CREATE TABLE`, 마이그레이션 스크립트 실행 |
+| **인프라** | 프로세스/컨테이너 강제 종료(`kill`, `docker rm -f`), DB 프로세스 중단, 유료 클라우드 리소스 생성 |
+| **인증·라우팅** | OAuth 설정 변경, Nginx 라우팅/도메인/URL 구조 변경 (아래 '자동 진행하면 안 되는 것' 참조) |
+| **보안** | CORS 허용 출처 확장 — `jbdatahub.com`, `admin.jbdatahub.com`만 허용 |
+| **JWT** | Access Token 15분 / Refresh Token 7일 규격 변경 |
+| **로그** | `System.out.println` 또는 대량 디버그 로그 추가 (Loki 디스크 풀 방지) |
+| **master** | 직접 Push 절대 금지 (docs 전용 변경 제외) |
+| **SSH 키** | `~/Downloads/*.key`는 chmod 600 유지; 키 유출 시 서버 `authorized_keys` 즉시 삭제 후 재발급 |
+
+> 🚨 **스모크 테스트 1개라도 실패하면 즉시 배포 실패 처리** — 자동 롤백 후 원인 분석
+
+---
+
 ## Git 워크플로우 (자동 실행 — 사용자 별도 지시 불필요)
 
 작업 단위가 완료되면 아래 순서를 **자동으로** 실행한다.
@@ -14,7 +33,7 @@
 5. **Squash merge (자동)**: 리뷰 이슈 없으면 즉시 머지
    `PUT /repos/jbkim4040/jb-workspace/pulls/{n}/merge` (merge_method: squash)
 6. **Jenkins 빌드 트리거 (자동)**: 머지 직후 실행 → `docs/claude/infra.md` 참조
-7. **Jenkins 빌드 완료 대기 + 스모크 테스트 (자동)**:
+7. **Jenkins 빌드 완료 대기 + 캐시 웜업 + 스모크 테스트 (자동)**:
    ```bash
    # 1) 빌드 번호 확인 후 완료 폴링 (최대 5분)
    BUILD_NUM=$(ssh -i ~/Downloads/jb-manager.key ubuntu@168.107.20.90 \
@@ -31,12 +50,59 @@
      sleep 10
    done
 
-   # 2) 스모크 테스트 실행
+   # 2) 캐시 웜업 — 라우팅 전환 전 Caffeine 캐시를 미리 채움 (최소 5회 호출)
+   # Blue/Green 교체 직후 신규 컨테이너의 cold start 캐시 누락 방지
+   NEW_CONTAINER_PORT=$(ssh -i ~/Downloads/jb-service.key ubuntu@140.245.74.59 \
+     "docker inspect --format='{{range .NetworkSettings.Ports}}{{(index . 0).HostPort}}{{end}}' \
+     \$(docker ps --filter 'name=jbdatahub' --format '{{.Names}}' | head -1)")
+   # 포트 값은 숫자만 허용 — 컨테이너 메타데이터 오염으로 인한 인젝션 방지
+   [[ "$NEW_CONTAINER_PORT" =~ ^[0-9]{4,5}$ ]] || NEW_CONTAINER_PORT="8080"
+   ssh -i ~/Downloads/jb-service.key ubuntu@140.245.74.59 \
+     "curl -sk -o /dev/null http://localhost:${NEW_CONTAINER_PORT}/api/public-data/stats & \
+      curl -sk -o /dev/null http://localhost:${NEW_CONTAINER_PORT}/api/public-data/list?page=0\&size=1 & \
+      wait"
+   echo "캐시 웜업 완료 (stats + list 병렬 호출)"
+
+   # 3) 스모크 테스트 실행 (섹션 1: 8개 공개 서비스 + 섹션 2: API 9개)
    scp -i ~/Downloads/jb-service.key scripts/smoke-test.sh ubuntu@140.245.74.59:/tmp/smoke-test.sh
    ssh -i ~/Downloads/jb-service.key ubuntu@140.245.74.59 "bash /tmp/smoke-test.sh"
+
+   # 4) 임베딩 서비스 가용성 확인 (내부망 전용 — 인프라 서버 경유)
+   EMBED_STATUS=$(ssh -i ~/Downloads/jb-manager.key ubuntu@168.107.20.90 \
+     "curl -s -o /dev/null -w '%{http_code}' --max-time 5 http://10.0.0.188:8001/health")
+   if [ "$EMBED_STATUS" != "200" ]; then
+     echo "🚨 임베딩 서비스 비정상: HTTP $EMBED_STATUS — 배포 실패 처리"
+     exit 1
+   fi
+   echo "✓ 임베딩 서비스 정상 ($EMBED_STATUS)"
    ```
-   - 스모크 테스트 실패 시 → 즉시 로그 분석 후 hotfix
-   - 테스트 파일: `scripts/smoke-test.sh` (9개 케이스)
+   - 스모크 테스트 **1개라도 실패 시** → 즉시 롤백 프로토콜 실행 (아래 참조)
+   - 테스트 파일: `scripts/smoke-test.sh` (섹션 1: 공개 서비스 8개 + 섹션 2: API 9개)
+
+---
+
+## 🚨 롤백 프로토콜
+
+배포 후 스모크 테스트 실패 또는 서비스 장애 감지 시:
+
+```bash
+# 1) 현재 active 컨테이너 확인
+ssh -i ~/Downloads/jb-service.key ubuntu@140.245.74.59 "docker ps | grep jbdatahub"
+
+# 2) 이전 컨테이너(idle 상태)로 nginx upstream 전환
+#    (Blue/Green: Jenkinsfile의 rollback 단계와 동일 로직)
+ssh -i ~/Downloads/jb-service.key ubuntu@140.245.74.59 "
+  IDLE=\$(docker ps -a --filter 'name=jbdatahub' --format '{{.Names}}' | grep -v \$(docker ps --filter 'name=jbdatahub' --format '{{.Names}}'))
+  docker start \$IDLE 2>/dev/null || true
+  echo \"롤백 대상: \$IDLE\"
+"
+
+# 3) 롤백 완료 후 스모크 테스트 재실행
+scp -i ~/Downloads/jb-service.key scripts/smoke-test.sh ubuntu@140.245.74.59:/tmp/smoke-test.sh
+ssh -i ~/Downloads/jb-service.key ubuntu@140.245.74.59 "bash /tmp/smoke-test.sh"
+```
+
+> 롤백 후에도 실패하면 infra server의 Grafana/Loki에서 로그 분석 후 hotfix PR 생성
 
 - **절대 master에 직접 푸시 금지** (docs 전용 변경 제외 — CLAUDE.md 등)
 - git LFS hang 시 GitHub API로 직접 파일 푸시

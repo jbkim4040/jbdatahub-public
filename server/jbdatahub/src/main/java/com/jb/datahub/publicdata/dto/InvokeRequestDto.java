@@ -1,5 +1,7 @@
 package com.jb.datahub.publicdata.dto;
 
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.ToString;
@@ -20,9 +22,12 @@ public class InvokeRequestDto {
     private Long operationSeq;
 
     /** 직접 호출할 엔드포인트 URL (operationSeq 미지정 시 필수) */
+    @Size(max = 2048)
     private String endpointUrl;
 
     /** 사용자의 공공데이터포털 인증키 (Encoding 키) */
+    @NotBlank
+    @Size(max = 1000)
     private String serviceKey;
 
     /** 추가 쿼리 파라미터 */

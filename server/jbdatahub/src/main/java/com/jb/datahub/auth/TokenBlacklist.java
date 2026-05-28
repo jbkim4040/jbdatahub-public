@@ -95,8 +95,7 @@ public class TokenBlacklist {
             for (byte b : h) sb.append(String.format("%02x", b));
             return sb.toString();
         } catch (Exception e) {
-            // SHA-256 은 항상 존재 — 도달 불가. 안전 fallback.
-            return Integer.toHexString(s.hashCode());
+            throw new IllegalStateException("SHA-256 사용 불가", e);
         }
     }
 }

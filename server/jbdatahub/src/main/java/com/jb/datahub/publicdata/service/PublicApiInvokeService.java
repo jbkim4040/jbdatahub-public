@@ -145,10 +145,9 @@ public class PublicApiInvokeService {
                 .doOnNext(r -> log.info("[Invoke] host={} status={} elapsed={}ms",
                         host, r.getHttpStatus(), r.getElapsedMs()))
                 .onErrorResume(e -> {
-                    // 예외 메시지에 URL(serviceKey 포함)이 담길 수 있어 반드시 마스킹
                     String safeMsg = maskKey(e.getMessage() != null ? e.getMessage() : "unknown error");
                     log.error("[Invoke] 호출 실패 - host={}, error={}", host, safeMsg);
-                    return Mono.just(InvokeResultDto.fail("API 호출 실패: " + safeMsg));
+                    return Mono.just(InvokeResultDto.fail("API 호출에 실패했습니다. 잠시 후 다시 시도해주세요."));
                 });
     }
 

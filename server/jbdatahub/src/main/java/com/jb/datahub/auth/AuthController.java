@@ -13,10 +13,14 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import com.github.benmanes.caffeine.cache.Cache;
+import com.github.benmanes.caffeine.cache.Caffeine;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
@@ -44,27 +48,24 @@ public class AuthController {
     /** dummy BCrypt — timing leak 차단용 (실제로 매칭되지 않음) */
     private static final String DUMMY_BCRYPT = "$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy";
 
-    /** username 별 실패 카운터 (메모리, 5분 슬라이딩) — brute-force 방어 (L2) */
+    /** username 별 실패 카운터 (Caffeine TTL 5분 자동 만료) — brute-force 방어 */
     private static final int LOCKOUT_THRESHOLD = 5;
     private static final long LOCKOUT_WINDOW_MS = 5 * 60 * 1000L;
-    private final Map<String, long[]> failCounter = new ConcurrentHashMap<>();
+    private final Cache<String, long[]> failCounter = Caffeine.newBuilder()
+            .expireAfterWrite(LOCKOUT_WINDOW_MS, TimeUnit.MILLISECONDS)
+            .build();
 
     private boolean isLockedOut(String username) {
         if (username == null || username.isBlank()) return false;
-        long[] entry = failCounter.get(username);
-        if (entry == null) return false;
-        if (System.currentTimeMillis() - entry[1] > LOCKOUT_WINDOW_MS) {
-            failCounter.remove(username);
-            return false;
-        }
-        return entry[0] >= LOCKOUT_THRESHOLD;
+        long[] entry = failCounter.getIfPresent(username);
+        return entry != null && entry[0] >= LOCKOUT_THRESHOLD;
     }
 
     private void recordFailure(String username) {
         if (username == null || username.isBlank()) return;
-        failCounter.merge(username,
-            new long[]{1L, System.currentTimeMillis()},
-            (old, n) -> new long[]{old[0] + 1, System.currentTimeMillis()});
+        failCounter.asMap().merge(username,
+            new long[]{1L},
+            (old, n) -> new long[]{old[0] + 1});
     }
 
     @PostMapping("/login")
@@ -91,7 +92,7 @@ public class AuthController {
             recordFailure(request.getUsername());
             return ResponseEntity.status(401).body("아이디 또는 비밀번호가 올바르지 않습니다.");
         }
-        failCounter.remove(request.getUsername());  // 성공 시 카운터 리셋
+        failCounter.invalidate(request.getUsername());  // 성공 시 카운터 리셋
         user.setLastLoginAt(LocalDateTime.now());
         userRepository.save(user);
         String token = jwtUtil.generateToken(user.getUsername(), user.getRole().name());
@@ -111,18 +112,15 @@ public class AuthController {
         if (refreshToken == null) {
             return ResponseEntity.status(401).body("리프레시 토큰이 없습니다.");
         }
-        return refreshTokenService.validate(refreshToken)
+        return refreshTokenService.validateAndRevoke(refreshToken)
                 .map(rt -> {
                     User user = userRepository.findByUsername(rt.getUsername()).orElse(null);
                     if (user == null || !user.isActive()) {
-                        refreshTokenService.revoke(refreshToken);
                         return ResponseEntity.status(401).<Object>body("사용자를 찾을 수 없습니다.");
                     }
                     if (user.getExpiresAt() != null && user.getExpiresAt().isBefore(Instant.now())) {
-                        refreshTokenService.revoke(refreshToken);
                         return ResponseEntity.status(401).<Object>body("만료된 계정입니다.");
                     }
-                    refreshTokenService.revoke(refreshToken);
                     RefreshToken newRt = refreshTokenService.create(user.getUsername());
                     String newToken = jwtUtil.generateToken(user.getUsername(), user.getRole().name());
                     return ResponseEntity.ok()
@@ -148,7 +146,9 @@ public class AuthController {
         // JwtFilter가 이미 로드한 User 재사용 — DB 재조회 생략
         User cachedUser = (User) httpReq.getAttribute("jb.user");
         String serviceKey;
-        if (cachedUser != null) {
+        if ("GUEST".equals(role)) {
+            serviceKey = "";
+        } else if (cachedUser != null) {
             serviceKey = cachedUser.getServiceKey() != null
                     ? serviceKeyEncryptor.decrypt(cachedUser.getServiceKey()) : "";
         } else {
@@ -170,19 +170,23 @@ public class AuthController {
         if (rawKey == null || rawKey.isBlank()) {
             return ResponseEntity.status(401).body(Map.of("error", "X-Service-Key 헤더가 없습니다."));
         }
-        return userRepository.findByServiceKeyNotNull().stream()
-                .filter(u -> {
-                    try {
-                        return rawKey.equals(serviceKeyEncryptor.decrypt(u.getServiceKey()));
-                    } catch (Exception ignored) {
-                        return false;
-                    }
-                })
-                .findFirst()
-                .map(u -> ResponseEntity.ok((Object) Map.of(
-                        "username", u.getUsername(),
-                        "role", u.getRole().name())))
-                .orElse(ResponseEntity.status(401).body(Map.of("error", "유효하지 않은 서비스 키입니다.")));
+        // 타이밍 공격 방지: 모든 사용자를 순회하여 일치 여부에 무관하게 일정한 처리 시간 보장
+    byte[] rawBytes = rawKey.getBytes(StandardCharsets.UTF_8);
+    User matchedUser = null;
+    for (User u : userRepository.findByServiceKeyNotNull()) {
+        try {
+            String decrypted = serviceKeyEncryptor.decrypt(u.getServiceKey());
+            if (MessageDigest.isEqual(rawBytes, decrypted.getBytes(StandardCharsets.UTF_8))) {
+                if (matchedUser == null) matchedUser = u;
+            }
+        } catch (Exception ignored) {}
+    }
+    if (matchedUser != null) {
+        return ResponseEntity.ok((Object) Map.of(
+                "username", matchedUser.getUsername(),
+                "role", matchedUser.getRole().name()));
+    }
+    return ResponseEntity.status(401).body(Map.of("error", "유효하지 않은 서비스 키입니다."));
     }
 
     @PatchMapping("/me/service-key")
@@ -249,7 +253,7 @@ public class AuthController {
 
     private ResponseCookie authCookie(String name, String value, int maxAge, String path) {
         return ResponseCookie.from(name, value)
-                .domain(".jbdatahub.com")  // 서브도메인 공유 (admin.jbdatahub.com)
+                .domain("jbdatahub.com")  // 서브도메인 공유 (admin.jbdatahub.com)
                 .httpOnly(true)
                 .secure(true)
                 .sameSite("Lax")
@@ -260,7 +264,7 @@ public class AuthController {
 
     private ResponseCookie expireCookie(String name, String path) {
         return ResponseCookie.from(name, "")
-                .domain(".jbdatahub.com")
+                .domain("jbdatahub.com")
                 .httpOnly(true)
                 .secure(true)
                 .sameSite("Lax")

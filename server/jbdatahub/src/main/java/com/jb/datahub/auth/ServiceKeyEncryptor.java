@@ -36,6 +36,9 @@ public class ServiceKeyEncryptor {
             @Value("${service-key.encryption-secret:" + DEV_DEFAULT_SECRET + "}") String secret)
             throws Exception {
         this.usingDefaultSecret = DEV_DEFAULT_SECRET.equals(secret);
+        if (usingDefaultSecret) {
+            log.warn("ServiceKeyEncryptor: 기본 개발용 시크릿 사용 중 — 운영 환경에서는 SERVICE_KEY_ENCRYPTION_SECRET 환경변수를 반드시 설정하세요!");
+        }
         byte[] raw = MessageDigest.getInstance("SHA-256")
                 .digest(secret.getBytes(StandardCharsets.UTF_8));
         secretKey = new SecretKeySpec(raw, "AES");

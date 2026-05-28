@@ -123,7 +123,7 @@ class AuthControllerTest {
                 .username("admin")
                 .expiresAt(LocalDateTime.now().plusDays(7))
                 .build();
-        when(refreshTokenService.validate("valid-refresh")).thenReturn(Optional.of(rt));
+        when(refreshTokenService.validateAndRevoke("valid-refresh")).thenReturn(Optional.of(rt));
         when(userRepository.findByUsername("admin")).thenReturn(Optional.of(activeAdmin));
         when(jwtUtil.generateToken("admin", "ADMIN")).thenReturn("new-access-token");
         RefreshToken newRt = RefreshToken.builder().token("new-refresh").username("admin")
@@ -142,7 +142,7 @@ class AuthControllerTest {
     @Test
     @DisplayName("유효하지 않은 Refresh Token — 401 반환")
     void refresh_invalidToken_returns401() throws Exception {
-        when(refreshTokenService.validate("invalid")).thenReturn(Optional.empty());
+        when(refreshTokenService.validateAndRevoke("invalid")).thenReturn(Optional.empty());
 
         mockMvc.perform(post("/api/auth/refresh")
                         .contentType(MediaType.APPLICATION_JSON)

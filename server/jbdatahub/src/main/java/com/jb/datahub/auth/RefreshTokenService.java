@@ -31,6 +31,15 @@ public class RefreshTokenService {
                 .filter(rt -> rt.getExpiresAt().isAfter(LocalDateTime.now()));
     }
 
+    /** validate + revoke 를 하나의 트랜잭션에서 원자적으로 처리 (PESSIMISTIC_WRITE 락으로 TOCTOU 완전 차단) */
+    @Transactional
+    public Optional<RefreshToken> validateAndRevoke(String token) {
+        Optional<RefreshToken> found = repository.findByTokenForUpdate(token)
+                .filter(rt -> rt.getExpiresAt().isAfter(LocalDateTime.now()));
+        found.ifPresent(repository::delete);
+        return found;
+    }
+
     @Transactional
     public void revoke(String token) {
         repository.findByToken(token).ifPresent(repository::delete);

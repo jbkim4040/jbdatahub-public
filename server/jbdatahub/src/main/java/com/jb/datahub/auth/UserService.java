@@ -89,6 +89,7 @@ public class UserService {
         User user = getUser(id);
         checkCanManage(user.getRole(), requestingRole);
         user.setPassword(passwordEncoder.encode(dto.getNewPassword()));
+        user.setTokensRevokedAt(Instant.now());
         refreshTokenService.revokeByUsername(user.getUsername());
         userTokenRevocationStore.revoke(user.getUsername());
         auditLogService.log("PASSWORD_CHANGE", user.getUsername(),
@@ -111,8 +112,8 @@ public class UserService {
         refreshTokenService.revokeByUsername(user.getUsername());
         user.setTokensRevokedAt(java.time.Instant.now());
         userRepository.save(user);
-        userTokenRevocationStore.revoke(user.getUsername());
         userRepository.delete(user);
+        userTokenRevocationStore.revoke(user.getUsername());  // DB 커밋 후 인메모리 갱신
     }
 
     @Transactional

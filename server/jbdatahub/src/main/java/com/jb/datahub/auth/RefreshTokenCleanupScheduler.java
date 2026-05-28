@@ -18,7 +18,7 @@ public class RefreshTokenCleanupScheduler {
     @Scheduled(cron = "0 0 3 * * *")
     @Transactional
     public void cleanupExpiredTokens() {
-        int deleted = repository.deleteExpiredAndUsed();
+        int deleted = repository.deleteExpired();
         if (deleted > 0) {
             log.info("Cleaned up {} expired/used refresh tokens", deleted);
         }

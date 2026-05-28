@@ -52,11 +52,12 @@ public class SecurityConfig {
                 .requestMatchers("/actuator/prometheus").permitAll()
                 .requestMatchers("/actuator/**").hasAnyRole("ADMIN", "SUPER_ADMIN")
                 .requestMatchers(HttpMethod.GET, "/api/public-data/**").permitAll()
-                .requestMatchers(HttpMethod.POST, "/api/public-data/invoke").permitAll()
+                .requestMatchers(HttpMethod.POST, "/api/public-data/invoke").authenticated()
                 .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").hasAnyRole("ADMIN", "SUPER_ADMIN")
                 // GUEST: 모든 admin GET 읽기 허용 (수정은 GuestReadOnlyFilter가 차단)
                 .requestMatchers(HttpMethod.GET, "/api/admin/**").hasAnyRole("ADMIN", "SUPER_ADMIN", "GUEST")
                 .requestMatchers("/api/admin/**").hasAnyRole("ADMIN", "SUPER_ADMIN")
+                .requestMatchers(HttpMethod.PATCH, "/api/auth/me/service-key").hasAnyRole("USER", "ADMIN", "SUPER_ADMIN")
                 .anyRequest().authenticated())
             .exceptionHandling(eh -> eh
                 .authenticationEntryPoint((req, res, e) -> {

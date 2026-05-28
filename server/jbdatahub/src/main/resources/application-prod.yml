@@ -30,7 +30,7 @@ admin:
 
 embed:
   url: ${EMBED_SERVICE_URL:http://localhost:8001}
-  internalToken: ${EMBED_INTERNAL_TOKEN:}
+  internalToken: ${EMBED_INTERNAL_TOKEN}
 
 cors:
   allowed-origins: ${CORS_ALLOWED_ORIGINS:https://jbdatahub.com,https://admin.jbdatahub.com}
@@ -50,6 +50,10 @@ jwt:
 
 service-key:
   encryption-secret: ${SERVICE_KEY_ENCRYPTION_SECRET}
+
+springdoc:
+  swagger-ui:
+    try-it-out-enabled: false
 
 logging:
   level:

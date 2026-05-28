@@ -10,7 +10,6 @@ const SERVICES = [
     name: 'Compass',
     desc: 'KRX·NASDAQ 종목 검색, 지표 분석, AI 리포트, 모의투자',
     role: 'public',
-    disabled: true,
   },
   {
     category: 'APP',      accent: '#f97316',
@@ -25,7 +24,6 @@ const SERVICES = [
     name: '공공데이터허브',
     desc: '공공 API 목록 조회·수집 현황, 스케줄러 모니터링',
     role: 'public',
-    disabled: true,
   },
   {
     category: 'ADMIN',    accent: '#3b82f6',

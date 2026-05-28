@@ -48,13 +48,13 @@ check "목록 조회 (GET /list)"          "200" "$BASE_URL/api/public-data/list
 check "통계 조회 (GET /stats)"         "200" "$BASE_URL/api/public-data/stats"
 
 echo ""
-echo "[invoke — 비인증 허용 확인 (#231 수정)]"
-check "invoke 비인증 접근 → 401 아님" "200" \
+echo "[invoke — 인증 필수 확인 (#275 보안패치)]"
+check "invoke 비인증 접근 → 401" "401" \
   -X POST "$BASE_URL/api/public-data/invoke" \
   -H "Content-Type: application/json" \
   -d '{"serviceKey":"smoke-test-key","endpointUrl":"https://apis.data.go.kr/test","params":{}}'
 
-check "invoke SSRF 차단 → 400" "400" \
+check "invoke SSRF 차단 (비인증) → 401" "401" \
   -X POST "$BASE_URL/api/public-data/invoke" \
   -H "Content-Type: application/json" \
   -d '{"serviceKey":"smoke-test-key","endpointUrl":"https://evil.com/steal","params":{}}'

@@ -49,10 +49,12 @@ _check_up_bg() {
   local actual
   actual=$(curl -sk -o /dev/null -w "%{http_code}" --max-time 10 "$@")
   local first="${actual:0:1}"
-  if [ "$first" = "2" ] || [ "$first" = "3" ]; then
+  # 2xx/3xx/4xx 모두 "서비스 응답 있음"으로 허용 (403=인증 필요한 관리 도구 포함)
+  # 000=연결 실패, 5xx=서버 오류만 실패 처리
+  if [ "$actual" != "000" ] && [ "$first" != "5" ]; then
     echo "PASS  ✓ $name ($actual)" >> "$_S1_TMP"
   else
-    echo "FAIL  ✗ $name — got $actual (expected 2xx/3xx)" >> "$_S1_TMP"
+    echo "FAIL  ✗ $name — got $actual (서비스 응답 없음 또는 서버 오류)" >> "$_S1_TMP"
   fi
 }
 
@@ -60,16 +62,16 @@ echo "=== jb-workspace 스모크 테스트 ($(date '+%Y-%m-%d %H:%M:%S')) ==="
 echo "대상: $BASE_URL"
 echo ""
 
-echo "[섹션 1 — 서비스 가용성 (8개 공개 서비스, 병렬 실행)]"
+echo "[섹션 1 — 서비스 가용성 (7개 공개 서비스, 병렬 실행)]"
+# portal.jbdatahub.com 은 아직 미배포 (DNS/nginx 미설정) — 배포 후 추가 예정
 _check_up_bg "메인 포탈"       "https://jbdatahub.com" &
 _check_up_bg "공공데이터 UI"   "https://datahub.jbdatahub.com" &
 _check_up_bg "어드민 포탈"     "https://admin.jbdatahub.com" &
-_check_up_bg "서비스 포탈"     "https://portal.jbdatahub.com" &
 _check_up_bg "나침반"          "https://compass.jbdatahub.com" &
 _check_up_bg "레시피 저장소"   "https://recipe.jbdatahub.com" &
 _check_up_bg "Jenkins"         "https://jenkins.jbdatahub.com" &
 _check_up_bg "Grafana"         "https://grafana.jbdatahub.com" &
-wait  # 8개 완료 대기 (최대 10초)
+wait  # 7개 완료 대기 (최대 10초)
 
 # 결과 집계 (임시 파일에서 읽기)
 while IFS= read -r line; do

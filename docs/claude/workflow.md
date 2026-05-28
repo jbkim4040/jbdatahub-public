@@ -77,7 +77,8 @@
    echo "✓ 임베딩 서비스 정상 ($EMBED_STATUS)"
    ```
    - 스모크 테스트 **1개라도 실패 시** → 즉시 롤백 프로토콜 실행 (아래 참조)
-   - 테스트 파일: `scripts/smoke-test.sh` (섹션 1: 공개 서비스 8개 + 섹션 2: API 9개)
+   - 테스트 파일: `scripts/smoke-test.sh` (섹션 1: 공개 서비스 7개 + 섹션 2: API 9개)
+   - `portal.jbdatahub.com`은 미배포 — DNS/nginx 설정 후 섹션 1에 추가
 
 ---
 

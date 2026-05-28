@@ -68,6 +68,14 @@
 - 비용 발생: 유료 API/인스턴스 생성
 - 외부 시스템 변경: 도메인 등록, 결제 정보
 - 사용자의 OAuth 인증 (data.go.kr 로그인 등)
+- **라우트·URL 변경 (승인 필수)**: 아래 항목 중 하나라도 해당하면 실행 전 사용자 승인 요청
+  - nginx `server_name`, `location`, `proxy_pass`, `return`/`rewrite` 변경
+  - React Router (`<Route path=...>`) 경로 추가·수정·삭제
+  - Spring Boot `@RequestMapping` / `@GetMapping` 등 API 경로 변경
+  - `nginx -s reload` / nginx 컨테이너 재시작
+  - Cloudflare DNS A/CNAME 레코드 변경
+  - 서비스 카드(HomePage `SERVICES` 배열)의 `host`·`url` 필드 변경
+  > 승인 요청 시 "변경 전→후 라우팅 경로"를 명시할 것
 
 위 항목은 사용자 명시 동의 필요.
 

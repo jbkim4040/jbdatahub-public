@@ -31,6 +31,9 @@ public class JwtFilter extends OncePerRequestFilter {
     @Value("${jwt.expiration:900000}")
     private long jwtExpirationMs;
 
+    @Value("${app.cookie-domain:}")
+    private String cookieDomain;
+
     /** 잔여 시간이 이 값보다 작으면 새 토큰 발급 (sliding window) — TTL의 1/3 */
     private static final long SLIDING_THRESHOLD_MS = 5 * 60 * 1000L;   // 5분
 
@@ -68,10 +71,11 @@ public class JwtFilter extends OncePerRequestFilter {
                     long remaining = jwtUtil.getExpiration(token).getTime() - System.currentTimeMillis();
                     if (remaining < SLIDING_THRESHOLD_MS) {
                         String newToken = jwtUtil.generateToken(username, role);
-                        ResponseCookie cookie = ResponseCookie.from("jb_token", newToken)
-                                .domain(".jbdatahub.com")
+                        ResponseCookie.ResponseCookieBuilder cb = ResponseCookie.from("jb_token", newToken)
                                 .httpOnly(true).secure(true).sameSite("Lax")
-                                .path("/").maxAge(jwtExpirationMs / 1000).build();
+                                .path("/").maxAge(jwtExpirationMs / 1000);
+                        if (!cookieDomain.isBlank()) cb.domain(cookieDomain);
+                        ResponseCookie cookie = cb.build();
                         response.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
                     }
                 } catch (Exception ignore) {}

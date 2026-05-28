@@ -32,6 +32,9 @@ embed:
   url: ${EMBED_SERVICE_URL:http://localhost:8001}
   internalToken: ${EMBED_INTERNAL_TOKEN:}
 
+app:
+  cookie-domain: ${COOKIE_DOMAIN:jbdatahub.com}
+
 cors:
   allowed-origins: ${CORS_ALLOWED_ORIGINS:https://jbdatahub.com,https://admin.jbdatahub.com}
 

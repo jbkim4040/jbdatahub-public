@@ -5,10 +5,11 @@ import os
 import time
 from fastapi import Request, HTTPException
 from fastapi.responses import JSONResponse
+from config import settings
 
 logger = logging.getLogger(__name__)
 
-JBDATAHUB_URL = "https://jbdatahub.com"
+JBDATAHUB_URL = settings.target_url
 INTERNAL_TOKEN = os.environ["INTERNAL_TOKEN"]  # WAS ↔ admin-portal: 환경변수 강제, 기본값 없음
 ALLOWED_ROLES = {"ADMIN", "SUPER_ADMIN", "GUEST"}
 MUTATION_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
@@ -87,7 +88,7 @@ async def admin_auth_middleware(request: Request, call_next):
         return JSONResponse(
             {"error": "forbidden" if role else "unauthorized",
              "message": "관리자(ADMIN/SUPER_ADMIN/GUEST) 권한 필요" if role
-                        else "로그인이 필요합니다. https://jbdatahub.com/login"},
+                        else f"로그인이 필요합니다. {JBDATAHUB_URL}/login"},
             status_code=status,
         )
 

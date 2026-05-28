@@ -21,6 +21,7 @@ class Settings(BaseSettings):
     db_user: str = "jbdatahub"
     db_password: str
 
+    cors_origins: str = "https://jbdatahub.com,https://admin.jbdatahub.com,http://localhost:5173"
     webhook_secret: str = ""
     app_host: str = "0.0.0.0"
     app_port: int = 8080

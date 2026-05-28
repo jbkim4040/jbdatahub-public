@@ -13,6 +13,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import java.nio.charset.StandardCharsets;
@@ -37,6 +38,9 @@ public class AuthController {
     private static final String REFRESH_COOKIE = "jb_refresh";
     private static final int    TOKEN_MAX_AGE   = 15 * 60;            // 15분
     private static final int    REFRESH_MAX_AGE = 7 * 24 * 60 * 60;   // 7일
+
+    @Value("${app.cookie-domain:}")
+    private String cookieDomain;
 
     private final JwtUtil              jwtUtil;
     private final UserRepository       userRepository;
@@ -252,24 +256,18 @@ public class AuthController {
     }
 
     private ResponseCookie authCookie(String name, String value, int maxAge, String path) {
-        return ResponseCookie.from(name, value)
-                .domain("jbdatahub.com")  // 서브도메인 공유 (admin.jbdatahub.com)
-                .httpOnly(true)
-                .secure(true)
-                .sameSite("Lax")
-                .path(path)
-                .maxAge(maxAge)
-                .build();
+        ResponseCookie.ResponseCookieBuilder b = ResponseCookie.from(name, value)
+                .httpOnly(true).secure(true).sameSite("Lax")
+                .path(path).maxAge(maxAge);
+        if (!cookieDomain.isBlank()) b.domain(cookieDomain);
+        return b.build();
     }
 
     private ResponseCookie expireCookie(String name, String path) {
-        return ResponseCookie.from(name, "")
-                .domain("jbdatahub.com")
-                .httpOnly(true)
-                .secure(true)
-                .sameSite("Lax")
-                .path(path)
-                .maxAge(0)
-                .build();
+        ResponseCookie.ResponseCookieBuilder b = ResponseCookie.from(name, "")
+                .httpOnly(true).secure(true).sameSite("Lax")
+                .path(path).maxAge(0);
+        if (!cookieDomain.isBlank()) b.domain(cookieDomain);
+        return b.build();
     }
 }

@@ -34,6 +34,9 @@ spring:
         order_updates: true
     show-sql: false
 
+app:
+  cookie-domain: ""   # 로컬 개발: 빈 값(localhost 호환) / 운영: application-prod.yml에서 주입
+
 jwt:
   expiration: 900000  # 15분 (ms) — 로컬 기본값
 

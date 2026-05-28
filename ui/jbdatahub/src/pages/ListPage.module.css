@@ -42,13 +42,6 @@
 .topicCount { font-size: .72rem; opacity: .75; }
 
 /* 검색 */
-.searchRow { display: flex; gap: .6rem; margin-bottom: 1rem; flex-wrap: wrap; }
-.searchInput {
-  flex: 1; max-width: 400px; padding: .55rem .9rem;
-  border: 1px solid #ccd4e0; border-radius: 6px; font-size: .9rem;
-}
-.searchInput:focus { outline: none; border-color: #1e3a5f; }
-.btnSearch { padding: .55rem 1.2rem; background: #1e3a5f; color: #fff; border: none; border-radius: 6px; cursor: pointer; font-size: .9rem; }
 .btnReset { padding: .55rem 1rem; background: #eee; color: #555; border: none; border-radius: 6px; cursor: pointer; font-size: .9rem; }
 .btnSemantic {
   padding: .55rem 1rem; background: #f0f4fa; color: #3a5a8a;
@@ -85,15 +78,6 @@
 .badge { padding: .2rem .5rem; border-radius: 4px; font-size: .78rem; font-weight: 600; }
 .rest { background: #dbeafe; color: #1e40af; }
 .soap { background: #fef3c7; color: #92400e; }
-
-/* 페이지네이션 */
-.pagination { display: flex; align-items: center; justify-content: center; gap: .5rem; margin-top: 1.2rem; }
-.pagination button {
-  padding: .4rem .8rem; border: 1px solid #ccd4e0; background: #fff;
-  border-radius: 5px; cursor: pointer; font-size: .85rem; color: #1e3a5f;
-}
-.pagination button:disabled { opacity: .4; cursor: not-allowed; }
-.pagination span { font-size: .88rem; color: #555; }
 
 .loading { text-align: center; padding: 3rem; color: #888; }
 

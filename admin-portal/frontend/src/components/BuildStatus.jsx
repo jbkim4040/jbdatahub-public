@@ -1,9 +1,4 @@
-const RESULT_STYLE = {
-  SUCCESS: 'bg-green-100 text-green-700',
-  FAILURE: 'bg-red-100 text-red-700',
-  ABORTED: 'bg-gray-100 text-gray-500',
-  null:    'bg-blue-100 text-blue-700',
-}
+import { RESULT_STYLE } from '../utils/badge'
 
 export default function BuildStatus({ build, onClick }) {
   const { number, result, timestamp, duration, building } = build

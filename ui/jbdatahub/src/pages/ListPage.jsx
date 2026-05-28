@@ -8,6 +8,8 @@ import { useI18n } from '../context/I18nContext'
 import styles from './ListPage.module.css'
 import RelatedDatasets from '../components/RelatedDatasets'
 import ApiInvokeConsole from '../components/ApiInvokeConsole'
+import Pagination from '../components/Pagination'
+import SearchBar from '../components/SearchBar'
 
 const TABS = [
   { key: 'openapi', labelKey: 'list.tab.openapi' },
@@ -188,14 +190,16 @@ function OpenApiTab() {
 
       {/* 검색 */}
       <RelatedDatasets query={query} onSelect={(it) => { setSearch(it.listTitle); setQuery(it.listTitle); loadList(0, it.listTitle, sort, null) }} />
-      <form className={styles.searchRow} onSubmit={handleSearch}>
-        <input className={styles.searchInput} placeholder={t('list.search.placeholder')}
-          value={search} onChange={(e) => setSearch(e.target.value)} />
-        <button className={styles.btnSearch} type="submit">{t('common.search')}</button>
-        {(query || selectedTopic !== null) && (
-          <button className={styles.btnReset} type="button" onClick={handleReset}>{t('common.reset')}</button>
-        )}
-      </form>
+      <SearchBar
+        value={search}
+        onChange={(e) => setSearch(e.target.value)}
+        onSubmit={handleSearch}
+        onReset={handleReset}
+        showReset={!!(query || selectedTopic !== null)}
+        placeholder={t('list.search.placeholder')}
+        searchLabel={t('common.search')}
+        resetLabel={t('common.reset')}
+      />
 
       {relatedTerms.length > 0 && (
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center', margin: '8px 0 4px' }}>
@@ -282,13 +286,13 @@ function OpenApiTab() {
               </tbody>
             </table>
           </div>
-          <div className={styles.pagination}>
-            <button onClick={() => loadList(0)} disabled={data.first}>«</button>
-            <button onClick={() => loadList(page - 1)} disabled={data.first}>‹</button>
-            <span>{page + 1} / {data.totalPages}</span>
-            <button onClick={() => loadList(page + 1)} disabled={data.last}>›</button>
-            <button onClick={() => loadList(data.totalPages - 1)} disabled={data.last}>»</button>
-          </div>
+          <Pagination
+            page={page}
+            totalPages={data.totalPages}
+            first={data.first}
+            last={data.last}
+            onPageChange={loadList}
+          />
         </div>
       )}
 
@@ -449,12 +453,16 @@ function DataItemTab() {
       </div>
 
       {/* 검색 */}
-      <form className={styles.searchRow} onSubmit={handleSearch}>
-        <input className={styles.searchInput} placeholder={t('list.search.filePlaceholder')}
-          value={search} onChange={(e) => setSearch(e.target.value)} />
-        <button className={styles.btnSearch} type="submit">{t('common.search')}</button>
-        {query && <button className={styles.btnReset} type="button" onClick={handleReset}>{t('common.reset')}</button>}
-      </form>
+      <SearchBar
+        value={search}
+        onChange={(e) => setSearch(e.target.value)}
+        onSubmit={handleSearch}
+        onReset={handleReset}
+        showReset={!!query}
+        placeholder={t('list.search.filePlaceholder')}
+        searchLabel={t('common.search')}
+        resetLabel={t('common.reset')}
+      />
 
       {!data && loading && <div className={styles.loading}>{t('common.loading')}</div>}
       {data && (
@@ -503,13 +511,13 @@ function DataItemTab() {
               </tbody>
             </table>
           </div>
-          <div className={styles.pagination}>
-            <button onClick={() => loadItems(0)} disabled={data.first}>«</button>
-            <button onClick={() => loadItems(page - 1)} disabled={data.first}>‹</button>
-            <span>{page + 1} / {data.totalPages}</span>
-            <button onClick={() => loadItems(page + 1)} disabled={data.last}>›</button>
-            <button onClick={() => loadItems(data.totalPages - 1)} disabled={data.last}>»</button>
-          </div>
+          <Pagination
+            page={page}
+            totalPages={data.totalPages}
+            first={data.first}
+            last={data.last}
+            onPageChange={loadItems}
+          />
         </div>
       )}
 

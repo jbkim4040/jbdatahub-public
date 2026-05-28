@@ -1,11 +1,6 @@
 import { useState } from 'react'
 import { GitPullRequest, User, GitBranch, Star, Merge } from 'lucide-react'
-
-const STATE_BADGE = {
-  open: 'bg-green-500/20 text-green-400 border border-green-500/30',
-  closed: 'bg-red-500/20 text-red-400 border border-red-500/30',
-  merged: 'bg-purple-500/20 text-purple-400 border border-purple-500/30',
-}
+import { STATE_BADGE } from '../utils/badge'
 
 function ScoreBadge({ score }) {
   if (score === null || score === undefined) return null

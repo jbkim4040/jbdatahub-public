@@ -1,0 +1,8 @@
+.searchRow { display: flex; gap: .6rem; margin-bottom: 1rem; flex-wrap: wrap; }
+.searchInput {
+  flex: 1; max-width: 400px; padding: .55rem .9rem;
+  border: 1px solid #ccd4e0; border-radius: 6px; font-size: .9rem;
+}
+.searchInput:focus { outline: none; border-color: #1e3a5f; }
+.btnSearch { padding: .55rem 1.2rem; background: #1e3a5f; color: #fff; border: none; border-radius: 6px; cursor: pointer; font-size: .9rem; }
+.btnReset { padding: .55rem 1rem; background: #eee; color: #555; border: none; border-radius: 6px; cursor: pointer; font-size: .9rem; }

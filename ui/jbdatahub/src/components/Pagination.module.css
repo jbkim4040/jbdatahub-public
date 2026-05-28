@@ -1,0 +1,7 @@
+.pagination { display: flex; align-items: center; justify-content: center; gap: .5rem; margin-top: 1.2rem; }
+.pagination button {
+  padding: .4rem .8rem; border: 1px solid #ccd4e0; background: #fff;
+  border-radius: 5px; cursor: pointer; font-size: .85rem; color: #1e3a5f;
+}
+.pagination button:disabled { opacity: .4; cursor: not-allowed; }
+.pagination span { font-size: .88rem; color: #555; }

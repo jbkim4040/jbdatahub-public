@@ -72,6 +72,11 @@ server {
         proxy_set_header   X-Forwarded-Proto https;
     }
 
+    # 모든 dotfile 차단 (.env, .git, .aws, .ssh 등) — /.well-known 제외
+    location ~ /\.(?!well-known) {
+        return 404;
+    }
+
     location / {
         proxy_pass         http://jbdatahubui:3000;
         proxy_set_header   Host              $host;
